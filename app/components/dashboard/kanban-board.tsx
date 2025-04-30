@@ -14,10 +14,30 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { Plus, MoreHorizontal } from 'lucide-react';
+import {
+  Plus,
+  MoreHorizontal,
+  Bug,
+  Sparkles,
+  ArrowUp,
+  CheckSquare,
+} from 'lucide-react';
 import { Column } from './kanban/column';
 import { SortableTask } from './kanban/sortable-task';
-import { Task } from './kanban/types';
+import { Task, TaskType } from './kanban/types';
+
+const TaskTypeIcon = ({ type }: { type: TaskType }) => {
+  switch (type) {
+    case 'bug':
+      return <Bug className='w-4 h-4 text-red-500' />;
+    case 'feature':
+      return <Sparkles className='w-4 h-4 text-violet-500' />;
+    case 'improvement':
+      return <ArrowUp className='w-4 h-4 text-blue-500' />;
+    default:
+      return <CheckSquare className='w-4 h-4 text-emerald-500' />;
+  }
+};
 
 const initialColumns = [
   {
@@ -263,8 +283,35 @@ export function KanbanBoard() {
 
         <DragOverlay>
           {activeId ? (
-            <div className='bg-white dark:bg-gray-900 p-4 rounded-lg shadow-lg'>
-              {findTask(activeId)?.title}
+            <div className='bg-white shadow-lg rounded-xl p-3 rotate-3 cursor-grabbing w-[350px]'>
+              {(() => {
+                const task = findTask(activeId);
+                if (!task) return null;
+                return (
+                  <div className='space-y-3'>
+                    <div className='flex items-start gap-2'>
+                      <TaskTypeIcon type={task.type} />
+                      <div className='flex-1 min-w-0'>
+                        <h4 className='text-sm font-medium text-gray-900 truncate'>
+                          {task.title}
+                        </h4>
+                        <div className='flex items-center gap-2 mt-1'>
+                          <img
+                            src={task.assignee.avatar}
+                            alt={task.assignee.name}
+                            className='w-5 h-5 rounded-full ring-2 ring-white'
+                          />
+                          {task.labels.length > 0 && (
+                            <span className='px-1.5 py-0.5 bg-gray-50 rounded-md text-xs text-gray-600 font-medium'>
+                              {task.labels[0]}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           ) : null}
         </DragOverlay>

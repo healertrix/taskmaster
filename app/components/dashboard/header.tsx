@@ -17,6 +17,7 @@ const navigation = [
 
 export function DashboardHeader() {
   const [mounted, setMounted] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -77,29 +78,42 @@ export function DashboardHeader() {
             >
               <Settings className='w-5 h-5 text-gray-600' />
             </button>
-            <div className='relative group animate-scale'>
-              <button className='relative' aria-label='Open user menu'>
+            <div className='relative'>
+              <button
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className='relative animate-scale'
+                aria-label='Open user menu'
+                aria-expanded='false'
+                aria-haspopup='true'
+              >
                 <img
                   src='https://images.unsplash.com/photo-1550525811-e5869dd03032?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=32&h=32&q=80'
                   alt='Profile'
-                  className='w-10 h-10 rounded-xl ring-2 ring-white/50 group-hover:ring-white
+                  className='w-10 h-10 rounded-xl ring-2 ring-white/50 hover:ring-white
                          transition-all duration-300'
                 />
               </button>
-              <div
-                className='absolute top-full right-0 mt-2 w-48 opacity-0 invisible
-                            group-hover:opacity-100 group-hover:visible transition-all duration-300'
-              >
-                <div className='glass p-4 rounded-xl space-y-2'>
-                  <div className='text-sm font-medium'>Lora Piterson</div>
-                  <div className='text-xs text-gray-500'>UX/UI Designer</div>
-                  <div className='pt-2 border-t border-gray-200'>
-                    <button className='btn btn-outline w-full text-sm'>
-                      Sign out
-                    </button>
+              {isUserMenuOpen && (
+                <div
+                  className='absolute top-full right-0 mt-2 w-48 transition-all duration-200'
+                  role='menu'
+                  aria-orientation='vertical'
+                  aria-labelledby='user-menu-button'
+                >
+                  <div className='glass p-4 rounded-xl space-y-2'>
+                    <div className='text-sm font-medium'>Lora Piterson</div>
+                    <div className='text-xs text-gray-500'>UX/UI Designer</div>
+                    <div className='pt-2 border-t border-gray-200'>
+                      <button
+                        className='btn btn-outline w-full text-sm'
+                        role='menuitem'
+                      >
+                        Sign out
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
