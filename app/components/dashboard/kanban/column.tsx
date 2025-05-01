@@ -19,7 +19,7 @@ export function Column({ column, tasks, onAddTask }: ColumnProps) {
   });
 
   return (
-    <div className='flex h-full w-[350px] flex-col rounded-lg bg-card p-4'>
+    <div className='flex w-[350px] flex-col rounded-lg bg-card p-4'>
       <div className='mb-4 flex items-center justify-between'>
         <div className='flex items-center gap-2'>
           <h3 className='text-sm font-medium text-foreground'>
@@ -37,17 +37,19 @@ export function Column({ column, tasks, onAddTask }: ColumnProps) {
           <Plus className='h-4 w-4 text-muted-foreground' />
         </button>
       </div>
+
       <div
         ref={setNodeRef}
-        className='flex flex-1 flex-col gap-2 overflow-y-auto rounded-md bg-accent/50 p-2'
+        className='h-[600px] overflow-y-auto flex flex-col gap-2 rounded-md bg-accent/50 p-2'
       >
         <SortableContext items={tasks} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
             <SortableTask key={task.id} task={task} />
           ))}
         </SortableContext>
+
         {tasks.length === 0 && (
-          <div className='flex h-full min-h-[100px] items-center justify-center rounded-md border border-dashed border-accent'>
+          <div className='flex h-20 items-center justify-center rounded-md border border-dashed border-accent'>
             <p className='text-sm text-muted-foreground'>Drop tasks here</p>
           </div>
         )}

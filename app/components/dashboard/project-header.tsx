@@ -1,4 +1,4 @@
-import { Plus, ChevronDown, Star } from 'lucide-react';
+import { ChevronDown, Star } from 'lucide-react';
 
 export function ProjectHeader() {
   return (
@@ -31,10 +31,6 @@ export function ProjectHeader() {
         <button className='inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-700 rounded-md hover:bg-gray-50 border border-gray-200'>
           Quick Filters
           <ChevronDown className='w-4 h-4' />
-        </button>
-        <button className='inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700'>
-          <Plus className='w-4 h-4' />
-          Create Issue
         </button>
       </div>
     </div>
