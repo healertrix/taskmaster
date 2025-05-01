@@ -19,8 +19,9 @@ export function Column({ column, tasks, onAddTask }: ColumnProps) {
   });
 
   return (
-    <div className='flex w-[350px] flex-col rounded-lg bg-card p-4'>
-      <div className='mb-4 flex items-center justify-between'>
+    <div className='flex flex-col w-[350px] h-[calc(100%-1rem)] bg-card rounded-lg flex-shrink-0'>
+      {/* Column Header - Fixed */}
+      <div className='flex items-center justify-between px-3 py-2 border-b border-accent/20'>
         <div className='flex items-center gap-2'>
           <h3 className='text-sm font-medium text-foreground'>
             {column.title}
@@ -38,9 +39,10 @@ export function Column({ column, tasks, onAddTask }: ColumnProps) {
         </button>
       </div>
 
+      {/* Tasks Container - Scrollable */}
       <div
         ref={setNodeRef}
-        className='h-[600px] overflow-y-auto flex flex-col gap-2 rounded-md bg-accent/50 p-2'
+        className='flex-1 overflow-y-auto px-3 py-2 space-y-2'
       >
         <SortableContext items={tasks} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (

@@ -19,7 +19,7 @@ export default function DashboardPage() {
 
       <DashboardHeader />
 
-      <main className='flex h-[calc(100vh-5rem)] pt-20'>
+      <main className='flex h-[calc(100vh-5rem)] mt-20'>
         {/* Project Sidebar */}
         <ProjectSidebar
           isOpen={sidebarOpen}
@@ -28,18 +28,16 @@ export default function DashboardPage() {
 
         {/* Main Content Area */}
         <div
-          className={`flex-1 transition-all duration-300 ${
+          className={`flex-1 flex flex-col transition-all duration-300 ${
             sidebarOpen ? 'ml-64' : 'ml-0'
           }`}
         >
-          <div className='h-full flex flex-col'>
-            {/* Project Header with Navigation and Actions */}
-            <ProjectHeader />
+          {/* Project Header with Navigation and Actions */}
+          <ProjectHeader />
 
-            {/* Project Board */}
-            <div className='flex-1 overflow-hidden'>
-              <KanbanBoard />
-            </div>
+          {/* Project Board */}
+          <div className='flex-1'>
+            <KanbanBoard />
           </div>
         </div>
       </main>

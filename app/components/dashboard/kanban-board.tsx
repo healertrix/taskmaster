@@ -268,17 +268,19 @@ export function KanbanBoard() {
   };
 
   return (
-    <div className='h-[calc(100vh-10rem)] overflow-x-auto'>
+    <div className='h-[calc(100vh-9rem)]'>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className='inline-flex gap-6 p-6 h-full'>
-          {columns.map((column) => (
-            <Column key={column.id} column={column} tasks={column.tasks} />
-          ))}
+        <div className='h-full overflow-x-auto'>
+          <div className='inline-flex h-full gap-4 p-4'>
+            {columns.map((column) => (
+              <Column key={column.id} column={column} tasks={column.tasks} />
+            ))}
+          </div>
         </div>
 
         <DragOverlay>
