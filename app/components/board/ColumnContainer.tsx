@@ -51,7 +51,7 @@ export function ColumnContainer({
   return (
     <div
       ref={setColumnRef}
-      className='flex flex-col w-72 flex-shrink-0 mr-3 kanban-column rounded-xl overflow-hidden'
+      className='flex flex-col w-72 flex-shrink-0 mr-3 kanban-column rounded-xl overflow-hidden max-h-[calc(100vh-180px)]'
     >
       <div
         className={`p-3 rounded-t-xl kanban-column-header flex justify-between items-center ${getColumnStyle(
@@ -76,7 +76,7 @@ export function ColumnContainer({
         className={`flex-1 overflow-y-auto p-3 kanban-column-content rounded-b-xl ${getColumnStyle(
           column.id
         )}`}
-        style={{ maxHeight: 'calc(100vh - 220px)' }} // Adjusted max height
+        style={{ maxHeight: 'calc(100vh - 290px)' }} // Further reduced max height
       >
         <SortableContext items={taskIds}>
           <div className='space-y-3'>
@@ -91,10 +91,12 @@ export function ColumnContainer({
           </div>
         </SortableContext>
       </div>
-      <button className='mt-3 text-white/70 hover:text-white bg-white/5 hover:bg-white/10 w-full text-sm justify-start px-3 py-2.5 flex items-center gap-2 rounded-lg border border-white/5 transition-all duration-200'>
-        <Plus className='w-4 h-4' />
-        Add a card
-      </button>
+      <div className='sticky bottom-0 p-2 bg-background/80 backdrop-blur-sm border-t border-white/5'>
+        <button className='text-white/70 hover:text-white bg-white/5 hover:bg-white/10 w-full text-sm justify-start px-3 py-2 flex items-center gap-2 rounded-lg border border-white/5 transition-all duration-200'>
+          <Plus className='w-4 h-4' />
+          Add a card
+        </button>
+      </div>
     </div>
   );
 }

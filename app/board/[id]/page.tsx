@@ -396,7 +396,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             {/* Left side - Title and description */}
             <div className='flex flex-col'>
               <div className='flex items-center gap-2 mb-0.5'>
-                <h1 className='text-lg font-medium text-purple-400'>
+                <h1 className='text-base font-medium text-purple-400'>
                   {boardName}
                 </h1>
                 <button
@@ -406,9 +406,8 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   <Star className='w-4 h-4' />
                 </button>
               </div>
-              <p className='text-xs text-gray-400 max-w-2xl'>
-                Tourist Sprint 1 tracks development of the Tourism Safety
-                application, covering Android, Web, and Backend components.
+              <p className='text-[10px] text-gray-400 max-w-2xl'>
+                Tourism Safety application: Android, Web, and Backend
               </p>
             </div>
 
@@ -443,14 +442,14 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* Board Content - Wrapped with DndContext */}
-        <div className='flex-1 overflow-x-auto overflow-y-hidden px-6 pb-8 pt-3'>
+        <div className='flex-1 overflow-x-auto overflow-y-auto px-6 pb-4 pt-3'>
           <DndContext
             sensors={sensors}
             collisionDetection={rectIntersection}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <div className='flex items-start h-full'>
+            <div className='flex items-start min-h-[450px] pb-4'>
               {/* Render columns using ColumnContainer */}
               {columns.map((column) => (
                 <ColumnContainer
