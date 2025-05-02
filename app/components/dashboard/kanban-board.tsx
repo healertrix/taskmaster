@@ -190,13 +190,13 @@ const initialColumns = [
 ];
 
 export function KanbanBoard() {
-  const [columns, setColumns] = useState(initialColumns);
+  const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 10,
+        distance: 5,
       },
     }),
     useSensor(KeyboardSensor, {

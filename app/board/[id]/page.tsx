@@ -261,7 +261,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
         {/* Board Content - Taking remaining height with fixed sizing */}
         <div className='flex-1 overflow-hidden'>
-          {/* Horizontal scrolling container */}
           <div className='h-full overflow-x-auto pb-2 px-6'>
             <div className='flex gap-5 min-w-max h-full py-3'>
               {columns.map((column) => (
@@ -291,7 +290,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
                   {/* Cards Container - Scrollable within column */}
                   <div
-                    className={`flex-1 bg-card/50 backdrop-blur-sm border-x border-b border-border rounded-b-lg p-3 space-y-2.5 overflow-y-auto custom-scrollbar`}
+                    className={`flex-1 bg-card/50 backdrop-blur-sm border-x border-b border-border rounded-b-lg p-3 space-y-2.5 overflow-y-auto`}
                   >
                     {column.cards.map((card) => (
                       <div
@@ -392,23 +391,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           </div>
         </div>
       </main>
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(0, 0, 0, 0.1);
-          border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(var(--muted), 0.5);
-          border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(var(--primary), 0.3);
-        }
-      `}</style>
     </div>
   );
 }
