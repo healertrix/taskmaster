@@ -27,16 +27,24 @@ import { SortableTask } from './kanban/sortable-task';
 import { Task, TaskType } from './kanban/types';
 
 const TaskTypeIcon = ({ type }: { type: TaskType }) => {
-  switch (type) {
-    case 'bug':
-      return <Bug className='w-4 h-4 text-red-500' />;
-    case 'feature':
-      return <Sparkles className='w-4 h-4 text-violet-500' />;
-    case 'improvement':
-      return <ArrowUp className='w-4 h-4 text-blue-500' />;
-    default:
-      return <CheckSquare className='w-4 h-4 text-emerald-500' />;
-  }
+  const colorClass =
+    type === 'bug'
+      ? 'text-red-400'
+      : type === 'feature'
+      ? 'text-violet-400'
+      : type === 'improvement'
+      ? 'text-blue-400'
+      : 'text-emerald-400';
+  const Icon =
+    type === 'bug'
+      ? Bug
+      : type === 'feature'
+      ? Sparkles
+      : type === 'improvement'
+      ? ArrowUp
+      : CheckSquare;
+
+  return <Icon className={`w-4 h-4 ${colorClass}`} />;
 };
 
 const initialColumns = [
@@ -186,7 +194,11 @@ export function KanbanBoard() {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 10,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -200,66 +212,75 @@ export function KanbanBoard() {
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
 
-    if (!over) return;
+    if (!over) {
+      setActiveId(null);
+      return;
+    }
 
     const activeTask = findTask(active.id);
-    const overTask = findTask(over.id);
-
-    if (!activeTask) return;
+    if (!activeTask) {
+      setActiveId(null);
+      return;
+    }
 
     const activeColumn = columns.find((col) =>
       col.tasks.some((task) => task.id === active.id)
     );
     const overColumn =
-      columns.find((col) => col.tasks.some((task) => task.id === over.id)) ||
-      columns.find((col) => col.id === over.id);
+      columns.find((col) => col.id === over.id) ||
+      columns.find((col) => col.tasks.some((task) => task.id === over.id));
 
-    if (!activeColumn || !overColumn) return;
+    if (!activeColumn || !overColumn) {
+      setActiveId(null);
+      return;
+    }
 
-    if (activeColumn !== overColumn) {
-      setColumns(
-        columns.map((col) => {
+    if (activeColumn.id === overColumn.id) {
+      const oldIndex = activeColumn.tasks.findIndex((t) => t.id === active.id);
+      const newIndex = overColumn.tasks.findIndex((t) => t.id === over.id);
+
+      if (oldIndex !== newIndex && newIndex !== -1) {
+        setColumns((prev) =>
+          prev.map((col) =>
+            col.id === activeColumn.id
+              ? { ...col, tasks: arrayMove(col.tasks, oldIndex, newIndex) }
+              : col
+          )
+        );
+      }
+    } else {
+      setColumns((prev) => {
+        const activeTasks = activeColumn.tasks.filter(
+          (t) => t.id !== active.id
+        );
+        const overTasks = [...overColumn.tasks];
+
+        const overTaskIndex = overColumn.tasks.findIndex(
+          (t) => t.id === over.id
+        );
+
+        if (overTaskIndex !== -1) {
+          overTasks.splice(overTaskIndex, 0, activeTask);
+        } else {
+          overTasks.push(activeTask);
+        }
+
+        return prev.map((col) => {
           if (col.id === activeColumn.id) {
-            return {
-              ...col,
-              tasks: col.tasks.filter((task) => task.id !== active.id),
-            };
+            return { ...col, tasks: activeTasks };
           }
           if (col.id === overColumn.id) {
-            return {
-              ...col,
-              tasks: [...col.tasks, activeTask],
-            };
+            return { ...col, tasks: overTasks };
           }
           return col;
-        })
-      );
-    } else if (overTask) {
-      const oldIndex = activeColumn.tasks.findIndex(
-        (task) => task.id === active.id
-      );
-      const newIndex = activeColumn.tasks.findIndex(
-        (task) => task.id === over.id
-      );
-
-      setColumns(
-        columns.map((col) => {
-          if (col.id === activeColumn.id) {
-            const newTasks = arrayMove(col.tasks, oldIndex, newIndex);
-            return {
-              ...col,
-              tasks: newTasks,
-            };
-          }
-          return col;
-        })
-      );
+        });
+      });
     }
 
     setActiveId(null);
   };
 
-  const findTask = (id: string) => {
+  const findTask = (id: string): Task | null => {
     for (const column of columns) {
       const task = column.tasks.find((t) => t.id === id);
       if (task) return task;
@@ -267,53 +288,78 @@ export function KanbanBoard() {
     return null;
   };
 
+  const activeTask = activeId ? findTask(activeId) : null;
+
   return (
-    <div className='h-[calc(100vh-9rem)]'>
+    <div className='h-[calc(100vh-8rem)] bg-gradient-to-br from-background via-background to-[hsl(240,20%,10%)] rounded-2xl p-1 overflow-hidden relative'>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className='h-full overflow-x-auto'>
-          <div className='inline-flex h-full gap-4 p-4'>
+        <div className='h-full overflow-x-auto rounded-xl'>
+          <div className='inline-flex h-full gap-5 p-4 min-w-full'>
             {columns.map((column) => (
               <Column key={column.id} column={column} tasks={column.tasks} />
             ))}
+            <div className='flex-shrink-0 w-[360px]'>
+              <button className='btn btn-ghost w-full h-12 flex items-center justify-center gap-2 border-2 border-dashed border-border/50 hover:border-primary hover:bg-primary/5'>
+                <Plus className='w-5 h-5' /> Add Column
+              </button>
+            </div>
           </div>
         </div>
 
-        <DragOverlay>
-          {activeId ? (
-            <div className='bg-white shadow-lg rounded-xl p-3 rotate-3 cursor-grabbing w-[350px]'>
-              {(() => {
-                const task = findTask(activeId);
-                if (!task) return null;
-                return (
-                  <div className='space-y-3'>
-                    <div className='flex items-start gap-2'>
-                      <TaskTypeIcon type={task.type} />
-                      <div className='flex-1 min-w-0'>
-                        <h4 className='text-sm font-medium text-gray-900 truncate'>
-                          {task.title}
-                        </h4>
-                        <div className='flex items-center gap-2 mt-1'>
-                          <img
-                            src={task.assignee.avatar}
-                            alt={task.assignee.name}
-                            className='w-5 h-5 rounded-full ring-2 ring-white'
-                          />
-                          {task.labels.length > 0 && (
-                            <span className='px-1.5 py-0.5 bg-gray-50 rounded-md text-xs text-gray-600 font-medium'>
-                              {task.labels[0]}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+        <DragOverlay dropAnimation={null}>
+          {activeTask ? (
+            <div className='bg-card shadow-2xl rounded-lg p-4 cursor-grabbing w-[360px] ring-2 ring-primary/50 rotate-1 relative overflow-hidden'>
+              <div
+                className={`absolute top-0 left-0 bottom-0 w-1 ${
+                  activeTask.type === 'bug'
+                    ? 'bg-red-500/30'
+                    : activeTask.type === 'feature'
+                    ? 'bg-violet-500/30'
+                    : activeTask.type === 'improvement'
+                    ? 'bg-blue-500/30'
+                    : 'bg-emerald-500/30'
+                }`}
+              ></div>
+
+              <div className='pl-3'>
+                <div className='flex items-start gap-3'>
+                  <div
+                    className={`w-7 h-7 rounded-lg ${
+                      activeTask.type === 'bug'
+                        ? 'bg-red-500/10 text-red-400'
+                        : activeTask.type === 'feature'
+                        ? 'bg-violet-500/10 text-violet-400'
+                        : activeTask.type === 'improvement'
+                        ? 'bg-blue-500/10 text-blue-400'
+                        : 'bg-emerald-500/10 text-emerald-400'
+                    } flex items-center justify-center flex-shrink-0`}
+                  >
+                    <TaskTypeIcon type={activeTask.type} />
                   </div>
-                );
-              })()}
+                  <div className='flex-1 min-w-0'>
+                    <h4 className='text-sm font-semibold text-foreground truncate'>
+                      {activeTask.title}
+                    </h4>
+                    {activeTask.assignee && (
+                      <div className='flex items-center gap-1 mt-1'>
+                        <img
+                          src={activeTask.assignee.avatar}
+                          alt={activeTask.assignee.name}
+                          className='w-4 h-4 rounded-full'
+                        />
+                        <span className='text-xs text-muted-foreground'>
+                          {activeTask.assignee.name}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           ) : null}
         </DragOverlay>

@@ -17,6 +17,8 @@ import {
   CheckSquare,
   ArrowUp,
   Bug,
+  Paperclip,
+  MessageSquare,
 } from 'lucide-react';
 
 // Define card/task type
@@ -28,6 +30,15 @@ interface Task {
   attachments?: number;
   comments?: number;
 }
+
+// Map old colors to new superhero theme colors
+const labelColors = {
+  'bg-red-500': 'bg-primary text-primary-foreground',
+  'bg-purple-500': 'bg-violet-500 text-white',
+  'bg-green-500': 'bg-secondary text-secondary-foreground',
+  'bg-blue-500': 'bg-blue-500 text-white',
+  'bg-gray-500': 'bg-muted text-muted-foreground',
+};
 
 // Sample data for columns and cards
 const initialColumns = [
@@ -184,46 +195,62 @@ const initialColumns = [
   },
 ];
 
+// Helper function to get a column style based on ID
+const getColumnStyle = (id: string) => {
+  const styles = {
+    'review-pending': 'bg-accent/20 border-accent/50',
+    'android-pending': 'bg-violet-500/20 border-violet-500/50',
+    'web-pending': 'bg-secondary/20 border-secondary/50',
+    'backend-pending': 'bg-blue-500/20 border-blue-500/50',
+    references: 'bg-muted/20 border-muted/50',
+    'in-progress': 'bg-primary/20 border-primary/50',
+  };
+
+  return styles[id as keyof typeof styles] || 'bg-muted/20 border-muted/50';
+};
+
 export default function BoardPage({ params }: { params: { id: string } }) {
   const [columns, setColumns] = useState(initialColumns);
   const boardName = 'TouristSprint1'; // Dynamically get this based on params.id in a real app
 
   return (
-    <div className='min-h-screen bg-gradient-to-br from-blue-900 to-indigo-800'>
+    <div className='min-h-screen dot-pattern-dark'>
       <DashboardHeader />
 
       <main className='pt-24 pb-16 px-4'>
         {/* Board Header */}
         <div className='max-w-screen-2xl mx-auto flex justify-between items-center mb-6'>
           <div className='flex items-center space-x-4'>
-            <h1 className='text-xl font-bold text-white'>{boardName}</h1>
+            <h1 className='text-xl font-bold text-foreground bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent'>
+              {boardName}
+            </h1>
             <button
-              className='text-white/70 hover:text-white'
+              className='text-muted-foreground hover:text-accent transition-colors'
               aria-label='Star board'
             >
               <Star className='w-5 h-5' />
             </button>
-            <div className='h-6 border-l border-white/20'></div>
-            <button className='flex items-center gap-1 px-2 py-1 bg-white/10 hover:bg-white/20 rounded text-sm text-white/90'>
+            <div className='h-6 border-l border-border'></div>
+            <button className='btn btn-outline flex items-center gap-1 text-sm'>
               <Users className='w-4 h-4' />
               <span>Share</span>
             </button>
           </div>
 
-          <div className='flex items-center space-x-2'>
-            <button className='flex items-center gap-1 px-3 py-1.5 text-sm text-white bg-white/10 hover:bg-white/20 rounded'>
+          <div className='flex items-center space-x-3'>
+            <button className='btn btn-outline flex items-center gap-1.5 text-sm'>
               <Filter className='w-4 h-4' />
               <span>Filters</span>
             </button>
             <div className='flex -space-x-2'>
-              <div className='w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white text-xs ring-2 ring-blue-900'>
+              <div className='w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white text-xs font-bold ring-2 ring-background'>
                 AN
               </div>
-              <div className='w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white text-xs ring-2 ring-blue-900'>
+              <div className='w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-xs font-bold ring-2 ring-background'>
                 KV
               </div>
               <button
-                className='w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-xs'
+                className='w-8 h-8 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center text-muted-foreground text-xs transition-colors'
                 aria-label='Add new member'
               >
                 <Plus className='w-4 h-4' />
@@ -234,16 +261,23 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
         {/* Board Content */}
         <div className='max-w-screen-2xl mx-auto overflow-x-auto pb-4'>
-          <div className='flex gap-4 min-w-max'>
+          <div className='flex gap-4 min-w-max p-2'>
             {columns.map((column) => (
               <div key={column.id} className='w-72 flex-shrink-0'>
-                {/* Column Header */}
-                <div className='flex items-center justify-between mb-2 px-2'>
-                  <h3 className='text-sm font-medium text-white'>
+                {/* Column Header with themed styling */}
+                <div
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-t-lg ${getColumnStyle(
+                    column.id
+                  )}`}
+                >
+                  <h3 className='text-sm font-medium text-foreground flex items-center'>
                     {column.title}
+                    <span className='ml-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary/20 px-1.5 text-xs font-bold text-primary shadow-sm'>
+                      {column.cards.length}
+                    </span>
                   </h3>
                   <button
-                    className='text-white/70 hover:text-white'
+                    className='text-muted-foreground hover:text-foreground transition-colors'
                     aria-label='More column options'
                   >
                     <MoreHorizontal className='w-4 h-4' />
@@ -251,27 +285,35 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 </div>
 
                 {/* Cards Container */}
-                <div className='space-y-2'>
+                <div
+                  className={`bg-card/50 backdrop-blur-sm border-x border-b border-border rounded-b-lg p-2 space-y-2 max-h-[calc(100vh-260px)] overflow-y-auto`}
+                >
                   {column.cards.map((card) => (
                     <div
                       key={card.id}
-                      className='bg-white rounded-md shadow p-3 cursor-pointer hover:bg-gray-50'
+                      className='card p-3 cursor-pointer task-card-hover'
                     >
                       {/* Card Labels */}
                       {card.labels && card.labels.length > 0 && (
-                        <div className='flex flex-wrap gap-1 mb-2'>
+                        <div className='flex flex-wrap gap-1.5 mb-2.5'>
                           {card.labels.map((label, i) => (
                             <span
                               key={i}
-                              className={`${label.color} h-2 w-12 rounded-sm`}
+                              className={`badge ${
+                                labelColors[
+                                  label.color as keyof typeof labelColors
+                                ] || 'bg-muted text-muted-foreground'
+                              }`}
                               title={label.text}
-                            ></span>
+                            >
+                              {label.text}
+                            </span>
                           ))}
                         </div>
                       )}
 
                       {/* Card Title */}
-                      <h4 className='text-sm font-medium text-gray-800 mb-2'>
+                      <h4 className='text-sm font-medium text-foreground mb-2.5'>
                         {card.title}
                       </h4>
 
@@ -279,14 +321,15 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                       {(card.assignees ||
                         card.attachments ||
                         card.comments) && (
-                        <div className='flex items-center justify-between text-xs text-gray-500 mt-2'>
+                        <div className='flex items-center justify-between text-xs text-muted-foreground mt-3 pt-2 border-t border-border/30'>
                           {/* Card Indicators */}
-                          <div className='flex items-center gap-2'>
+                          <div className='flex items-center gap-3'>
                             {card.attachments && (
                               <div
                                 className='flex items-center gap-1'
                                 title='Attachments'
                               >
+                                <Paperclip className='w-3.5 h-3.5' />
                                 <span>{card.attachments}</span>
                               </div>
                             )}
@@ -295,6 +338,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                                 className='flex items-center gap-1'
                                 title='Comments'
                               >
+                                <MessageSquare className='w-3.5 h-3.5' />
                                 <span>{card.comments}</span>
                               </div>
                             )}
@@ -306,7 +350,11 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                               {card.assignees.map((assignee, i) => (
                                 <div
                                   key={i}
-                                  className={`w-6 h-6 rounded-full ${assignee.color} flex items-center justify-center text-white text-xs ring-1 ring-white`}
+                                  className={`w-6 h-6 rounded-full ${
+                                    assignee.color === 'bg-orange-500'
+                                      ? 'bg-gradient-to-br from-orange-500 to-amber-600'
+                                      : 'bg-gradient-to-br from-purple-500 to-violet-600'
+                                  } flex items-center justify-center text-white text-xs font-bold ring-1 ring-background`}
                                   title={assignee.initials}
                                 >
                                   {assignee.initials}
@@ -320,8 +368,8 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   ))}
 
                   {/* Add Card Button */}
-                  <button className='w-full px-3 py-2 text-sm text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded flex items-center justify-center'>
-                    <Plus className='w-4 h-4 mr-1' />
+                  <button className='w-full px-3 py-2 text-sm text-muted-foreground hover:text-primary bg-muted/20 hover:bg-primary/5 rounded-lg border border-dashed border-border/50 hover:border-primary/50 transition-colors flex items-center justify-center'>
+                    <Plus className='w-4 h-4 mr-1.5' />
                     Add a card
                   </button>
                 </div>
@@ -329,9 +377,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             ))}
 
             {/* Add Column Button */}
-            <div className='w-72 flex-shrink-0'>
-              <button className='w-full px-3 py-2.5 text-sm text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded flex items-center justify-center'>
-                <Plus className='w-4 h-4 mr-1' />
+            <div className='w-72 flex-shrink-0 self-start mt-12'>
+              <button className='w-full px-3 py-2.5 text-sm text-muted-foreground hover:text-primary bg-card/30 hover:bg-primary/5 rounded-lg border border-dashed border-border/50 hover:border-primary/50 transition-colors flex items-center justify-center'>
+                <Plus className='w-4 h-4 mr-1.5' />
                 Add another list
               </button>
             </div>
