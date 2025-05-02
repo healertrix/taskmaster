@@ -56,13 +56,13 @@ interface Column {
   cards: Task[];
 }
 
-// Map old colors to new superhero theme colors
+// Map old colors to new space theme colors
 const labelColors = {
-  'bg-red-500': 'bg-primary text-primary-foreground',
-  'bg-purple-500': 'bg-violet-500 text-white',
-  'bg-green-500': 'bg-secondary text-secondary-foreground',
-  'bg-blue-500': 'bg-blue-500 text-white',
-  'bg-gray-500': 'bg-muted text-muted-foreground',
+  'bg-red-500': 'bg-primary text-white',
+  'bg-purple-500': 'bg-purple-500 text-white',
+  'bg-green-500': 'bg-secondary text-white',
+  'bg-blue-500': 'bg-accent text-white',
+  'bg-gray-500': 'bg-slate-500 text-white',
 };
 
 // Sample data for columns and cards
@@ -223,15 +223,15 @@ const initialColumns: Column[] = [
 // Helper function to get a column style based on ID
 const getColumnStyle = (id: string) => {
   const styles = {
-    'review-pending': 'bg-accent/20 border-accent/50',
-    'android-pending': 'bg-violet-500/20 border-violet-500/50',
-    'web-pending': 'bg-secondary/20 border-secondary/50',
-    'backend-pending': 'bg-blue-500/20 border-blue-500/50',
-    references: 'bg-muted/20 border-muted/50',
-    'in-progress': 'bg-primary/20 border-primary/50',
+    'review-pending': 'bg-purple-500/10 border-purple-500/30 text-purple-500',
+    'android-pending': 'bg-violet-500/10 border-violet-500/30 text-violet-500',
+    'web-pending': 'bg-green-500/10 border-green-500/30 text-green-500',
+    'backend-pending': 'bg-blue-500/10 border-blue-500/30 text-blue-500',
+    'references': 'bg-slate-500/10 border-slate-500/30 text-slate-400',
+    'in-progress': 'bg-primary/10 border-primary/30 text-primary',
   };
 
-  return styles[id as keyof typeof styles] || 'bg-muted/20 border-muted/50';
+  return styles[id as keyof typeof styles] || 'bg-slate-500/10 border-slate-500/30 text-slate-400';
 };
 
 export default function BoardPage({ params }: { params: { id: string } }) {

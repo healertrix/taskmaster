@@ -63,7 +63,7 @@ export function TaskCard({ task, labelColors, columnId }: TaskCardProps) {
       style={style}
       {...attributes}
       {...listeners}
-      className='p-3 rounded-lg card card-hover cursor-grab active:cursor-grabbing shadow-sm' // Added cursor styles
+      className='p-3 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:border-white/20 hover:bg-white/10 cursor-grab active:cursor-grabbing transition-all duration-300 hover:-translate-y-1 shadow-lg shadow-black/10'
     >
       {/* Labels */}
       {task.labels && task.labels.length > 0 && (
@@ -82,7 +82,7 @@ export function TaskCard({ task, labelColors, columnId }: TaskCardProps) {
       )}
 
       {/* Title */}
-      <p className='text-sm font-medium text-foreground mb-3 leading-snug'>
+      <p className='text-sm font-medium text-white mb-3 leading-snug'>
         {task.title}
       </p>
 
@@ -92,7 +92,7 @@ export function TaskCard({ task, labelColors, columnId }: TaskCardProps) {
           {task.assignees?.map((assignee, index) => (
             <div
               key={index}
-              className={`w-6 h-6 rounded-full ${assignee.color} flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-card`}
+              className={`w-6 h-6 rounded-full ${assignee.color} flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-black/40`}
               title={assignee.initials} // Add tooltip later if needed
             >
               {assignee.initials}
@@ -100,7 +100,7 @@ export function TaskCard({ task, labelColors, columnId }: TaskCardProps) {
           ))}
         </div>
 
-        <div className='flex items-center gap-2.5 text-muted-foreground text-xs'>
+        <div className='flex items-center gap-2.5 text-white/60 text-xs'>
           {task.attachments && (
             <span className='flex items-center gap-0.5'>
               <Paperclip className='w-3.5 h-3.5' />
@@ -113,7 +113,6 @@ export function TaskCard({ task, labelColors, columnId }: TaskCardProps) {
               {task.comments}
             </span>
           )}
-          {/* Add other potential icons/stats here */}
         </div>
       </div>
     </div>

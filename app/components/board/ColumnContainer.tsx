@@ -51,21 +51,21 @@ export function ColumnContainer({
   return (
     <div
       ref={setColumnRef}
-      className={`flex flex-col w-80 flex-shrink-0 mr-4`} // Added fixed width and margin
+      className='flex flex-col w-80 flex-shrink-0 mr-4 kanban-column rounded-xl overflow-hidden'
     >
       <div
-        className={`p-3 rounded-t-xl border-b-2 ${getColumnStyle(
+        className={`p-3 rounded-t-xl kanban-column-header flex justify-between items-center ${getColumnStyle(
           column.id
-        )} glass-dark flex justify-between items-center`}
+        )}`}
       >
         <h3 className='text-sm font-semibold text-foreground flex items-center'>
           <span className='mr-2'>{column.title}</span>
-          <span className='text-xs text-muted-foreground bg-muted/50 rounded-full px-1.5 py-0.5'>
+          <span className='text-xs text-white/80 bg-black/20 rounded-full px-1.5 py-0.5 backdrop-blur-sm'>
             {tasks.length}
           </span>
         </h3>
         <button
-          className='p-1 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+          className='p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors'
           aria-label='More column options'
         >
           <MoreHorizontal className='w-4 h-4' />
@@ -73,9 +73,9 @@ export function ColumnContainer({
       </div>
       {/* Make the content area scrollable */}
       <div
-        className={`flex-1 overflow-y-auto p-3 rounded-b-xl glass-dark- DND-TARGET ${getColumnStyle(
+        className={`flex-1 overflow-y-auto p-3 kanban-column-content rounded-b-xl ${getColumnStyle(
           column.id
-        )} border-l-2 border-r-2 border-b-2`} // Added border styles consistent with top
+        )}`}
         style={{ maxHeight: 'calc(100vh - 200px)' }} // Adjust max height as needed
       >
         <SortableContext items={taskIds}>
@@ -91,7 +91,7 @@ export function ColumnContainer({
           </div>
         </SortableContext>
       </div>
-      <button className='mt-3 btn btn-ghost w-full text-sm justify-start px-3 py-2 flex items-center gap-2'>
+      <button className='mt-3 text-white/70 hover:text-white bg-white/5 hover:bg-white/10 w-full text-sm justify-start px-3 py-2.5 flex items-center gap-2 rounded-lg border border-white/5 transition-all duration-200'>
         <Plus className='w-4 h-4' />
         Add a card
       </button>

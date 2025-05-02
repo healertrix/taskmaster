@@ -2,35 +2,35 @@
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 
-/* === Dark Superhero Theme === */
+/* === Dark Space Theme (Based on Image) === */
 
 :root {
-  --background: 220 15% 12%; /* Dark cool gray */
+  --background: 240 30% 10%; /* Deep space blue */
   --foreground: 210 40% 98%; /* Almost white */
-  --card: 220 15% 18%;       /* Slightly lighter dark */
+  --card: 240 30% 15%;       /* Slightly lighter space blue */
   --card-foreground: 210 40% 98%;
-  --popover: 220 15% 15%;
+  --popover: 240 30% 13%;
   --popover-foreground: 210 40% 98%;
-  --primary: 330 90% 65%;  /* Vibrant Pink/Magenta */
+  --primary: 270 75% 60%;    /* Purple */
   --primary-foreground: 210 40% 98%;
-  --secondary: 200 100% 55%; /* Electric Blue */
-  --secondary-foreground: 220 15% 12%;
-  --accent: 45 100% 55%;    /* Bright Gold/Yellow */
-  --accent-foreground: 220 15% 12%;
-  --muted: 220 15% 25%;
+  --secondary: 150 60% 50%;  /* Green */
+  --secondary-foreground: 240 30% 10%;
+  --accent: 200 100% 55%;    /* Bright blue */
+  --accent-foreground: 240 30% 10%;
+  --muted: 240 30% 20%;
   --muted-foreground: 210 40% 80%;
-  --border: 220 15% 30%;
-  --input: 220 15% 22%;
-  --ring: 330 90% 70%; /* Brighter pink for focus rings */
+  --border: 240 30% 20%;
+  --input: 240 30% 18%;
+  --ring: 270 75% 65%;       /* Brighter purple for focus rings */
 
-  --radius: 0.75rem; /* Slightly sharper radius */
+  --radius: 0.75rem;         /* Slightly sharper radius */
 }
 
 @layer base {
   body {
     @apply bg-background text-foreground antialiased min-h-screen;
-    /* Dynamic gradient background */
-    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(240, 20%, 8%) 100%);
+    /* Deep space gradient background */
+    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(260, 30%, 8%) 100%);
     background-attachment: fixed;
   }
 
@@ -38,9 +38,9 @@
 }
 
 @layer components {
-  /* Card Styles - Bolder, Darker */
+  /* Card Styles - Space themed */
   .card {
-    @apply bg-card text-card-foreground rounded-xl border border-border shadow-lg;
+    @apply bg-card text-card-foreground rounded-xl border border-border/50 shadow-lg;
     box-shadow: 0 0 25px rgba(var(--primary), 0.1), 0 4px 10px rgba(0,0,0,0.3);
   }
 
@@ -149,9 +149,9 @@
     background: linear-gradient(to right, hsl(var(--primary)), hsl(var(--primary), 0.8)); 
   }
 
-  /* Header Styles - Commanding Dark */
+  /* Header Styles - Cosmic Dark */
   .superhero-header {
-    @apply bg-gradient-to-r from-[hsl(var(--background),0.9)] to-[hsl(240,20%,10%,0.9)] backdrop-blur-lg border-b border-border shadow-lg;
+    @apply bg-gradient-to-r from-[hsl(var(--background),0.9)] to-[hsl(260,30%,10%,0.9)] backdrop-blur-lg border-b border-border/50 shadow-lg;
     box-shadow: 0 5px 20px rgba(0,0,0,0.4);
   }
 
@@ -159,9 +159,27 @@
     @apply bg-input border-border focus:bg-muted/50 focus:border-primary shadow-inner shadow-black/20;
   }
 
-  /* Glass Morphism (Dark Variant) */
+  /* Glass Morphism (Space Variant) */
   .glass-dark {
     @apply bg-card/60 backdrop-blur-xl border border-border/50 shadow-xl shadow-black/20;
+    background: linear-gradient(135deg, rgba(30, 27, 75, 0.65) 0%, rgba(12, 12, 35, 0.6) 100%);
+  }
+
+  /* Column styling */
+  .kanban-column {
+    @apply transition-all duration-300 backdrop-blur-xl shadow-xl;
+    background: linear-gradient(180deg, rgba(30, 27, 75, 0.7) 0%, rgba(12, 12, 35, 0.6) 100%);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+  }
+  
+  .kanban-column-header {
+    @apply border-0 backdrop-blur-xl;
+    background: linear-gradient(90deg, rgba(30, 27, 75, 0.85) 0%, rgba(12, 12, 35, 0.8) 100%);
+  }
+  
+  .kanban-column-content {
+    @apply border-0 backdrop-blur-sm;
+    background: linear-gradient(180deg, rgba(30, 27, 75, 0.3) 0%, rgba(12, 12, 35, 0.2) 100%);
   }
 
   /* Specific Pattern for Dark Theme */
