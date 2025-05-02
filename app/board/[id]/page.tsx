@@ -1,8 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  closestCorners,
+  pointerWithin,
+  rectIntersection,
+  getFirstCollision,
+  UniqueIdentifier,
+} from '@dnd-kit/core';
+import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { DashboardHeader } from '../../components/dashboard/header';
+import { ColumnContainer } from '../../components/board/ColumnContainer';
+import { TaskCard } from '../../components/board/TaskCard';
 import {
   Star,
   User,
@@ -31,6 +49,13 @@ interface Task {
   comments?: number;
 }
 
+// Define column type
+interface Column {
+  id: string;
+  title: string;
+  cards: Task[];
+}
+
 // Map old colors to new superhero theme colors
 const labelColors = {
   'bg-red-500': 'bg-primary text-primary-foreground',
@@ -41,7 +66,7 @@ const labelColors = {
 };
 
 // Sample data for columns and cards
-const initialColumns = [
+const initialColumns: Column[] = [
   {
     id: 'review-pending',
     title: 'Review - Pending',
@@ -210,8 +235,155 @@ const getColumnStyle = (id: string) => {
 };
 
 export default function BoardPage({ params }: { params: { id: string } }) {
-  const [columns, setColumns] = useState(initialColumns);
+  const [columns, setColumns] = useState<Column[]>(initialColumns);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const boardName = 'TouristSprint1'; // Dynamically get this based on params.id in a real app
+
+  // Configure sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Reduced to make it more responsive
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  function findColumnById(id: string): Column | undefined {
+    return columns.find((column) => column.id === id);
+  }
+
+  function findTaskById(
+    id: string
+  ): { task: Task; columnId: string } | undefined {
+    for (const column of columns) {
+      const task = column.cards.find((card) => card.id === id);
+      if (task) {
+        return { task, columnId: column.id };
+      }
+    }
+    return undefined;
+  }
+
+  function handleDragStart(event: DragStartEvent) {
+    const { active } = event;
+    const taskInfo = findTaskById(active.id as string);
+
+    if (taskInfo) {
+      const { task, columnId } = taskInfo;
+      setActiveTask(task);
+      setActiveColumnId(columnId);
+    }
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    // Clear the active task state
+    setActiveTask(null);
+    setActiveColumnId(null);
+
+    // If there's no over element, we can't do anything
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // If dropped on itself, no changes needed
+    if (activeId === overId) return;
+
+    // Get information about active task
+    const activeTaskInfo = findTaskById(activeId);
+    if (!activeTaskInfo) return;
+
+    const { task: activeTask, columnId: activeColumnId } = activeTaskInfo;
+
+    // Check if over is a column or a task
+    const isOverAColumn = columns.some((col) => col.id === overId);
+
+    // If over a column, find that column
+    if (isOverAColumn) {
+      // Handle dropping on a column
+      const targetColumnId = overId;
+
+      // If it's the same column, no need to move between columns
+      if (targetColumnId === activeColumnId) return;
+
+      setColumns((prevColumns) => {
+        return prevColumns.map((column) => {
+          // Remove from source column
+          if (column.id === activeColumnId) {
+            return {
+              ...column,
+              cards: column.cards.filter((card) => card.id !== activeId),
+            };
+          }
+
+          // Add to target column
+          if (column.id === targetColumnId) {
+            return {
+              ...column,
+              cards: [...column.cards, activeTask],
+            };
+          }
+
+          return column;
+        });
+      });
+    } else {
+      // Over a task
+      const overTaskInfo = findTaskById(overId);
+      if (!overTaskInfo) return;
+
+      const { columnId: overColumnId } = overTaskInfo;
+
+      setColumns((prevColumns) => {
+        return prevColumns.map((column) => {
+          // Same column - reordering
+          if (column.id === activeColumnId && column.id === overColumnId) {
+            const oldIndex = column.cards.findIndex(
+              (card) => card.id === activeId
+            );
+            const newIndex = column.cards.findIndex(
+              (card) => card.id === overId
+            );
+
+            return {
+              ...column,
+              cards: arrayMove(column.cards, oldIndex, newIndex),
+            };
+          }
+
+          // Remove from source column
+          if (column.id === activeColumnId) {
+            return {
+              ...column,
+              cards: column.cards.filter((card) => card.id !== activeId),
+            };
+          }
+
+          // Add to target column
+          if (column.id === overColumnId) {
+            const newIndex = column.cards.findIndex(
+              (card) => card.id === overId
+            );
+            const newCards = [...column.cards];
+            newCards.splice(newIndex, 0, activeTask);
+
+            return {
+              ...column,
+              cards: newCards,
+            };
+          }
+
+          return column;
+        });
+      });
+    }
+  }
 
   return (
     <div className='h-screen overflow-hidden dot-pattern-dark flex flex-col'>
@@ -259,138 +431,46 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        {/* Board Content - Taking remaining height with fixed sizing */}
-        <div className='flex-1 overflow-hidden'>
-          <div className='h-full overflow-x-auto pb-2 px-6'>
-            <div className='flex gap-5 min-w-max h-full py-3'>
+        {/* Board Content - Wrapped with DndContext */}
+        <div className='flex-1 overflow-x-auto overflow-y-hidden px-6 pb-8'>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={rectIntersection}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div className='flex items-start h-full'>
+              {/* Render columns using ColumnContainer */}
               {columns.map((column) => (
-                <div
+                <ColumnContainer
                   key={column.id}
-                  className='w-80 h-full flex flex-col flex-shrink-0'
-                >
-                  {/* Column Header with themed styling */}
-                  <div
-                    className={`flex items-center justify-between px-4 py-3 rounded-t-lg ${getColumnStyle(
-                      column.id
-                    )}`}
-                  >
-                    <h3 className='text-sm font-medium text-foreground flex items-center'>
-                      {column.title}
-                      <span className='ml-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary/20 px-1.5 text-xs font-bold text-primary shadow-sm'>
-                        {column.cards.length}
-                      </span>
-                    </h3>
-                    <button
-                      className='text-muted-foreground hover:text-foreground transition-colors'
-                      aria-label='More column options'
-                    >
-                      <MoreHorizontal className='w-4 h-4' />
-                    </button>
-                  </div>
-
-                  {/* Cards Container - Scrollable within column */}
-                  <div
-                    className={`flex-1 bg-card/50 backdrop-blur-sm border-x border-b border-border rounded-b-lg p-3 space-y-2.5 overflow-y-auto`}
-                  >
-                    {column.cards.map((card) => (
-                      <div
-                        key={card.id}
-                        className='card p-3 cursor-pointer task-card-hover'
-                      >
-                        {/* Card Labels */}
-                        {card.labels && card.labels.length > 0 && (
-                          <div className='flex flex-wrap gap-1.5 mb-2.5'>
-                            {card.labels.map((label, i) => (
-                              <span
-                                key={i}
-                                className={`badge ${
-                                  labelColors[
-                                    label.color as keyof typeof labelColors
-                                  ] || 'bg-muted text-muted-foreground'
-                                }`}
-                                title={label.text}
-                              >
-                                {label.text}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Card Title */}
-                        <h4 className='text-sm font-medium text-foreground mb-2.5'>
-                          {card.title}
-                        </h4>
-
-                        {/* Card Footer - Metadata */}
-                        {(card.assignees ||
-                          card.attachments ||
-                          card.comments) && (
-                          <div className='flex items-center justify-between text-xs text-muted-foreground mt-3 pt-2 border-t border-border/30'>
-                            {/* Card Indicators */}
-                            <div className='flex items-center gap-3'>
-                              {card.attachments && (
-                                <div
-                                  className='flex items-center gap-1'
-                                  title='Attachments'
-                                >
-                                  <Paperclip className='w-3.5 h-3.5' />
-                                  <span>{card.attachments}</span>
-                                </div>
-                              )}
-                              {card.comments && (
-                                <div
-                                  className='flex items-center gap-1'
-                                  title='Comments'
-                                >
-                                  <MessageSquare className='w-3.5 h-3.5' />
-                                  <span>{card.comments}</span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Assignees */}
-                            {card.assignees && (
-                              <div className='flex -space-x-2'>
-                                {card.assignees.map((assignee, i) => (
-                                  <div
-                                    key={i}
-                                    className={`w-6 h-6 rounded-full ${
-                                      assignee.color === 'bg-orange-500'
-                                        ? 'bg-gradient-to-br from-orange-500 to-amber-600'
-                                        : 'bg-gradient-to-br from-purple-500 to-violet-600'
-                                    } flex items-center justify-center text-white text-xs font-bold ring-1 ring-background`}
-                                    title={assignee.initials}
-                                  >
-                                    {assignee.initials}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Add Card Button - Fixed at bottom */}
-                  <div className='p-3 pt-2 bg-card/50 border-x border-b border-border rounded-b-lg'>
-                    <button className='w-full px-3 py-2 text-sm text-muted-foreground hover:text-primary bg-muted/20 hover:bg-primary/5 rounded-lg border border-dashed border-border/50 hover:border-primary/50 transition-colors flex items-center justify-center'>
-                      <Plus className='w-4 h-4 mr-1.5' />
-                      Add a card
-                    </button>
-                  </div>
-                </div>
+                  column={column}
+                  tasks={column.cards}
+                  getColumnStyle={getColumnStyle}
+                  labelColors={labelColors}
+                />
               ))}
 
-              {/* Add Column Button */}
-              <div className='w-80 flex-shrink-0 self-start mt-1 pt-1'>
-                <button className='w-full px-3 py-3 text-sm text-muted-foreground hover:text-primary bg-card/30 hover:bg-primary/5 rounded-lg border border-dashed border-border/50 hover:border-primary/50 transition-colors flex items-center justify-center'>
-                  <Plus className='w-4 h-4 mr-1.5' />
+              {/* Button to add new list */}
+              <div className='w-80 flex-shrink-0'>
+                <button className='w-full btn btn-secondary flex items-center gap-2 justify-start px-4 py-2.5 bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 rounded-xl shadow-sm'>
+                  <Plus className='w-4 h-4' />
                   Add another list
                 </button>
               </div>
             </div>
-          </div>
+
+            {/* Drag Overlay - Renders the task being dragged */}
+            <DragOverlay>
+              {activeTask ? (
+                <TaskCard
+                  task={activeTask}
+                  labelColors={labelColors}
+                  columnId={activeColumnId || ''}
+                />
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         </div>
       </main>
     </div>
