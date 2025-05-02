@@ -29,9 +29,15 @@ export function Column({ column, tasks, onAddTask }: ColumnProps) {
   const columnStyle = columnColors[column.id] || 'bg-muted/20 border-muted/50'; // Default style
 
   return (
-    <div className={`flex flex-col w-[360px] h-full rounded-xl flex-shrink-0 bg-card/50 backdrop-blur-md border ${isOver ? 'border-primary' : 'border-transparent'} transition-colors duration-200 shadow-lg`}>
-      {/* Column Header - Fixed */} 
-      <div className={`flex items-center justify-between px-4 py-3 border-b ${columnStyle} rounded-t-xl`}>
+    <div
+      className={`flex flex-col w-[360px] h-full rounded-xl flex-shrink-0 bg-card/50 backdrop-blur-md border ${
+        isOver ? 'border-primary' : 'border-transparent'
+      } transition-colors duration-200 shadow-lg`}
+    >
+      {/* Column Header - Fixed */}
+      <div
+        className={`flex items-center justify-between px-4 py-3 border-b ${columnStyle} rounded-t-xl`}
+      >
         <div className='flex items-center gap-2.5'>
           {/* Color dot can be derived from columnStyle or a specific color prop */}
           {/* <div className={`w-2.5 h-2.5 rounded-full ${columnStyle.split(' ')[0].replace('/20', '/80')}`}></div> */}
@@ -42,21 +48,19 @@ export function Column({ column, tasks, onAddTask }: ColumnProps) {
             {tasks.length}
           </span>
         </div>
-        <button
-          onClick={() => onAddTask?.(column.id)}
-          className='btn btn-ghost p-1.5 h-7 w-7' // Using ghost button style
-          aria-label={`Add task to ${column.title}`}
-        >
-          <Plus className='h-4 w-4' />
-        </button>
       </div>
 
-      {/* Tasks Container - Scrollable */} 
+      {/* Tasks Container - Scrollable */}
       <div
         ref={setNodeRef}
-        className={`flex-1 overflow-y-auto p-3 space-y-3 transition-colors duration-200 ${isOver ? 'bg-primary/5' : ''}`}
+        className={`flex-1 overflow-y-auto p-3 pb-0 space-y-3 transition-colors duration-200 ${
+          isOver ? 'bg-primary/5' : ''
+        }`}
       >
-        <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext
+          items={tasks.map((t) => t.id)}
+          strategy={verticalListSortingStrategy}
+        >
           {tasks.map((task) => (
             <SortableTask key={task.id} task={task} />
           ))}
@@ -64,12 +68,34 @@ export function Column({ column, tasks, onAddTask }: ColumnProps) {
 
         {/* Empty State - More prominent */}
         {tasks.length === 0 && (
-          <div className={`flex h-24 items-center justify-center rounded-lg border-2 border-dashed ${isOver ? 'border-primary' : 'border-border/40'} ${isOver ? 'bg-primary/10' : 'bg-muted/10'} transition-all duration-200`}>
-            <p className={`text-sm font-medium ${isOver ? 'text-primary' : 'text-muted-foreground/70'}`}>
+          <div
+            className={`flex h-24 items-center justify-center rounded-lg border-2 border-dashed ${
+              isOver ? 'border-primary' : 'border-border/40'
+            } ${
+              isOver ? 'bg-primary/10' : 'bg-muted/10'
+            } transition-all duration-200`}
+          >
+            <p
+              className={`text-sm font-medium ${
+                isOver ? 'text-primary' : 'text-muted-foreground/70'
+              }`}
+            >
               Drop tasks here
             </p>
           </div>
         )}
+      </div>
+
+      {/* Add Task Button - Fixed at bottom */}
+      <div className='p-3 pt-2 border-t border-border/30 mt-auto'>
+        <button
+          onClick={() => onAddTask?.(column.id)}
+          className='w-full px-3 py-2 text-sm text-muted-foreground hover:text-primary bg-muted/20 hover:bg-primary/5 rounded-lg border border-dashed border-border/50 hover:border-primary/50 transition-colors flex items-center justify-center'
+          aria-label={`Add task to ${column.title}`}
+        >
+          <Plus className='w-4 h-4 mr-1.5' />
+          Add task
+        </button>
       </div>
     </div>
   );

@@ -370,8 +370,10 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                         )}
                       </div>
                     ))}
+                  </div>
 
-                    {/* Add Card Button */}
+                  {/* Add Card Button - Fixed at bottom */}
+                  <div className='p-3 pt-2 bg-card/50 border-x border-b border-border rounded-b-lg'>
                     <button className='w-full px-3 py-2 text-sm text-muted-foreground hover:text-primary bg-muted/20 hover:bg-primary/5 rounded-lg border border-dashed border-border/50 hover:border-primary/50 transition-colors flex items-center justify-center'>
                       <Plus className='w-4 h-4 mr-1.5' />
                       Add a card
