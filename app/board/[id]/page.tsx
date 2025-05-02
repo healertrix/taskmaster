@@ -389,50 +389,61 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     <div className='h-screen overflow-hidden dot-pattern-dark flex flex-col'>
       <DashboardHeader />
 
-      <main className='flex-1 flex flex-col overflow-hidden'>
-        {/* Board Header */}
-        <div className='max-w-screen-2xl w-full mx-auto flex justify-between items-center py-4 px-6'>
-          <div className='flex items-center space-x-4'>
-            <h1 className='text-xl font-bold text-foreground bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent'>
-              {boardName}
-            </h1>
-            <button
-              className='text-muted-foreground hover:text-accent transition-colors'
-              aria-label='Star board'
-            >
-              <Star className='w-5 h-5' />
-            </button>
-            <div className='h-6 border-l border-border'></div>
-            <button className='btn btn-outline flex items-center gap-1 text-sm'>
-              <Users className='w-4 h-4' />
-              <span>Share</span>
-            </button>
-          </div>
+      <main className='flex-1 flex flex-col overflow-hidden pt-16'>
+        {/* Board Header - Clean, minimal design */}
+        <div className='w-full mx-auto px-6 py-1 border-b border-white/10'>
+          <div className='flex items-center justify-between'>
+            {/* Left side - Title and description */}
+            <div className='flex flex-col'>
+              <div className='flex items-center gap-2 mb-0.5'>
+                <h1 className='text-lg font-medium text-purple-400'>
+                  {boardName}
+                </h1>
+                <button
+                  className='text-purple-400/70 hover:text-purple-400 transition-colors'
+                  aria-label='Star board'
+                >
+                  <Star className='w-4 h-4' />
+                </button>
+              </div>
+              <p className='text-xs text-gray-400 max-w-2xl'>
+                Tourist Sprint 1 tracks development of the Tourism Safety
+                application, covering Android, Web, and Backend components.
+              </p>
+            </div>
 
-          <div className='flex items-center space-x-3'>
-            <button className='btn btn-outline flex items-center gap-1.5 text-sm'>
-              <Filter className='w-4 h-4' />
-              <span>Filters</span>
-            </button>
-            <div className='flex -space-x-2'>
-              <div className='w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white text-xs font-bold ring-2 ring-background'>
-                AN
+            {/* Right side - Actions and info */}
+            <div className='flex items-center gap-3'>
+              <div className='text-xs text-gray-400 flex items-center'>
+                <Clock className='w-3.5 h-3.5 mr-1' />
+                <span>2h ago</span>
               </div>
-              <div className='w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-xs font-bold ring-2 ring-background'>
-                KV
+
+              <div className='flex items-center'>
+                <button className='flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-300 hover:bg-white/10 transition-colors'>
+                  <Filter className='w-3.5 h-3.5' />
+                  <span>Filters</span>
+                </button>
+                <button className='flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-300 hover:bg-white/10 transition-colors ml-1'>
+                  <Users className='w-3.5 h-3.5' />
+                  <span>Share</span>
+                </button>
               </div>
-              <button
-                className='w-8 h-8 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center text-muted-foreground text-xs transition-colors'
-                aria-label='Add new member'
-              >
-                <Plus className='w-4 h-4' />
-              </button>
+
+              <div className='flex -space-x-1.5'>
+                <div className='w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white text-xs font-medium ring-1 ring-background'>
+                  AN
+                </div>
+                <div className='w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-xs font-medium ring-1 ring-background'>
+                  KV
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Board Content - Wrapped with DndContext */}
-        <div className='flex-1 overflow-x-auto overflow-y-hidden px-6 pb-8'>
+        <div className='flex-1 overflow-x-auto overflow-y-hidden px-6 pb-8 pt-3'>
           <DndContext
             sensors={sensors}
             collisionDetection={rectIntersection}
