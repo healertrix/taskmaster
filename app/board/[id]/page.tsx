@@ -214,12 +214,12 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   const boardName = 'TouristSprint1'; // Dynamically get this based on params.id in a real app
 
   return (
-    <div className='min-h-screen dot-pattern-dark'>
+    <div className='h-screen overflow-hidden dot-pattern-dark flex flex-col'>
       <DashboardHeader />
 
-      <main className='pt-24 pb-16 px-4'>
+      <main className='flex-1 flex flex-col overflow-hidden'>
         {/* Board Header */}
-        <div className='max-w-screen-2xl mx-auto flex justify-between items-center mb-6'>
+        <div className='max-w-screen-2xl w-full mx-auto flex justify-between items-center py-4 px-6'>
           <div className='flex items-center space-x-4'>
             <h1 className='text-xl font-bold text-foreground bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent'>
               {boardName}
@@ -259,133 +259,156 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        {/* Board Content */}
-        <div className='max-w-screen-2xl mx-auto overflow-x-auto pb-4'>
-          <div className='flex gap-4 min-w-max p-2'>
-            {columns.map((column) => (
-              <div key={column.id} className='w-72 flex-shrink-0'>
-                {/* Column Header with themed styling */}
+        {/* Board Content - Taking remaining height with fixed sizing */}
+        <div className='flex-1 overflow-hidden'>
+          {/* Horizontal scrolling container */}
+          <div className='h-full overflow-x-auto pb-2 px-6'>
+            <div className='flex gap-5 min-w-max h-full py-3'>
+              {columns.map((column) => (
                 <div
-                  className={`flex items-center justify-between px-3 py-2.5 rounded-t-lg ${getColumnStyle(
-                    column.id
-                  )}`}
+                  key={column.id}
+                  className='w-80 h-full flex flex-col flex-shrink-0'
                 >
-                  <h3 className='text-sm font-medium text-foreground flex items-center'>
-                    {column.title}
-                    <span className='ml-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary/20 px-1.5 text-xs font-bold text-primary shadow-sm'>
-                      {column.cards.length}
-                    </span>
-                  </h3>
-                  <button
-                    className='text-muted-foreground hover:text-foreground transition-colors'
-                    aria-label='More column options'
+                  {/* Column Header with themed styling */}
+                  <div
+                    className={`flex items-center justify-between px-4 py-3 rounded-t-lg ${getColumnStyle(
+                      column.id
+                    )}`}
                   >
-                    <MoreHorizontal className='w-4 h-4' />
-                  </button>
-                </div>
-
-                {/* Cards Container */}
-                <div
-                  className={`bg-card/50 backdrop-blur-sm border-x border-b border-border rounded-b-lg p-2 space-y-2 max-h-[calc(100vh-260px)] overflow-y-auto`}
-                >
-                  {column.cards.map((card) => (
-                    <div
-                      key={card.id}
-                      className='card p-3 cursor-pointer task-card-hover'
+                    <h3 className='text-sm font-medium text-foreground flex items-center'>
+                      {column.title}
+                      <span className='ml-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary/20 px-1.5 text-xs font-bold text-primary shadow-sm'>
+                        {column.cards.length}
+                      </span>
+                    </h3>
+                    <button
+                      className='text-muted-foreground hover:text-foreground transition-colors'
+                      aria-label='More column options'
                     >
-                      {/* Card Labels */}
-                      {card.labels && card.labels.length > 0 && (
-                        <div className='flex flex-wrap gap-1.5 mb-2.5'>
-                          {card.labels.map((label, i) => (
-                            <span
-                              key={i}
-                              className={`badge ${
-                                labelColors[
-                                  label.color as keyof typeof labelColors
-                                ] || 'bg-muted text-muted-foreground'
-                              }`}
-                              title={label.text}
-                            >
-                              {label.text}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      <MoreHorizontal className='w-4 h-4' />
+                    </button>
+                  </div>
 
-                      {/* Card Title */}
-                      <h4 className='text-sm font-medium text-foreground mb-2.5'>
-                        {card.title}
-                      </h4>
+                  {/* Cards Container - Scrollable within column */}
+                  <div
+                    className={`flex-1 bg-card/50 backdrop-blur-sm border-x border-b border-border rounded-b-lg p-3 space-y-2.5 overflow-y-auto custom-scrollbar`}
+                  >
+                    {column.cards.map((card) => (
+                      <div
+                        key={card.id}
+                        className='card p-3 cursor-pointer task-card-hover'
+                      >
+                        {/* Card Labels */}
+                        {card.labels && card.labels.length > 0 && (
+                          <div className='flex flex-wrap gap-1.5 mb-2.5'>
+                            {card.labels.map((label, i) => (
+                              <span
+                                key={i}
+                                className={`badge ${
+                                  labelColors[
+                                    label.color as keyof typeof labelColors
+                                  ] || 'bg-muted text-muted-foreground'
+                                }`}
+                                title={label.text}
+                              >
+                                {label.text}
+                              </span>
+                            ))}
+                          </div>
+                        )}
 
-                      {/* Card Footer - Metadata */}
-                      {(card.assignees ||
-                        card.attachments ||
-                        card.comments) && (
-                        <div className='flex items-center justify-between text-xs text-muted-foreground mt-3 pt-2 border-t border-border/30'>
-                          {/* Card Indicators */}
-                          <div className='flex items-center gap-3'>
-                            {card.attachments && (
-                              <div
-                                className='flex items-center gap-1'
-                                title='Attachments'
-                              >
-                                <Paperclip className='w-3.5 h-3.5' />
-                                <span>{card.attachments}</span>
-                              </div>
-                            )}
-                            {card.comments && (
-                              <div
-                                className='flex items-center gap-1'
-                                title='Comments'
-                              >
-                                <MessageSquare className='w-3.5 h-3.5' />
-                                <span>{card.comments}</span>
+                        {/* Card Title */}
+                        <h4 className='text-sm font-medium text-foreground mb-2.5'>
+                          {card.title}
+                        </h4>
+
+                        {/* Card Footer - Metadata */}
+                        {(card.assignees ||
+                          card.attachments ||
+                          card.comments) && (
+                          <div className='flex items-center justify-between text-xs text-muted-foreground mt-3 pt-2 border-t border-border/30'>
+                            {/* Card Indicators */}
+                            <div className='flex items-center gap-3'>
+                              {card.attachments && (
+                                <div
+                                  className='flex items-center gap-1'
+                                  title='Attachments'
+                                >
+                                  <Paperclip className='w-3.5 h-3.5' />
+                                  <span>{card.attachments}</span>
+                                </div>
+                              )}
+                              {card.comments && (
+                                <div
+                                  className='flex items-center gap-1'
+                                  title='Comments'
+                                >
+                                  <MessageSquare className='w-3.5 h-3.5' />
+                                  <span>{card.comments}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Assignees */}
+                            {card.assignees && (
+                              <div className='flex -space-x-2'>
+                                {card.assignees.map((assignee, i) => (
+                                  <div
+                                    key={i}
+                                    className={`w-6 h-6 rounded-full ${
+                                      assignee.color === 'bg-orange-500'
+                                        ? 'bg-gradient-to-br from-orange-500 to-amber-600'
+                                        : 'bg-gradient-to-br from-purple-500 to-violet-600'
+                                    } flex items-center justify-center text-white text-xs font-bold ring-1 ring-background`}
+                                    title={assignee.initials}
+                                  >
+                                    {assignee.initials}
+                                  </div>
+                                ))}
                               </div>
                             )}
                           </div>
+                        )}
+                      </div>
+                    ))}
 
-                          {/* Assignees */}
-                          {card.assignees && (
-                            <div className='flex -space-x-2'>
-                              {card.assignees.map((assignee, i) => (
-                                <div
-                                  key={i}
-                                  className={`w-6 h-6 rounded-full ${
-                                    assignee.color === 'bg-orange-500'
-                                      ? 'bg-gradient-to-br from-orange-500 to-amber-600'
-                                      : 'bg-gradient-to-br from-purple-500 to-violet-600'
-                                  } flex items-center justify-center text-white text-xs font-bold ring-1 ring-background`}
-                                  title={assignee.initials}
-                                >
-                                  {assignee.initials}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                  {/* Add Card Button */}
-                  <button className='w-full px-3 py-2 text-sm text-muted-foreground hover:text-primary bg-muted/20 hover:bg-primary/5 rounded-lg border border-dashed border-border/50 hover:border-primary/50 transition-colors flex items-center justify-center'>
-                    <Plus className='w-4 h-4 mr-1.5' />
-                    Add a card
-                  </button>
+                    {/* Add Card Button */}
+                    <button className='w-full px-3 py-2 text-sm text-muted-foreground hover:text-primary bg-muted/20 hover:bg-primary/5 rounded-lg border border-dashed border-border/50 hover:border-primary/50 transition-colors flex items-center justify-center'>
+                      <Plus className='w-4 h-4 mr-1.5' />
+                      Add a card
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
 
-            {/* Add Column Button */}
-            <div className='w-72 flex-shrink-0 self-start mt-12'>
-              <button className='w-full px-3 py-2.5 text-sm text-muted-foreground hover:text-primary bg-card/30 hover:bg-primary/5 rounded-lg border border-dashed border-border/50 hover:border-primary/50 transition-colors flex items-center justify-center'>
-                <Plus className='w-4 h-4 mr-1.5' />
-                Add another list
-              </button>
+              {/* Add Column Button */}
+              <div className='w-80 flex-shrink-0 self-start mt-1 pt-1'>
+                <button className='w-full px-3 py-3 text-sm text-muted-foreground hover:text-primary bg-card/30 hover:bg-primary/5 rounded-lg border border-dashed border-border/50 hover:border-primary/50 transition-colors flex items-center justify-center'>
+                  <Plus className='w-4 h-4 mr-1.5' />
+                  Add another list
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </main>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(0, 0, 0, 0.1);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(var(--muted), 0.5);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(var(--primary), 0.3);
+        }
+      `}</style>
     </div>
   );
 }
