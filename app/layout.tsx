@@ -3,8 +3,8 @@ import { Providers } from './providers';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Energy Dashboard',
-  description: 'Modern energy consumption monitoring dashboard',
+  title: 'Taskmaster',
+  description: 'Simple and efficient task management application',
 };
 
 export default function RootLayout({
