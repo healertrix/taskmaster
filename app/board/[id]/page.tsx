@@ -452,7 +452,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               ))}
 
               {/* Button to add new list */}
-              <div className='w-80 flex-shrink-0'>
+              <div className='w-72 flex-shrink-0'>
                 <button className='w-full btn btn-secondary flex items-center gap-2 justify-start px-4 py-2.5 bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 rounded-xl shadow-sm'>
                   <Plus className='w-4 h-4' />
                   Add another list
