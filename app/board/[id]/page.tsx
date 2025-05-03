@@ -627,7 +627,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className='flex items-start gap-5 min-h-[450px] pb-4'>
+            <div className='flex items-start gap-5 min-h-[450px] pb-4 px-4'>
               {/* Render columns using ColumnContainer */}
               {columns.map((column) => (
                 <ColumnContainer
@@ -641,15 +641,20 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 />
               ))}
 
-              {/* Button to add new list */}
-              <div className='w-64 flex-shrink-0 self-start mr-8'>
-                <button className='w-full h-[40px] flex items-center justify-center px-3 py-2 bg-gray-800/90 hover:bg-gray-700/90 border border-gray-600/40 text-white rounded-lg shadow-sm'>
-                  <Plus className='w-4 h-4 text-white mr-1.5' />
-                  <span className='text-sm font-normal'>Add another list</span>
-                </button>
+              {/* Button to add new list - translucent purple style */}
+              <div className='flex items-start gap-2'>
+                <div className='w-64 flex-shrink-0'>
+                  <button className='w-full h-[45px] flex items-center justify-center py-2 px-5 bg-gray-700/60 hover:bg-purple-600/70 text-white rounded-2xl shadow-sm transition-all duration-200 border border-gray-600/30 backdrop-blur-sm'>
+                    <Plus className='w-4 h-4 text-white mr-2' />
+                    <span className='text-sm font-medium'>
+                      Add another list
+                    </span>
+                  </button>
+                </div>
+
+                {/* Reduced spacer for better layout */}
+                <div className='w-8 flex-shrink-0'></div>
               </div>
-              {/* Extra space on the right */}
-              <div className='w-8 flex-shrink-0'></div>
             </div>
 
             {/* Drag Overlay - Renders the task being dragged */}
