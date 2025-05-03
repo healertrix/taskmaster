@@ -37,6 +37,7 @@ import {
   Bug,
   Paperclip,
   MessageSquare,
+  X,
 } from 'lucide-react';
 
 // Define card/task type
@@ -237,6 +238,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
+  const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
   const [dragOverInfo, setDragOverInfo] = useState<{
     id: UniqueIdentifier | null;
     type: 'task' | 'column' | null;
@@ -485,24 +487,40 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
       <main className='flex-1 flex flex-col overflow-hidden pt-16'>
         {/* Board Header - Clean, minimal design */}
-        <div className='w-full mx-auto px-6 py-1 border-b border-white/10'>
+        <div className='w-full mx-auto px-6 py-3 border-b border-white/10'>
           <div className='flex items-center justify-between'>
             {/* Left side - Title and description */}
-            <div className='flex flex-col'>
-              <div className='flex items-center gap-2 mb-0.5'>
-                <h1 className='text-base font-medium text-purple-400'>
-                  {boardName}
-                </h1>
-                <button
-                  className='text-purple-400/70 hover:text-purple-400 transition-colors'
-                  aria-label='Star board'
+            <div className='flex items-center gap-3'>
+              <h1 className='text-xl font-bold text-purple-400'>{boardName}</h1>
+              <button
+                className='text-purple-400/70 hover:text-purple-400 transition-colors ml-1'
+                aria-label='Star board'
+              >
+                <Star className='w-5 h-5' />
+              </button>
+              {/* Info icon that opens description modal */}
+              <button
+                className='text-gray-400/70 hover:text-gray-400 transition-colors ml-1'
+                aria-label='View project description'
+                onClick={() => setIsDescriptionModalOpen(true)}
+              >
+                <svg
+                  xmlns='http://www.w3.org/2000/svg'
+                  width='16'
+                  height='16'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='2'
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  className='w-5 h-5'
                 >
-                  <Star className='w-4 h-4' />
-                </button>
-              </div>
-              <p className='text-[10px] text-gray-400 max-w-2xl'>
-                Tourism Safety application: Android, Web, and Backend
-              </p>
+                  <circle cx='12' cy='12' r='10' />
+                  <path d='M12 16v-4' />
+                  <path d='M12 8h.01' />
+                </svg>
+              </button>
             </div>
 
             {/* Right side - Actions and info */}
@@ -534,6 +552,71 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             </div>
           </div>
         </div>
+
+        {/* Description Modal */}
+        {isDescriptionModalOpen && (
+          <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6'>
+            <div className='bg-card/95 rounded-lg shadow-lg max-w-md w-full p-5 border border-border'>
+              <div className='flex justify-between items-center mb-3'>
+                <h3 className='text-xl font-bold text-foreground'>
+                  Project Description
+                </h3>
+                <button
+                  onClick={() => setIsDescriptionModalOpen(false)}
+                  className='text-muted-foreground hover:text-foreground transition-colors'
+                  aria-label='Close description modal'
+                >
+                  <X className='w-5 h-5' />
+                </button>
+              </div>
+
+              <div className='space-y-4'>
+                {/* Project basics */}
+                <div>
+                  <h4 className='text-base font-semibold mb-2 text-purple-400'>
+                    {boardName}
+                  </h4>
+                  <p className='text-sm text-foreground'>
+                    Tourism Safety application: Android, Web, and Backend
+                  </p>
+                </div>
+
+                {/* Brief description */}
+                <div className='pt-3 border-t border-border/50'>
+                  <p className='text-sm text-foreground'>
+                    This project includes a mobile app for tourists, a web
+                    portal for officials, and a backend system to handle data
+                    and authorization.
+                  </p>
+                </div>
+
+                {/* Team members */}
+                <div className='pt-3 border-t border-border/50 flex items-center justify-between'>
+                  <h5 className='text-sm font-medium text-muted-foreground'>
+                    Team Members
+                  </h5>
+                  <div className='flex -space-x-2'>
+                    <div className='w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white text-xs font-medium ring-1 ring-background'>
+                      AN
+                    </div>
+                    <div className='w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-xs font-medium ring-1 ring-background'>
+                      KV
+                    </div>
+                  </div>
+                </div>
+
+                <div className='pt-3 border-t border-border flex justify-end'>
+                  <button
+                    onClick={() => setIsDescriptionModalOpen(false)}
+                    className='btn btn-primary px-4 py-2'
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Board Content - Wrapped with DndContext */}
         <div className='flex-1 overflow-x-auto overflow-y-auto px-8 pb-6 pt-4'>

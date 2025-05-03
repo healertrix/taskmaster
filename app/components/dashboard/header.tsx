@@ -144,7 +144,7 @@ export function DashboardHeader() {
       <div className='container mx-auto px-4 py-3'>
         <div className='flex items-center justify-between'>
           {/* Left section */}
-          <div className='flex items-center space-x-5'>
+          <div className='flex items-center space-x-5 w-1/6'>
             <Link
               href='/'
               className='font-bold text-xl flex items-center gap-2 text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity'
@@ -155,10 +155,7 @@ export function DashboardHeader() {
           </div>
 
           {/* Search and Create */}
-          <div
-            className='flex items-center max-w-lg w-full mx-6'
-            ref={searchRef}
-          >
+          <div className='flex items-center w-3/4 mx-auto px-4' ref={searchRef}>
             <div className='relative flex-1'>
               <Search className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground' />
               <input
@@ -358,7 +355,7 @@ export function DashboardHeader() {
           </div>
 
           {/* Right section */}
-          <div className='flex items-center space-x-4'>
+          <div className='flex items-center space-x-4 w-1/6 justify-end'>
             <button
               className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors relative'
               aria-label='Notifications'
