@@ -37,25 +37,22 @@ export function DashboardHeader() {
               <CheckSquare className='w-6 h-6 text-primary' />
               Taskmaster
             </Link>
+          </div>
 
-            <button className='px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors'>
-              Boards
-            </button>
-
-            <button className='btn btn-primary flex items-center gap-1.5 text-sm'>
+          {/* Search and Create */}
+          <div className='flex items-center max-w-lg w-full mx-6'>
+            <div className='relative flex-1'>
+              <Search className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground' />
+              <input
+                type='text'
+                placeholder='Search tasks, projects, etc...'
+                className='w-full pl-10 pr-4 py-2.5 superhero-header-search text-foreground placeholder-muted-foreground rounded-lg border focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all input'
+              />
+            </div>
+            <button className='btn btn-primary flex items-center gap-1.5 text-sm ml-3 hover:bg-primary/90 hover:text-primary-foreground'>
               <Plus className='w-4 h-4' />
               Create
             </button>
-          </div>
-
-          {/* Search */}
-          <div className='relative max-w-lg w-full mx-6'>
-            <Search className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground' />
-            <input
-              type='text'
-              placeholder='Search tasks, projects, etc...'
-              className='w-full pl-10 pr-4 py-2.5 superhero-header-search text-foreground placeholder-muted-foreground rounded-lg border focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all input'
-            />
           </div>
 
           {/* Right section */}

@@ -13,7 +13,8 @@ import {
   Settings,
   MoreHorizontal,
   ChevronDown,
-  Layout,
+  Home,
+  PanelLeft,
 } from 'lucide-react';
 
 // Sample data for boards
@@ -34,9 +35,12 @@ const recentBoards = [
     id: 'board3',
     name: 'Mobile App Development',
     color: 'bg-green-600',
-    starred: false,
+    starred: true,
   },
 ];
+
+// Get starred boards
+const starredBoards = recentBoards.filter(board => board.starred);
 
 const workspaces = [
   {
@@ -49,6 +53,10 @@ const workspaces = [
       { id: 'board4', name: 'Project Planning', color: 'bg-yellow-600' },
       { id: 'board5', name: 'Marketing Campaign', color: 'bg-red-600' },
     ],
+    members: [
+      { id: 'user1', name: 'John Doe', avatar: '' },
+      { id: 'user2', name: 'Jane Smith', avatar: '' },
+    ]
   },
   {
     id: 'ws2',
@@ -59,11 +67,24 @@ const workspaces = [
       { id: 'board6', name: 'Travel Plans', color: 'bg-indigo-600' },
       { id: 'board7', name: 'Reading List', color: 'bg-pink-600' },
     ],
+    members: [
+      { id: 'user1', name: 'John Doe', avatar: '' },
+    ]
   },
 ];
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedWorkspaces, setExpandedWorkspaces] = useState<{[key: string]: boolean}>({
+    'ws1': true, // Set the first workspace to be expanded by default
+  });
+
+  const toggleWorkspace = (id: string) => {
+    setExpandedWorkspaces(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
 
   // TODO: Replace with actual user data
   const currentUser = {
@@ -91,12 +112,12 @@ export default function HomePage() {
                   href='/'
                   className='nav-item-active flex items-center gap-2.5 w-full text-sm font-medium'
                 >
-                  <Layout className='w-4 h-4' />
-                  Boards
+                  <Home className='w-4 h-4' />
+                  Home
                 </Link>
                 <button className='nav-item flex items-center gap-2.5 w-full text-sm'>
-                  <Users className='w-4 h-4' />
-                  Members
+                  <PanelLeft className='w-4 h-4' />
+                  Dashboard
                 </button>
                 <button className='nav-item flex items-center gap-2.5 w-full text-sm'>
                   <Settings className='w-4 h-4' />
@@ -110,7 +131,10 @@ export default function HomePage() {
                 <div className='mt-3 space-y-1.5'>
                   {workspaces.map((workspace) => (
                     <div key={workspace.id} className='space-y-1.5'>
-                      <button className='nav-item flex items-center justify-between w-full text-sm'>
+                      <button 
+                        className='nav-item flex items-center justify-between w-full text-sm'
+                        onClick={() => toggleWorkspace(workspace.id)}
+                      >
                         <div className='flex items-center gap-2.5'>
                           <div
                             className={`w-7 h-7 ${workspace.color} rounded-lg flex items-center justify-center text-sm font-bold text-white shadow-md`}
@@ -119,8 +143,19 @@ export default function HomePage() {
                           </div>
                           <span className='font-medium'>{workspace.name}</span>
                         </div>
-                        <ChevronDown className='w-4 h-4 text-muted-foreground' />
+                        <ChevronDown 
+                          className={`w-4 h-4 text-muted-foreground transition-transform ${expandedWorkspaces[workspace.id] ? 'rotate-180' : ''}`} 
+                        />
                       </button>
+                      
+                      {expandedWorkspaces[workspace.id] && (
+                        <div className='pl-9 space-y-1'>
+                          <button className='nav-item flex items-center gap-2.5 w-full text-xs'>
+                            <Users className='w-3.5 h-3.5' />
+                            Members ({workspace.members.length})
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
 
@@ -146,6 +181,52 @@ export default function HomePage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+
+            {/* Starred Boards Section */}
+            {starredBoards.length > 0 && (
+              <section className='mb-12'>
+                <div className='flex items-center justify-between mb-5'>
+                  <h2 className='text-xl font-semibold text-foreground flex items-center gap-2'>
+                    <Star className='w-5 h-5 text-yellow-400' />
+                    Starred Boards
+                  </h2>
+                  <button className='btn btn-ghost text-sm'>View All</button>
+                </div>
+
+                <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
+                  {starredBoards.map((board) => (
+                    <Link
+                      key={board.id}
+                      href={`/board/${board.id}`}
+                      className='group relative block p-5 rounded-xl card card-hover h-32 overflow-hidden'
+                    >
+                      <div
+                        className={`absolute top-0 left-0 right-0 h-1.5 ${board.color}`}
+                      ></div>
+                      <div className='relative z-10 flex flex-col justify-between h-full'>
+                        <h3 className='font-semibold text-foreground'>
+                          {board.name}
+                        </h3>
+                        <div className='flex justify-end'>
+                          <button
+                            className='p-1 rounded-full transition-colors text-yellow-400 hover:bg-yellow-400/10'
+                            onClick={(e) => {
+                              e.preventDefault(); /* TODO: Add starring logic */
+                            }}
+                            aria-label='Unstar board'
+                          >
+                            <Star
+                              className='w-4 h-4'
+                              fill='currentColor'
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* Recent Boards Section */}
             <section className='mb-12'>
@@ -178,13 +259,13 @@ export default function HomePage() {
                         <button
                           className={`p-1 rounded-full transition-colors ${
                             board.starred
-                              ? 'text-accent'
+                              ? 'text-yellow-400'
                               : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100'
-                          } hover:text-accent hover:bg-accent/10`}
+                          } hover:text-yellow-400 hover:bg-yellow-400/10`}
                           onClick={(e) => {
                             e.preventDefault(); /* TODO: Add starring logic */
                           }}
-                          aria-label='Star board'
+                          aria-label={board.starred ? 'Unstar board' : 'Star board'}
                         >
                           <Star
                             className='w-4 h-4'
@@ -250,9 +331,7 @@ export default function HomePage() {
                     <div className='w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors'>
                       <Plus className='w-5 h-5 text-primary' />
                     </div>
-                    <span className='font-medium text-sm'>
-                      Create New Board
-                    </span>
+                    <span className='font-medium text-sm'>Create New Board</span>
                   </button>
                 </div>
               </section>
