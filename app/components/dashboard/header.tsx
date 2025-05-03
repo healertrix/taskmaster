@@ -331,18 +331,27 @@ export function DashboardHeader() {
                       </Link>
                     </>
                   ) : (
-                    <div className='py-3 px-2 text-center text-muted-foreground'>
-                      <p className='text-sm'>
-                        No results found for "{searchTerm}"
-                      </p>
-                      <Link
-                        href={`/search?q=${encodeURIComponent(searchTerm)}`}
-                        className='flex items-center justify-center gap-1 mt-2 text-sm text-foreground hover:underline'
-                        onClick={() => setShowSearchResults(false)}
-                      >
-                        <Search className='w-3.5 h-3.5' />
-                        Search all of Taskmaster
-                      </Link>
+                    <div className='py-5 px-3 text-center'>
+                      <div className='flex flex-col items-center justify-center'>
+                        <div className='relative mb-3'>
+                          <Search className='w-12 h-12 text-muted-foreground opacity-20' />
+                          <X className='w-6 h-6 text-muted-foreground absolute bottom-0 right-0 opacity-70' />
+                        </div>
+                        <p className='text-base font-medium text-foreground mb-1'>
+                          No results found for "{searchTerm}"
+                        </p>
+                        <p className='text-sm text-muted-foreground mb-3'>
+                          Try different keywords or check your spelling
+                        </p>
+                        <Link
+                          href={`/search?q=${encodeURIComponent(searchTerm)}`}
+                          className='flex items-center justify-center gap-1.5 mt-1 px-3 py-1.5 text-sm bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors'
+                          onClick={() => setShowSearchResults(false)}
+                        >
+                          <Search className='w-3.5 h-3.5' />
+                          Advanced Search
+                        </Link>
+                      </div>
                     </div>
                   )}
                 </div>

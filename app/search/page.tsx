@@ -517,122 +517,286 @@ export default function SearchPage() {
 
           {/* Search Results */}
           <div className='flex-1'>
-            {activeTab === 'cards' && (
-              <div className='bg-card border border-border rounded-xl overflow-hidden shadow-md'>
-                <div className='p-4 bg-muted/30 border-b border-border'>
-                  <h2 className='text-sm font-semibold text-foreground'>
-                    Cards ({filteredCards.length})
+            {!searchTerm && (
+              <div className='flex items-center justify-center h-full'>
+                <div className='text-center max-w-md mx-auto p-8'>
+                  <div className='mx-auto w-24 h-24 bg-muted/30 rounded-full flex items-center justify-center mb-6'>
+                    <Search className='w-12 h-12 text-muted-foreground opacity-30' />
+                  </div>
+                  <h2 className='text-2xl font-semibold mb-3 text-foreground'>
+                    Start searching
                   </h2>
-                </div>
-
-                {filteredCards.length > 0 ? (
-                  <div className='divide-y divide-border'>
-                    {filteredCards.map((card) => (
-                      <div
-                        key={card.id}
-                        className='p-4 hover:bg-muted/20 transition-colors'
-                      >
-                        <div className='flex items-start'>
-                          <div
-                            className={`mt-1 w-5 h-5 ${card.boardColor} rounded flex-shrink-0`}
-                          ></div>
-                          <div className='ml-3 flex-1'>
-                            <Link
-                              href={`/card/${card.id}`}
-                              className='font-medium text-foreground hover:text-primary'
-                            >
-                              {card.name}
-                            </Link>
-                            <p className='text-sm text-muted-foreground mt-1'>
-                              {card.board}
-                            </p>
-                            {card.description &&
-                              filters.includeCardDescriptions && (
-                                <p className='text-sm text-muted-foreground mt-2 line-clamp-2'>
-                                  {card.description}
-                                </p>
-                              )}
-                          </div>
-                          <div className='text-xs text-muted-foreground whitespace-nowrap ml-3'>
-                            Updated {card.updatedAt}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className='p-8 text-center'>
-                    <AlertCircle className='w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50' />
-                    <h3 className='text-lg font-medium text-foreground mb-1'>
-                      No cards found
+                  <p className='text-muted-foreground mb-6'>
+                    Enter keywords in the search box above to find cards,
+                    boards, or workspaces.
+                  </p>
+                  <div className='bg-muted/30 p-4 rounded-lg'>
+                    <h3 className='font-medium text-sm mb-2 flex items-center'>
+                      <Info className='w-4 h-4 mr-2 text-primary' />
+                      Search tips
                     </h3>
-                    <p className='text-sm text-muted-foreground max-w-md mx-auto'>
-                      Try adjusting your search term or filters to find what
-                      you're looking for.
-                    </p>
+                    <ul className='text-sm text-muted-foreground text-left space-y-2'>
+                      <li className='flex items-start'>
+                        <span className='mr-2'>•</span>
+                        <span>
+                          Use specific keywords related to your cards or boards
+                        </span>
+                      </li>
+                      <li className='flex items-start'>
+                        <span className='mr-2'>•</span>
+                        <span>
+                          Filter results using the options on the left
+                        </span>
+                      </li>
+                      <li className='flex items-start'>
+                        <span className='mr-2'>•</span>
+                        <span>
+                          Switch between cards and boards using the tabs above
+                        </span>
+                      </li>
+                    </ul>
                   </div>
-                )}
+                </div>
               </div>
             )}
 
-            {activeTab === 'boards' && (
-              <div className='bg-card border border-border rounded-xl overflow-hidden shadow-md'>
-                <div className='p-4 bg-muted/30 border-b border-border'>
-                  <h2 className='text-sm font-semibold text-foreground'>
-                    Boards ({filteredBoards.length})
-                  </h2>
+            {searchTerm &&
+              filteredCards.length === 0 &&
+              filteredBoards.length === 0 && (
+                <div className='flex items-center justify-center h-full'>
+                  <div className='text-center max-w-md mx-auto p-8'>
+                    <div className='relative mx-auto w-24 h-24 mb-6'>
+                      <div className='absolute inset-0 bg-muted/30 rounded-full flex items-center justify-center'>
+                        <Search className='w-12 h-12 text-muted-foreground opacity-30' />
+                      </div>
+                      <div className='absolute right-0 bottom-0 w-10 h-10 bg-muted/50 rounded-full flex items-center justify-center'>
+                        <X className='w-6 h-6 text-muted-foreground' />
+                      </div>
+                    </div>
+                    <h2 className='text-2xl font-semibold mb-3 text-foreground'>
+                      No results found
+                    </h2>
+                    <p className='text-muted-foreground mb-6'>
+                      We couldn't find anything matching{' '}
+                      <span className='text-foreground'>"{searchTerm}"</span>
+                    </p>
+                    <div className='bg-muted/30 p-4 rounded-lg'>
+                      <h3 className='font-medium text-sm mb-2 flex items-center'>
+                        <Info className='w-4 h-4 mr-2 text-primary' />
+                        Suggestions
+                      </h3>
+                      <ul className='text-sm text-muted-foreground text-left space-y-2'>
+                        <li className='flex items-start'>
+                          <span className='mr-2'>•</span>
+                          <span>Check your spelling</span>
+                        </li>
+                        <li className='flex items-start'>
+                          <span className='mr-2'>•</span>
+                          <span>
+                            Try using different or more general keywords
+                          </span>
+                        </li>
+                        <li className='flex items-start'>
+                          <span className='mr-2'>•</span>
+                          <span>Adjust or clear your search filters</span>
+                        </li>
+                        <li className='flex items-start'>
+                          <span className='mr-2'>•</span>
+                          <span>
+                            Try including closed boards and archived cards
+                          </span>
+                        </li>
+                      </ul>
+                    </div>
+                    <button
+                      onClick={clearFilters}
+                      className='mt-4 flex items-center gap-2 mx-auto px-3 py-2 bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors'
+                    >
+                      <Filter className='w-4 h-4' />
+                      Clear all filters
+                    </button>
+                  </div>
                 </div>
+              )}
 
-                {filteredBoards.length > 0 ? (
-                  <div className='divide-y divide-border'>
-                    {filteredBoards.map((board) => (
-                      <div
-                        key={board.id}
-                        className='p-4 hover:bg-muted/20 transition-colors'
-                      >
-                        <div className='flex items-center'>
-                          <div
-                            className={`w-10 h-10 ${board.color} rounded-md flex-shrink-0 flex items-center justify-center`}
-                          >
-                            <LayoutList className='w-5 h-5 text-white' />
-                          </div>
-                          <div className='ml-3 flex-1'>
-                            <div className='flex items-center'>
+            {searchTerm &&
+              (filteredCards.length > 0 || filteredBoards.length > 0) &&
+              activeTab === 'cards' && (
+                <div className='bg-card border border-border rounded-xl overflow-hidden shadow-md'>
+                  <div className='p-4 bg-muted/30 border-b border-border'>
+                    <h2 className='text-sm font-semibold text-foreground'>
+                      Cards ({filteredCards.length})
+                    </h2>
+                  </div>
+
+                  {filteredCards.length > 0 ? (
+                    <div className='divide-y divide-border'>
+                      {filteredCards.map((card) => (
+                        <div
+                          key={card.id}
+                          className='p-4 hover:bg-muted/20 transition-colors'
+                        >
+                          <div className='flex items-start'>
+                            <div
+                              className={`mt-1 w-5 h-5 ${card.boardColor} rounded flex-shrink-0`}
+                            ></div>
+                            <div className='ml-3 flex-1'>
                               <Link
-                                href={`/board/${board.id}`}
+                                href={`/card/${card.id}`}
                                 className='font-medium text-foreground hover:text-primary'
                               >
-                                {board.name}
+                                {card.name}
                               </Link>
-                              {board.starred && (
-                                <Star className='w-4 h-4 ml-2 text-yellow-400 fill-current' />
-                              )}
+                              <p className='text-sm text-muted-foreground mt-1'>
+                                {card.board}
+                              </p>
+                              {card.description &&
+                                filters.includeCardDescriptions && (
+                                  <p className='text-sm text-muted-foreground mt-2 line-clamp-2'>
+                                    {card.description}
+                                  </p>
+                                )}
                             </div>
-                            <p className='text-sm text-muted-foreground mt-1'>
-                              {board.workspace}
-                            </p>
+                            <div className='text-xs text-muted-foreground whitespace-nowrap ml-3'>
+                              Updated {card.updatedAt}
+                            </div>
                           </div>
-                          <div className='text-xs text-muted-foreground whitespace-nowrap'>
-                            Updated {board.updatedAt}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className='p-10 text-center'>
+                      <div className='max-w-md mx-auto'>
+                        <div className='relative mb-4 mx-auto w-20 h-20 bg-muted/30 rounded-full flex items-center justify-center'>
+                          <Search className='w-10 h-10 text-muted-foreground opacity-40' />
+                          <div className='absolute -right-1 -bottom-1 w-8 h-8 bg-muted/50 rounded-full flex items-center justify-center'>
+                            <X className='w-5 h-5 text-muted-foreground' />
+                          </div>
+                        </div>
+                        <h3 className='text-xl font-medium text-foreground mb-2'>
+                          No cards found
+                        </h3>
+                        <p className='text-sm text-muted-foreground mb-6'>
+                          We couldn't find any cards matching your search
+                          criteria. Try adjusting your search term or filters.
+                        </p>
+                        <div className='space-y-3'>
+                          <div className='bg-muted/30 p-3 rounded-lg text-left'>
+                            <h4 className='text-sm font-medium text-foreground flex items-center mb-2'>
+                              <Info className='w-4 h-4 mr-2 text-primary' />
+                              Search tips
+                            </h4>
+                            <ul className='text-sm text-muted-foreground space-y-2'>
+                              <li className='flex items-start'>
+                                <span className='mr-2'>•</span>
+                                Check your spelling
+                              </li>
+                              <li className='flex items-start'>
+                                <span className='mr-2'>•</span>
+                                Try more general keywords
+                              </li>
+                              <li className='flex items-start'>
+                                <span className='mr-2'>•</span>
+                                Try adjusting your filters
+                              </li>
+                            </ul>
                           </div>
                         </div>
                       </div>
-                    ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+            {searchTerm &&
+              (filteredCards.length > 0 || filteredBoards.length > 0) &&
+              activeTab === 'boards' && (
+                <div className='bg-card border border-border rounded-xl overflow-hidden shadow-md'>
+                  <div className='p-4 bg-muted/30 border-b border-border'>
+                    <h2 className='text-sm font-semibold text-foreground'>
+                      Boards ({filteredBoards.length})
+                    </h2>
                   </div>
-                ) : (
-                  <div className='p-8 text-center'>
-                    <AlertCircle className='w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50' />
-                    <h3 className='text-lg font-medium text-foreground mb-1'>
-                      No boards found
-                    </h3>
-                    <p className='text-sm text-muted-foreground max-w-md mx-auto'>
-                      Try adjusting your search term or filters to find what
-                      you're looking for.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+
+                  {filteredBoards.length > 0 ? (
+                    <div className='divide-y divide-border'>
+                      {filteredBoards.map((board) => (
+                        <div
+                          key={board.id}
+                          className='p-4 hover:bg-muted/20 transition-colors'
+                        >
+                          <div className='flex items-center'>
+                            <div
+                              className={`w-10 h-10 ${board.color} rounded-md flex-shrink-0 flex items-center justify-center`}
+                            >
+                              <LayoutList className='w-5 h-5 text-white' />
+                            </div>
+                            <div className='ml-3 flex-1'>
+                              <div className='flex items-center'>
+                                <Link
+                                  href={`/board/${board.id}`}
+                                  className='font-medium text-foreground hover:text-primary'
+                                >
+                                  {board.name}
+                                </Link>
+                                {board.starred && (
+                                  <Star className='w-4 h-4 ml-2 text-yellow-400 fill-current' />
+                                )}
+                              </div>
+                              <p className='text-sm text-muted-foreground mt-1'>
+                                {board.workspace}
+                              </p>
+                            </div>
+                            <div className='text-xs text-muted-foreground whitespace-nowrap'>
+                              Updated {board.updatedAt}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className='p-10 text-center'>
+                      <div className='max-w-md mx-auto'>
+                        <div className='relative mb-4 mx-auto w-20 h-20 bg-muted/30 rounded-full flex items-center justify-center'>
+                          <LayoutList className='w-10 h-10 text-muted-foreground opacity-40' />
+                          <div className='absolute -right-1 -bottom-1 w-8 h-8 bg-muted/50 rounded-full flex items-center justify-center'>
+                            <X className='w-5 h-5 text-muted-foreground' />
+                          </div>
+                        </div>
+                        <h3 className='text-xl font-medium text-foreground mb-2'>
+                          No boards found
+                        </h3>
+                        <p className='text-sm text-muted-foreground mb-6'>
+                          We couldn't find any boards matching your search
+                          criteria. Try adjusting your search term or filters.
+                        </p>
+                        <div className='space-y-3'>
+                          <div className='bg-muted/30 p-3 rounded-lg text-left'>
+                            <h4 className='text-sm font-medium text-foreground flex items-center mb-2'>
+                              <Info className='w-4 h-4 mr-2 text-primary' />
+                              Search tips
+                            </h4>
+                            <ul className='text-sm text-muted-foreground space-y-2'>
+                              <li className='flex items-start'>
+                                <span className='mr-2'>•</span>
+                                Try removing board filters
+                              </li>
+                              <li className='flex items-start'>
+                                <span className='mr-2'>•</span>
+                                Include closed boards in your search
+                              </li>
+                              <li className='flex items-start'>
+                                <span className='mr-2'>•</span>
+                                Try more general keywords
+                              </li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
           </div>
         </div>
       </main>
