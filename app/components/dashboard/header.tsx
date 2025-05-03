@@ -16,6 +16,7 @@ import {
   Star,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 
 // Mock search results data
 const searchResultsData = {
@@ -76,6 +77,10 @@ export function DashboardHeader() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
   const searchRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+
+  // Check if we're on the search page
+  const isSearchPage = pathname?.includes('/search');
 
   useEffect(() => {
     setMounted(true);
@@ -144,7 +149,11 @@ export function DashboardHeader() {
       <div className='container mx-auto px-4 py-3'>
         <div className='flex items-center justify-between'>
           {/* Left section */}
-          <div className='flex items-center space-x-5 w-1/6'>
+          <div
+            className={`flex items-center space-x-5 ${
+              isSearchPage ? 'w-1/4' : 'w-1/6'
+            }`}
+          >
             <Link
               href='/'
               className='font-bold text-xl flex items-center gap-2 text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity'
@@ -154,217 +163,241 @@ export function DashboardHeader() {
             </Link>
           </div>
 
-          {/* Search and Create */}
-          <div className='flex items-center w-3/4 mx-auto px-4' ref={searchRef}>
-            <div className='relative flex-1'>
-              <Search className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground' />
-              <input
-                type='text'
-                placeholder='Search tasks, projects, etc...'
-                className='w-full pl-10 pr-4 py-2.5 superhero-header-search text-foreground placeholder-muted-foreground rounded-lg border focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all input'
-                value={searchTerm}
-                onChange={handleSearchChange}
-                onFocus={handleSearchFocus}
-              />
-              {searchTerm && (
-                <button
-                  className='absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground hover:text-foreground'
-                  onClick={() => {
-                    setSearchTerm('');
-                    setShowSearchResults(false);
-                  }}
-                  aria-label='Clear search'
-                >
-                  <X className='w-4 h-4' />
-                </button>
-              )}
+          {/* Search or Create Button */}
+          {isSearchPage ? (
+            <div className='flex-1 flex justify-center'>
+              <button className='btn btn-primary flex items-center gap-1.5 text-sm hover:bg-primary/90 hover:text-primary-foreground'>
+                <Plus className='w-4 h-4' />
+                Create
+              </button>
+            </div>
+          ) : (
+            <div
+              className='flex items-center w-3/4 mx-auto px-4'
+              ref={searchRef}
+            >
+              <div className='relative flex-1'>
+                <Search className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground' />
+                <input
+                  type='text'
+                  placeholder='Search tasks, projects, etc...'
+                  className='w-full pl-10 pr-4 py-2.5 superhero-header-search text-foreground placeholder-muted-foreground rounded-lg border border-border bg-background/80 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all input'
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  onFocus={handleSearchFocus}
+                />
+                {searchTerm && (
+                  <button
+                    className='absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground hover:text-foreground'
+                    onClick={() => {
+                      setSearchTerm('');
+                      setShowSearchResults(false);
+                    }}
+                    aria-label='Clear search'
+                  >
+                    <X className='w-4 h-4' />
+                  </button>
+                )}
 
-              {/* Search Results Dropdown */}
-              {showSearchResults && (
-                <div className='absolute top-full left-0 right-0 mt-1 card p-2 z-50 max-h-[80vh] overflow-y-auto'>
-                  {/* Tabs */}
-                  <div className='flex border-b border-border mb-2'>
-                    <button
-                      className={`px-3 py-1.5 text-xs font-medium ${
-                        activeFilter === 'all'
-                          ? 'text-primary border-b-2 border-primary'
-                          : 'text-muted-foreground'
-                      }`}
-                      onClick={() => setActiveFilter('all')}
-                    >
-                      All
-                    </button>
-                    <button
-                      className={`px-3 py-1.5 text-xs font-medium ${
-                        activeFilter === 'cards'
-                          ? 'text-primary border-b-2 border-primary'
-                          : 'text-muted-foreground'
-                      }`}
-                      onClick={() => setActiveFilter('cards')}
-                    >
-                      Cards
-                    </button>
-                    <button
-                      className={`px-3 py-1.5 text-xs font-medium ${
-                        activeFilter === 'boards'
-                          ? 'text-primary border-b-2 border-primary'
-                          : 'text-muted-foreground'
-                      }`}
-                      onClick={() => setActiveFilter('boards')}
-                    >
-                      Boards
-                    </button>
-                  </div>
-
-                  {hasResults ? (
-                    <>
-                      {/* Cards Section */}
-                      {(activeFilter === 'all' || activeFilter === 'cards') &&
-                        filteredResults.cards.length > 0 && (
-                          <div className='mb-3'>
-                            <h3 className='text-xs font-semibold text-muted-foreground uppercase px-2 mb-1'>
-                              Cards
-                            </h3>
-                            <div className='space-y-0.5'>
-                              {filteredResults.cards.map((card) => (
-                                <Link
-                                  key={card.id}
-                                  href={`/card/${card.id}`}
-                                  className='block px-2 py-1.5 hover:bg-muted/50 rounded-md transition-colors'
-                                >
-                                  <div className='flex items-start'>
-                                    <div className='w-5 h-5 mr-2 mt-0.5 bg-card border border-border rounded'></div>
-                                    <div className='flex-1'>
-                                      <p className='text-sm text-foreground font-medium'>
-                                        {card.name}
-                                      </p>
-                                      <p className='text-xs text-muted-foreground'>
-                                        {card.board}
-                                      </p>
-                                    </div>
-                                    <span className='text-xs text-muted-foreground whitespace-nowrap ml-2'>
-                                      Updated {card.updatedAt}
-                                    </span>
-                                  </div>
-                                </Link>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                      {/* Boards Section */}
-                      {(activeFilter === 'all' || activeFilter === 'boards') &&
-                        filteredResults.boards.length > 0 && (
-                          <div className='mb-3'>
-                            <h3 className='text-xs font-semibold text-muted-foreground uppercase px-2 mb-1'>
-                              Boards
-                            </h3>
-                            <div className='space-y-0.5'>
-                              {filteredResults.boards.map((board) => (
-                                <Link
-                                  key={board.id}
-                                  href={`/board/${board.id}`}
-                                  className='block px-2 py-1.5 hover:bg-muted/50 rounded-md transition-colors'
-                                >
-                                  <div className='flex items-center'>
-                                    <div className='w-5 h-5 mr-2 bg-blue-600 rounded'></div>
-                                    <div className='flex-1'>
-                                      <p className='text-sm text-foreground font-medium flex items-center'>
-                                        {board.name}
-                                        {board.starred && (
-                                          <Star className='w-3.5 h-3.5 ml-1 text-yellow-400 fill-current' />
-                                        )}
-                                      </p>
-                                      <p className='text-xs text-muted-foreground'>
-                                        {board.workspace}
-                                      </p>
-                                    </div>
-                                    <span className='text-xs text-muted-foreground whitespace-nowrap ml-2'>
-                                      Updated {board.updatedAt}
-                                    </span>
-                                  </div>
-                                </Link>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                      {/* Workspaces Section */}
-                      {activeFilter === 'all' &&
-                        filteredResults.workspaces.length > 0 && (
-                          <div className='mb-3'>
-                            <h3 className='text-xs font-semibold text-muted-foreground uppercase px-2 mb-1'>
-                              Workspaces
-                            </h3>
-                            <div className='space-y-0.5'>
-                              {filteredResults.workspaces.map((workspace) => (
-                                <Link
-                                  key={workspace.id}
-                                  href={`/workspace/${workspace.id}`}
-                                  className='block px-2 py-1.5 hover:bg-muted/50 rounded-md transition-colors'
-                                >
-                                  <div className='flex items-center'>
-                                    <div className='w-5 h-5 mr-2 bg-purple-600 rounded flex items-center justify-center text-white text-xs font-bold'>
-                                      {workspace.letter}
-                                    </div>
-                                    <p className='text-sm text-foreground font-medium'>
-                                      {workspace.name}
-                                    </p>
-                                  </div>
-                                </Link>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                      {/* Advanced Search Link */}
-                      <Link
-                        href={`/search?q=${encodeURIComponent(searchTerm)}`}
-                        className='flex items-center justify-between px-2 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors mt-1 border-t border-border'
-                        onClick={() => setShowSearchResults(false)}
+                {/* Search Results Dropdown */}
+                {showSearchResults && (
+                  <div className='absolute top-full left-0 right-0 mt-1 card p-2 z-50 max-h-[80vh] overflow-y-auto'>
+                    {/* Tabs */}
+                    <div className='flex border-b border-border mb-2'>
+                      <button
+                        className={`px-3 py-1.5 text-xs font-medium ${
+                          activeFilter === 'all'
+                            ? 'text-primary border-b-2 border-primary'
+                            : 'text-muted-foreground'
+                        }`}
+                        onClick={() => setActiveFilter('all')}
                       >
-                        <div className='flex items-center'>
-                          <Search className='w-4 h-4 mr-2' />
-                          Advanced Search
-                        </div>
-                        <ChevronRight className='w-4 h-4' />
-                      </Link>
-                    </>
-                  ) : (
-                    <div className='py-5 px-3 text-center'>
-                      <div className='flex flex-col items-center justify-center'>
-                        <div className='relative mb-3'>
-                          <Search className='w-12 h-12 text-muted-foreground opacity-20' />
-                          <X className='w-6 h-6 text-muted-foreground absolute bottom-0 right-0 opacity-70' />
-                        </div>
-                        <p className='text-base font-medium text-foreground mb-1'>
-                          No results found for "{searchTerm}"
-                        </p>
-                        <p className='text-sm text-muted-foreground mb-3'>
-                          Try different keywords or check your spelling
-                        </p>
+                        All
+                      </button>
+                      <button
+                        className={`px-3 py-1.5 text-xs font-medium ${
+                          activeFilter === 'cards'
+                            ? 'text-primary border-b-2 border-primary'
+                            : 'text-muted-foreground'
+                        }`}
+                        onClick={() => setActiveFilter('cards')}
+                      >
+                        Cards
+                      </button>
+                      <button
+                        className={`px-3 py-1.5 text-xs font-medium ${
+                          activeFilter === 'boards'
+                            ? 'text-primary border-b-2 border-primary'
+                            : 'text-muted-foreground'
+                        }`}
+                        onClick={() => setActiveFilter('boards')}
+                      >
+                        Boards
+                      </button>
+                    </div>
+
+                    {hasResults ? (
+                      <>
+                        {/* Cards Section */}
+                        {(activeFilter === 'all' || activeFilter === 'cards') &&
+                          filteredResults.cards.length > 0 && (
+                            <div className='mb-3'>
+                              <h3 className='text-xs font-semibold text-muted-foreground uppercase px-2 mb-1'>
+                                Cards
+                              </h3>
+                              <div className='space-y-0.5'>
+                                {filteredResults.cards.map((card) => (
+                                  <Link
+                                    key={card.id}
+                                    href={`/card/${card.id}`}
+                                    className='block px-2 py-1.5 hover:bg-muted/50 rounded-md transition-colors'
+                                  >
+                                    <div className='flex items-start'>
+                                      <div className='w-5 h-5 mr-2 mt-0.5 bg-card border border-border rounded'></div>
+                                      <div className='flex-1'>
+                                        <p className='text-sm text-foreground font-medium'>
+                                          {card.name}
+                                        </p>
+                                        <p className='text-xs text-muted-foreground'>
+                                          {card.board}
+                                        </p>
+                                      </div>
+                                      <span className='text-xs text-muted-foreground whitespace-nowrap ml-2'>
+                                        Updated {card.updatedAt}
+                                      </span>
+                                    </div>
+                                  </Link>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                        {/* Boards Section */}
+                        {(activeFilter === 'all' ||
+                          activeFilter === 'boards') &&
+                          filteredResults.boards.length > 0 && (
+                            <div className='mb-3'>
+                              <h3 className='text-xs font-semibold text-muted-foreground uppercase px-2 mb-1'>
+                                Boards
+                              </h3>
+                              <div className='space-y-0.5'>
+                                {filteredResults.boards.map((board) => (
+                                  <Link
+                                    key={board.id}
+                                    href={`/board/${board.id}`}
+                                    className='block px-2 py-1.5 hover:bg-muted/50 rounded-md transition-colors'
+                                  >
+                                    <div className='flex items-center'>
+                                      <div className='w-5 h-5 mr-2 bg-blue-600 rounded'></div>
+                                      <div className='flex-1'>
+                                        <p className='text-sm text-foreground font-medium flex items-center'>
+                                          {board.name}
+                                          {board.starred && (
+                                            <Star className='w-3.5 h-3.5 ml-1 text-yellow-400 fill-current' />
+                                          )}
+                                        </p>
+                                        <p className='text-xs text-muted-foreground'>
+                                          {board.workspace}
+                                        </p>
+                                      </div>
+                                      <span className='text-xs text-muted-foreground whitespace-nowrap ml-2'>
+                                        Updated {board.updatedAt}
+                                      </span>
+                                    </div>
+                                  </Link>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                        {/* Workspaces Section */}
+                        {activeFilter === 'all' &&
+                          filteredResults.workspaces.length > 0 && (
+                            <div className='mb-3'>
+                              <h3 className='text-xs font-semibold text-muted-foreground uppercase px-2 mb-1'>
+                                Workspaces
+                              </h3>
+                              <div className='space-y-0.5'>
+                                {filteredResults.workspaces.map((workspace) => (
+                                  <Link
+                                    key={workspace.id}
+                                    href={`/workspace/${workspace.id}`}
+                                    className='block px-2 py-1.5 hover:bg-muted/50 rounded-md transition-colors'
+                                  >
+                                    <div className='flex items-center'>
+                                      <div className='w-5 h-5 mr-2 bg-purple-600 rounded flex items-center justify-center text-white text-xs font-bold'>
+                                        {workspace.letter}
+                                      </div>
+                                      <p className='text-sm text-foreground font-medium'>
+                                        {workspace.name}
+                                      </p>
+                                    </div>
+                                  </Link>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                        {/* Advanced Search Link with improved hover */}
                         <Link
                           href={`/search?q=${encodeURIComponent(searchTerm)}`}
-                          className='flex items-center justify-center gap-1.5 mt-1 px-3 py-1.5 text-sm bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors'
+                          className='flex items-center justify-between px-3 py-3 text-sm font-medium bg-background/90 border border-border hover:bg-primary/10 hover:text-primary hover:border-primary/30 rounded-md transition-colors mt-3 shadow-sm'
                           onClick={() => setShowSearchResults(false)}
                         >
-                          <Search className='w-3.5 h-3.5' />
-                          Advanced Search
+                          <div className='flex items-center'>
+                            <Search className='w-4 h-4 mr-2 text-primary' />
+                            <span className='text-foreground group-hover:text-primary'>
+                              Advanced Search
+                            </span>
+                          </div>
+                          <ChevronRight className='w-4 h-4 text-primary' />
                         </Link>
+                      </>
+                    ) : (
+                      <div className='py-5 px-3 text-center'>
+                        <div className='flex flex-col items-center justify-center'>
+                          <div className='relative mb-3'>
+                            <div className='bg-red-500/10 rounded-full p-3'>
+                              <Search className='w-10 h-10 text-red-500/60' />
+                            </div>
+                            <div className='absolute -bottom-1 -right-1 bg-red-500/30 rounded-full p-1'>
+                              <X className='w-5 h-5 text-red-500' />
+                            </div>
+                          </div>
+                          <p className='text-base font-medium text-foreground mb-1'>
+                            No results found for{' '}
+                            <span className='text-red-400'>"{searchTerm}"</span>
+                          </p>
+                          <p className='text-sm text-muted-foreground mb-3'>
+                            Try different keywords or check your spelling
+                          </p>
+                          <Link
+                            href={`/search?q=${encodeURIComponent(searchTerm)}`}
+                            className='flex items-center justify-center gap-1.5 mt-1 px-4 py-2 text-sm bg-background/90 border border-border text-foreground hover:bg-primary/10 hover:text-primary hover:border-primary/30 rounded-md transition-colors shadow-sm'
+                            onClick={() => setShowSearchResults(false)}
+                          >
+                            <Search className='w-3.5 h-3.5 text-primary' />
+                            <span>Advanced Search</span>
+                          </Link>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+                  </div>
+                )}
+              </div>
+              <button className='btn btn-primary flex items-center gap-1.5 text-sm ml-3 hover:bg-primary/90 hover:text-primary-foreground'>
+                <Plus className='w-4 h-4' />
+                Create
+              </button>
             </div>
-            <button className='btn btn-primary flex items-center gap-1.5 text-sm ml-3 hover:bg-primary/90 hover:text-primary-foreground'>
-              <Plus className='w-4 h-4' />
-              Create
-            </button>
-          </div>
+          )}
 
           {/* Right section */}
-          <div className='flex items-center space-x-4 w-1/6 justify-end'>
+          <div
+            className={`flex items-center space-x-4 ${
+              isSearchPage ? 'w-1/4' : 'w-1/6'
+            } justify-end`}
+          >
             <button
               className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors relative'
               aria-label='Notifications'

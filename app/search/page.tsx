@@ -16,6 +16,7 @@ import {
   Bookmark,
   Info,
   AlertCircle,
+  ChevronRight,
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -230,7 +231,7 @@ export default function SearchPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder='Search boards, cards, and more...'
-                className='w-full pl-12 pr-4 py-3 rounded-lg bg-card shadow-md border border-border focus:outline-none focus:ring-2 focus:ring-primary'
+                className='w-full pl-12 pr-4 py-3 rounded-lg bg-background/90 shadow-md border border-border focus:outline-none focus:ring-2 focus:ring-primary text-foreground'
               />
               {searchTerm && (
                 <button
@@ -564,13 +565,13 @@ export default function SearchPage() {
               filteredCards.length === 0 &&
               filteredBoards.length === 0 && (
                 <div className='flex items-center justify-center h-full'>
-                  <div className='text-center max-w-md mx-auto p-8'>
+                  <div className='text-center max-w-md mx-auto p-8 bg-card border border-border rounded-xl shadow-lg'>
                     <div className='relative mx-auto w-24 h-24 mb-6'>
-                      <div className='absolute inset-0 bg-muted/30 rounded-full flex items-center justify-center'>
-                        <Search className='w-12 h-12 text-muted-foreground opacity-30' />
+                      <div className='absolute inset-0 bg-red-500/10 rounded-full flex items-center justify-center'>
+                        <Search className='w-12 h-12 text-red-500/60' />
                       </div>
-                      <div className='absolute right-0 bottom-0 w-10 h-10 bg-muted/50 rounded-full flex items-center justify-center'>
-                        <X className='w-6 h-6 text-muted-foreground' />
+                      <div className='absolute right-0 bottom-0 w-10 h-10 bg-red-500/30 rounded-full flex items-center justify-center'>
+                        <X className='w-6 h-6 text-red-500' />
                       </div>
                     </div>
                     <h2 className='text-2xl font-semibold mb-3 text-foreground'>
@@ -578,9 +579,11 @@ export default function SearchPage() {
                     </h2>
                     <p className='text-muted-foreground mb-6'>
                       We couldn't find anything matching{' '}
-                      <span className='text-foreground'>"{searchTerm}"</span>
+                      <span className='text-red-400 font-medium'>
+                        "{searchTerm}"
+                      </span>
                     </p>
-                    <div className='bg-muted/30 p-4 rounded-lg'>
+                    <div className='bg-background/60 p-4 rounded-lg border border-border'>
                       <h3 className='font-medium text-sm mb-2 flex items-center'>
                         <Info className='w-4 h-4 mr-2 text-primary' />
                         Suggestions
@@ -610,10 +613,10 @@ export default function SearchPage() {
                     </div>
                     <button
                       onClick={clearFilters}
-                      className='mt-4 flex items-center gap-2 mx-auto px-3 py-2 bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors'
+                      className='mt-4 flex items-center gap-2 mx-auto px-3 py-2 bg-background/90 border border-border text-foreground hover:bg-muted/30 rounded-md transition-colors'
                     >
-                      <Filter className='w-4 h-4' />
-                      Clear all filters
+                      <Filter className='w-4 h-4 text-primary' />
+                      <span>Clear all filters</span>
                     </button>
                   </div>
                 </div>
