@@ -17,6 +17,8 @@ import {
   Info,
   AlertCircle,
   ChevronRight,
+  User,
+  Users,
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -79,6 +81,32 @@ const searchResultsData = {
       updatedAt: '6 hours ago',
       starred: true,
       color: 'bg-blue-600',
+    },
+  ],
+  workspaces: [
+    {
+      id: 'ws1',
+      name: 'Entrepreneur Tourist',
+      letter: 'E',
+      description: 'Tourism application development workspace',
+      members: 8,
+      updatedAt: '1 day ago',
+    },
+    {
+      id: 'ws2',
+      name: 'Personal Projects',
+      letter: 'P',
+      description: 'Collection of personal project boards',
+      members: 1,
+      updatedAt: '1 week ago',
+    },
+    {
+      id: 'ws3',
+      name: 'Marketing Campaign',
+      letter: 'M',
+      description: 'Workspace for quarterly marketing initiatives',
+      members: 12,
+      updatedAt: '3 days ago',
     },
   ],
 };
@@ -152,6 +180,21 @@ export default function SearchPage() {
 
     return board.name.toLowerCase().includes(searchTerm.toLowerCase());
   });
+
+  // Filter workspaces based on search term
+  const filteredWorkspaces = searchResultsData.workspaces.filter(
+    (workspace) => {
+      if (!searchTerm) return true;
+
+      return (
+        workspace.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (workspace.description &&
+          workspace.description
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()))
+      );
+    }
+  );
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({
@@ -268,6 +311,18 @@ export default function SearchPage() {
               >
                 Boards{' '}
                 {filteredBoards.length > 0 && `(${filteredBoards.length})`}
+              </button>
+              <button
+                onClick={() => setActiveTab('workspaces')}
+                className={`px-4 py-2 font-medium text-sm transition-colors ${
+                  activeTab === 'workspaces'
+                    ? 'text-primary border-b-2 border-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Workspaces{' '}
+                {filteredWorkspaces.length > 0 &&
+                  `(${filteredWorkspaces.length})`}
               </button>
             </div>
           </div>
@@ -563,7 +618,8 @@ export default function SearchPage() {
 
             {searchTerm &&
               filteredCards.length === 0 &&
-              filteredBoards.length === 0 && (
+              filteredBoards.length === 0 &&
+              filteredWorkspaces.length === 0 && (
                 <div className='flex items-center justify-center h-full'>
                   <div className='text-center max-w-md mx-auto p-8 bg-card border border-border rounded-xl shadow-lg'>
                     <div className='relative mx-auto w-24 h-24 mb-6'>
@@ -623,7 +679,9 @@ export default function SearchPage() {
               )}
 
             {searchTerm &&
-              (filteredCards.length > 0 || filteredBoards.length > 0) &&
+              (filteredCards.length > 0 ||
+                filteredBoards.length > 0 ||
+                filteredWorkspaces.length > 0) &&
               activeTab === 'cards' && (
                 <div className='bg-card border border-border rounded-xl overflow-hidden shadow-md'>
                   <div className='p-4 bg-muted/30 border-b border-border'>
@@ -712,7 +770,9 @@ export default function SearchPage() {
               )}
 
             {searchTerm &&
-              (filteredCards.length > 0 || filteredBoards.length > 0) &&
+              (filteredCards.length > 0 ||
+                filteredBoards.length > 0 ||
+                filteredWorkspaces.length > 0) &&
               activeTab === 'boards' && (
                 <div className='bg-card border border-border rounded-xl overflow-hidden shadow-md'>
                   <div className='p-4 bg-muted/30 border-b border-border'>
@@ -791,6 +851,104 @@ export default function SearchPage() {
                               <li className='flex items-start'>
                                 <span className='mr-2'>•</span>
                                 Try more general keywords
+                              </li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            {searchTerm &&
+              (filteredCards.length > 0 ||
+                filteredBoards.length > 0 ||
+                filteredWorkspaces.length > 0) &&
+              activeTab === 'workspaces' && (
+                <div className='bg-card border border-border rounded-xl overflow-hidden shadow-md'>
+                  <div className='p-4 bg-muted/30 border-b border-border'>
+                    <h2 className='text-sm font-semibold text-foreground'>
+                      Workspaces ({filteredWorkspaces.length})
+                    </h2>
+                  </div>
+
+                  {filteredWorkspaces.length > 0 ? (
+                    <div className='divide-y divide-border'>
+                      {filteredWorkspaces.map((workspace) => (
+                        <div
+                          key={workspace.id}
+                          className='p-4 hover:bg-muted/20 transition-colors'
+                        >
+                          <div className='flex items-start'>
+                            <div
+                              className={`flex-shrink-0 w-10 h-10 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-md flex items-center justify-center text-white font-semibold`}
+                            >
+                              {workspace.letter}
+                            </div>
+                            <div className='ml-3 flex-1'>
+                              <Link
+                                href={`/workspace/${workspace.id}`}
+                                className='font-medium text-foreground hover:text-primary'
+                              >
+                                {workspace.name}
+                              </Link>
+                              {workspace.description && (
+                                <p className='text-sm text-muted-foreground mt-1 line-clamp-2'>
+                                  {workspace.description}
+                                </p>
+                              )}
+                              <div className='flex items-center text-xs text-muted-foreground mt-2'>
+                                <div className='flex items-center'>
+                                  <User className='w-3 h-3 mr-1' />
+                                  {workspace.members}{' '}
+                                  {workspace.members === 1
+                                    ? 'member'
+                                    : 'members'}
+                                </div>
+                              </div>
+                            </div>
+                            <div className='text-xs text-muted-foreground whitespace-nowrap ml-3'>
+                              Updated {workspace.updatedAt}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className='p-10 text-center'>
+                      <div className='max-w-md mx-auto'>
+                        <div className='relative mb-4 mx-auto w-20 h-20 bg-muted/30 rounded-full flex items-center justify-center'>
+                          <Users className='w-10 h-10 text-muted-foreground opacity-40' />
+                          <div className='absolute -right-1 -bottom-1 w-8 h-8 bg-muted/50 rounded-full flex items-center justify-center'>
+                            <X className='w-5 h-5 text-muted-foreground' />
+                          </div>
+                        </div>
+                        <h3 className='text-xl font-medium text-foreground mb-2'>
+                          No workspaces found
+                        </h3>
+                        <p className='text-sm text-muted-foreground mb-6'>
+                          We couldn't find any workspaces matching your search
+                          criteria. Try adjusting your search term.
+                        </p>
+                        <div className='space-y-3'>
+                          <div className='bg-muted/30 p-3 rounded-lg text-left'>
+                            <h4 className='text-sm font-medium text-foreground flex items-center mb-2'>
+                              <Info className='w-4 h-4 mr-2 text-primary' />
+                              Search tips
+                            </h4>
+                            <ul className='text-sm text-muted-foreground space-y-2'>
+                              <li className='flex items-start'>
+                                <span className='mr-2'>•</span>
+                                Check your spelling
+                              </li>
+                              <li className='flex items-start'>
+                                <span className='mr-2'>•</span>
+                                Try more general keywords
+                              </li>
+                              <li className='flex items-start'>
+                                <span className='mr-2'>•</span>
+                                Search for a partial workspace name
                               </li>
                             </ul>
                           </div>

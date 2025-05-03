@@ -7,6 +7,7 @@ import {
   Plus,
   Bell,
   User,
+  Users,
   Settings,
   LogOut,
   X,
@@ -67,7 +68,29 @@ const searchResultsData = {
       starred: true,
     },
   ],
-  workspaces: [{ id: 'ws1', name: 'Entrepreneur Tourist', letter: 'E' }],
+  workspaces: [
+    {
+      id: 'ws1',
+      name: 'Entrepreneur Tourist',
+      letter: 'E',
+      members: 8,
+      updatedAt: '1 day ago',
+    },
+    {
+      id: 'ws2',
+      name: 'Personal Projects',
+      letter: 'P',
+      members: 1,
+      updatedAt: '3 weeks ago',
+    },
+    {
+      id: 'ws3',
+      name: 'Marketing Campaign',
+      letter: 'M',
+      members: 12,
+      updatedAt: '2 days ago',
+    },
+  ],
 };
 
 export function DashboardHeader() {
@@ -234,6 +257,16 @@ export function DashboardHeader() {
                       >
                         Boards
                       </button>
+                      <button
+                        className={`px-3 py-1.5 text-xs font-medium ${
+                          activeFilter === 'workspaces'
+                            ? 'text-primary border-b-2 border-primary'
+                            : 'text-muted-foreground'
+                        }`}
+                        onClick={() => setActiveFilter('workspaces')}
+                      >
+                        Workspaces
+                      </button>
                     </div>
 
                     {hasResults ? (
@@ -311,7 +344,8 @@ export function DashboardHeader() {
                           )}
 
                         {/* Workspaces Section */}
-                        {activeFilter === 'all' &&
+                        {(activeFilter === 'all' ||
+                          activeFilter === 'workspaces') &&
                           filteredResults.workspaces.length > 0 && (
                             <div className='mb-3'>
                               <h3 className='text-xs font-semibold text-muted-foreground uppercase px-2 mb-1'>
@@ -325,12 +359,23 @@ export function DashboardHeader() {
                                     className='block px-2 py-1.5 hover:bg-muted/50 rounded-md transition-colors'
                                   >
                                     <div className='flex items-center'>
-                                      <div className='w-5 h-5 mr-2 bg-purple-600 rounded flex items-center justify-center text-white text-xs font-bold'>
+                                      <div className='w-5 h-5 mr-2 bg-gradient-to-br from-purple-600 to-indigo-600 rounded flex items-center justify-center text-white text-xs font-bold'>
                                         {workspace.letter}
                                       </div>
-                                      <p className='text-sm text-foreground font-medium'>
-                                        {workspace.name}
-                                      </p>
+                                      <div className='flex-1'>
+                                        <p className='text-sm text-foreground font-medium'>
+                                          {workspace.name}
+                                        </p>
+                                        {workspace.members && (
+                                          <p className='text-xs text-muted-foreground flex items-center'>
+                                            <User className='w-3 h-3 mr-1' />
+                                            {workspace.members}{' '}
+                                            {workspace.members === 1
+                                              ? 'member'
+                                              : 'members'}
+                                          </p>
+                                        )}
+                                      </div>
                                     </div>
                                   </Link>
                                 ))}
