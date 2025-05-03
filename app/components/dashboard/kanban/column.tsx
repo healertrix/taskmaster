@@ -30,7 +30,7 @@ export function Column({ column, tasks, onAddTask }: ColumnProps) {
 
   return (
     <div
-      className={`flex flex-col w-[360px] h-full rounded-xl flex-shrink-0 bg-card/50 backdrop-blur-md border ${
+      className={`flex flex-col w-[360px] max-h-[calc(100vh-210px)] rounded-xl flex-shrink-0 bg-card/50 backdrop-blur-md border ${
         isOver ? 'border-primary' : 'border-transparent'
       } transition-colors duration-200 shadow-lg`}
     >

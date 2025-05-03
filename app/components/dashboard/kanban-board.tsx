@@ -291,7 +291,7 @@ export function KanbanBoard() {
   const activeTask = activeId ? findTask(activeId) : null;
 
   return (
-    <div className='h-[calc(100vh-8rem)] bg-gradient-to-br from-background via-background to-[hsl(240,20%,10%)] rounded-2xl p-1 overflow-hidden relative'>
+    <div className='h-[calc(100vh-10rem)] bg-gradient-to-br from-background via-background to-[hsl(240,20%,10%)] rounded-2xl p-1 overflow-hidden relative'>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -299,7 +299,7 @@ export function KanbanBoard() {
         onDragEnd={handleDragEnd}
       >
         <div className='h-full overflow-x-auto rounded-xl'>
-          <div className='inline-flex h-full gap-5 p-4 min-w-full'>
+          <div className='inline-flex h-full gap-5 p-4 pt-6 min-w-full'>
             {columns.map((column) => (
               <Column key={column.id} column={column} tasks={column.tasks} />
             ))}
