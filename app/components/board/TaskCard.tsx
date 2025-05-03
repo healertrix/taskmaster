@@ -26,9 +26,17 @@ interface TaskCardProps {
   task: Task;
   labelColors: Record<string, string>; // Pass the color map
   columnId: string; // Add columnId prop to identify container
+  isDragTarget?: boolean; // Whether this task is currently being dragged over
+  isBeingDragged?: boolean; // Whether this task is being dragged
 }
 
-export function TaskCard({ task, labelColors, columnId }: TaskCardProps) {
+export function TaskCard({
+  task,
+  labelColors,
+  columnId,
+  isDragTarget = false,
+  isBeingDragged = false,
+}: TaskCardProps) {
   const {
     attributes,
     listeners,
@@ -48,8 +56,13 @@ export function TaskCard({ task, labelColors, columnId }: TaskCardProps) {
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1, // Make card semi-transparent when dragging
+    // Don't make fully transparent when dragging, instead just reduce opacity
+    // This will act as a placeholder in the original position
+    opacity: isDragging ? 0.15 : 1, // Reduced opacity further during dragging
     zIndex: isDragging ? 10 : 'auto', // Ensure dragging card is on top
+    // Don't apply transforms to the original card when being dragged
+    // This prevents the dragged card from appearing in the original position
+    pointerEvents: isDragging ? 'none' : 'auto',
   };
 
   // Helper to get label colors based on the map
@@ -57,23 +70,21 @@ export function TaskCard({ task, labelColors, columnId }: TaskCardProps) {
     return labelColors[colorKey] || 'bg-muted text-muted-foreground'; // Default fallback
   };
 
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className='p-3 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:border-white/20 hover:bg-white/10 cursor-grab active:cursor-grabbing transition-all duration-300 hover:-translate-y-1 shadow-lg shadow-black/10'
-    >
+  // Don't render card content in original position when dragging
+  const cardContent = isDragging ? (
+    // Just render an empty placeholder when dragging
+    <div className="w-full h-full border-dashed border-2 border-primary/30 rounded-lg bg-primary/5 min-h-[80px]" />
+  ) : (
+    <>
       {/* Labels */}
       {task.labels && task.labels.length > 0 && (
-        <div className='flex flex-wrap gap-1.5 mb-2'>
+        <div className='flex flex-wrap gap-1.5 mb-2 overflow-hidden'>
           {task.labels.map((label, index) => (
             <span
               key={index}
               className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${getLabelClass(
                 label.color
-              )}`}
+              )} whitespace-nowrap`}
             >
               {label.text}
             </span>
@@ -82,12 +93,12 @@ export function TaskCard({ task, labelColors, columnId }: TaskCardProps) {
       )}
 
       {/* Title */}
-      <p className='text-sm font-medium text-white mb-3 leading-snug'>
+      <p className='text-sm font-medium text-white mb-3 leading-snug break-words'>
         {task.title}
       </p>
 
       {/* Footer: Assignees & Stats */}
-      <div className='flex justify-between items-center'>
+      <div className='flex justify-between items-center mt-auto'>
         <div className='flex -space-x-2'>
           {task.assignees?.map((assignee, index) => (
             <div
@@ -115,6 +126,28 @@ export function TaskCard({ task, labelColors, columnId }: TaskCardProps) {
           )}
         </div>
       </div>
+    </>
+  );
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={`p-3 rounded-lg backdrop-blur-sm border shadow-lg shadow-black/10 cursor-grab active:cursor-grabbing min-h-[80px] h-auto mb-6 last:mb-0
+        transition-all duration-300 ease-out transform
+        ${!isDragging ? 'hover:-translate-y-1' : ''}
+        ${
+          isDragTarget
+            ? 'border-primary/70 border-2 bg-primary/5'
+            : 'border-white/10 hover:border-white/20 hover:bg-white/10'
+        }
+        ${isBeingDragged && !isDragging ? 'opacity-50' : ''}
+        ${isDragging ? 'border-dashed border-primary/30 bg-primary/5' : 'bg-white/5'}
+      `}
+    >
+      {cardContent}
     </div>
   );
 }

@@ -23,11 +23,21 @@ interface Column {
   cards: Task[];
 }
 
+// Interface for the drag over info
+interface DragOverInfo {
+  id: string | null;
+  type: 'task' | 'column' | null;
+  index: number | null;
+  columnId: string | null;
+}
+
 interface ColumnContainerProps {
   column: Column;
   tasks: Task[]; // Pass only the tasks for this column
   getColumnStyle: (id: string) => string; // Pass the style helper
   labelColors: Record<string, string>; // Pass the color map
+  dragOverInfo: DragOverInfo; // Add the dragOverInfo
+  activeTaskId: string | undefined; // The ID of the task being dragged
 }
 
 export function ColumnContainer({
@@ -35,6 +45,8 @@ export function ColumnContainer({
   tasks,
   getColumnStyle,
   labelColors,
+  dragOverInfo,
+  activeTaskId,
 }: ColumnContainerProps) {
   // Use useDroppable for the column to accept tasks
   const { setNodeRef: setColumnRef } = useDroppable({
@@ -48,13 +60,43 @@ export function ColumnContainer({
   // Get task IDs for SortableContext
   const taskIds = React.useMemo(() => tasks.map((task) => task.id), [tasks]);
 
+  // Check if this column is the one being dragged over
+  const isColumnBeingDraggedOver = dragOverInfo.columnId === column.id;
+
+  // Function to render drop indicators between tasks
+  const renderDropIndicator = (index: number) => {
+    // Only show indicator if this is the column being dragged over
+    // and the index matches where the task would be inserted
+    const shouldShow =
+      isColumnBeingDraggedOver &&
+      dragOverInfo.index === index &&
+      dragOverInfo.type === 'task';
+
+    if (!shouldShow) return null;
+
+    return (
+      <div className='py-2 px-2'>
+        <div
+          className='h-1 bg-primary rounded-full w-full transition-all duration-200 animate-pulse'
+          style={{ height: '4px' }}
+        />
+      </div>
+    );
+  };
+
+  // Show empty column indicator
+  const showEmptyColumnIndicator =
+    isColumnBeingDraggedOver &&
+    (!tasks.length ||
+      (dragOverInfo.type === 'column' && dragOverInfo.id === column.id));
+
   return (
     <div
       ref={setColumnRef}
-      className='flex flex-col w-72 flex-shrink-0 mr-3 kanban-column rounded-xl overflow-hidden max-h-[calc(100vh-180px)]'
+      className='flex flex-col w-80 flex-shrink-0 mr-5 kanban-column rounded-xl overflow-hidden max-h-[calc(100vh-180px)]'
     >
       <div
-        className={`p-3 rounded-t-xl kanban-column-header flex justify-between items-center ${getColumnStyle(
+        className={`p-4 rounded-t-xl kanban-column-header flex justify-between items-center ${getColumnStyle(
           column.id
         )}`}
       >
@@ -73,21 +115,55 @@ export function ColumnContainer({
       </div>
       {/* Make the content area scrollable */}
       <div
-        className={`flex-1 overflow-y-auto p-3 kanban-column-content rounded-b-xl ${getColumnStyle(
+        className={`flex-1 overflow-y-auto p-4 kanban-column-content rounded-b-xl ${getColumnStyle(
           column.id
         )}`}
         style={{ maxHeight: 'calc(100vh - 290px)' }} // Further reduced max height
       >
         <SortableContext items={taskIds}>
-          <div className='space-y-3'>
-            {tasks.map((task) => (
-              <TaskCard
+          <div className="space-y-2 transition-all duration-300 ease-in-out">
+            {/* Show indicator at the top if dropping at index 0 */}
+            {renderDropIndicator(0)}
+
+            {tasks.map((task, index) => (
+              <div 
                 key={task.id}
-                task={task}
-                labelColors={labelColors}
-                columnId={column.id} // Pass the column ID to each task
-              />
+                className="animate-slideUp"
+                style={{ 
+                  animationFillMode: 'both', 
+                  animationDelay: `${index * 50}ms` // Stagger the animations
+                }}
+              >
+                <TaskCard
+                  task={task}
+                  labelColors={labelColors}
+                  columnId={column.id}
+                  isDragTarget={dragOverInfo.id === task.id}
+                  isBeingDragged={task.id === activeTaskId}
+                />
+                {/* Show drop indicator after each task */}
+                {renderDropIndicator(index + 1)}
+              </div>
             ))}
+
+            {/* Empty Column Indicator */}
+            {tasks.length === 0 && (
+              <div
+                className={`flex h-28 items-center justify-center rounded-lg border-2 border-dashed transition-all duration-300 ease-in-out animate-scaleIn ${
+                  showEmptyColumnIndicator
+                    ? 'border-primary bg-primary/10 animate-pulse'
+                    : 'border-white/10 bg-white/5'
+                }`}
+              >
+                <p
+                  className={`text-sm font-medium ${
+                    showEmptyColumnIndicator ? 'text-primary' : 'text-white/50'
+                  }`}
+                >
+                  {showEmptyColumnIndicator ? 'Drop here' : 'No tasks'}
+                </p>
+              </div>
+            )}
           </div>
         </SortableContext>
       </div>

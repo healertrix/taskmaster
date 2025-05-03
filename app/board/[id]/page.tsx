@@ -80,10 +80,6 @@ const initialColumns: Column[] = [
           { initials: 'KV', color: 'bg-purple-500' },
         ],
       },
-      {
-        id: 'card2',
-        title: 'fefesf',
-      },
     ],
   },
   {
@@ -227,17 +223,31 @@ const getColumnStyle = (id: string) => {
     'android-pending': 'bg-violet-500/10 border-violet-500/30 text-violet-500',
     'web-pending': 'bg-green-500/10 border-green-500/30 text-green-500',
     'backend-pending': 'bg-blue-500/10 border-blue-500/30 text-blue-500',
-    'references': 'bg-slate-500/10 border-slate-500/30 text-slate-400',
+    references: 'bg-slate-500/10 border-slate-500/30 text-slate-400',
     'in-progress': 'bg-primary/10 border-primary/30 text-primary',
   };
 
-  return styles[id as keyof typeof styles] || 'bg-slate-500/10 border-slate-500/30 text-slate-400';
+  return (
+    styles[id as keyof typeof styles] ||
+    'bg-slate-500/10 border-slate-500/30 text-slate-400'
+  );
 };
 
 export default function BoardPage({ params }: { params: { id: string } }) {
   const [columns, setColumns] = useState<Column[]>(initialColumns);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
+  const [dragOverInfo, setDragOverInfo] = useState<{
+    id: UniqueIdentifier | null;
+    type: 'task' | 'column' | null;
+    index: number | null;
+    columnId: string | null;
+  }>({
+    id: null,
+    type: null,
+    index: null,
+    columnId: null,
+  });
   const boardName = 'TouristSprint1'; // Dynamically get this based on params.id in a real app
 
   // Configure sensors
@@ -277,14 +287,98 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       setActiveTask(task);
       setActiveColumnId(columnId);
     }
+
+    // Reset drag over info when starting a new drag
+    setDragOverInfo({
+      id: null,
+      type: null,
+      index: null,
+      columnId: null,
+    });
+  }
+
+  // Create a custom collision detection strategy
+  const collisionDetectionStrategy = (args: any) => {
+    // First, let's use the built-in rectangle intersection strategy
+    const intersections = rectIntersection(args);
+
+    // If there are no intersections or we're not dragging, return the results
+    if (!intersections?.length || !activeTask) return intersections;
+
+    // Find the closest intersection - prioritize columns when moving horizontally
+    // and tasks when moving vertically
+    return closestCorners(args);
+  };
+
+  // Add a function to handle the drag over event
+  function handleDragOver(event: any) {
+    const { active, over } = event;
+
+    if (!over) {
+      setDragOverInfo({
+        id: null,
+        type: null,
+        index: null,
+        columnId: null,
+      });
+      return;
+    }
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // Don't do anything if hovering over the active item
+    if (activeId === overId) return;
+
+    // Check if over is a column
+    const isOverColumn = columns.some((col) => col.id === overId);
+
+    if (isOverColumn) {
+      // If over a column, set the drag over info
+      const columnIndex = columns.findIndex((col) => col.id === overId);
+      const column = columns[columnIndex];
+
+      setDragOverInfo({
+        id: overId,
+        type: 'column',
+        index: column.cards.length, // Will place at the end of the column
+        columnId: overId,
+      });
+    } else {
+      // If over a task, find the task and its column
+      const overTaskInfo = findTaskById(overId);
+      if (!overTaskInfo) return;
+
+      const { columnId } = overTaskInfo;
+      const column = findColumnById(columnId);
+      if (!column) return;
+
+      const taskIndex = column.cards.findIndex((task) => task.id === overId);
+
+      setDragOverInfo({
+        id: overId,
+        type: 'task',
+        index: taskIndex,
+        columnId: columnId,
+      });
+    }
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
 
-    // Clear the active task state
-    setActiveTask(null);
-    setActiveColumnId(null);
+    // Create smooth transition for the DOM update by waiting for the animation frame
+    window.requestAnimationFrame(() => {
+      // Clear the active task state and drag over info
+      setActiveTask(null);
+      setActiveColumnId(null);
+      setDragOverInfo({
+        id: null,
+        type: null,
+        index: null,
+        columnId: null,
+      });
+    });
 
     // If there's no over element, we can't do anything
     if (!over) return;
@@ -442,14 +536,15 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* Board Content - Wrapped with DndContext */}
-        <div className='flex-1 overflow-x-auto overflow-y-auto px-6 pb-4 pt-3'>
+        <div className='flex-1 overflow-x-auto overflow-y-auto px-8 pb-6 pt-4'>
           <DndContext
             sensors={sensors}
-            collisionDetection={rectIntersection}
+            collisionDetection={collisionDetectionStrategy}
             onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className='flex items-start min-h-[450px] pb-4'>
+            <div className='flex items-start gap-5 min-h-[450px] pb-4'>
               {/* Render columns using ColumnContainer */}
               {columns.map((column) => (
                 <ColumnContainer
@@ -458,26 +553,39 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   tasks={column.cards}
                   getColumnStyle={getColumnStyle}
                   labelColors={labelColors}
+                  dragOverInfo={dragOverInfo}
+                  activeTaskId={activeTask?.id}
                 />
               ))}
 
               {/* Button to add new list */}
-              <div className='w-72 flex-shrink-0'>
-                <button className='w-full btn btn-secondary flex items-center gap-2 justify-start px-4 py-2.5 bg-white/5 backdrop-blur-sm hover:bg-white/10 border border-white/10 rounded-xl shadow-sm'>
-                  <Plus className='w-4 h-4' />
-                  Add another list
+              <div className='w-64 flex-shrink-0 self-start mr-8'>
+                <button className='w-full h-[40px] flex items-center justify-center px-3 py-2 bg-gray-800/90 hover:bg-gray-700/90 border border-gray-600/40 text-white rounded-lg shadow-sm'>
+                  <Plus className='w-4 h-4 text-white mr-1.5' />
+                  <span className='text-sm font-normal'>Add another list</span>
                 </button>
               </div>
+              {/* Extra space on the right */}
+              <div className='w-8 flex-shrink-0'></div>
             </div>
 
             {/* Drag Overlay - Renders the task being dragged */}
-            <DragOverlay>
+            <DragOverlay
+              dropAnimation={{
+                duration: 300,
+                easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+              }}
+            >
               {activeTask ? (
-                <TaskCard
-                  task={activeTask}
-                  labelColors={labelColors}
-                  columnId={activeColumnId || ''}
-                />
+                <div className='rotate-1 scale-105 transition-transform duration-200 opacity-90 shadow-lg w-80 pointer-events-none'>
+                  <TaskCard
+                    task={activeTask}
+                    labelColors={labelColors}
+                    columnId={activeColumnId || ''}
+                    isDragTarget={false}
+                    isBeingDragged={false}
+                  />
+                </div>
               ) : null}
             </DragOverlay>
           </DndContext>
