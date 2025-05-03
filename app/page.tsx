@@ -14,7 +14,8 @@ import {
   MoreHorizontal,
   ChevronDown,
   Home,
-  PanelLeft,
+  LayoutGrid,
+  ChevronRight,
 } from 'lucide-react';
 
 // Sample data for boards
@@ -40,7 +41,7 @@ const recentBoards = [
 ];
 
 // Get starred boards
-const starredBoards = recentBoards.filter(board => board.starred);
+const starredBoards = recentBoards.filter((board) => board.starred);
 
 const workspaces = [
   {
@@ -56,7 +57,7 @@ const workspaces = [
     members: [
       { id: 'user1', name: 'John Doe', avatar: '' },
       { id: 'user2', name: 'Jane Smith', avatar: '' },
-    ]
+    ],
   },
   {
     id: 'ws2',
@@ -67,23 +68,36 @@ const workspaces = [
       { id: 'board6', name: 'Travel Plans', color: 'bg-indigo-600' },
       { id: 'board7', name: 'Reading List', color: 'bg-pink-600' },
     ],
-    members: [
-      { id: 'user1', name: 'John Doe', avatar: '' },
-    ]
+    members: [{ id: 'user1', name: 'John Doe', avatar: '' }],
   },
 ];
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [expandedWorkspaces, setExpandedWorkspaces] = useState<{[key: string]: boolean}>({
-    'ws1': true, // Set the first workspace to be expanded by default
+  const [expandedWorkspaces, setExpandedWorkspaces] = useState<{
+    [key: string]: boolean;
+  }>({
+    ws1: true, // Set the first workspace to be expanded by default
   });
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
 
   const toggleWorkspace = (id: string) => {
-    setExpandedWorkspaces(prev => ({
+    setExpandedWorkspaces((prev) => ({
       ...prev,
-      [id]: !prev[id]
+      [id]: !prev[id],
     }));
+  };
+
+  const handleHomeClick = () => {
+    // Navigate to home page
+    window.location.href = '/';
+  };
+
+  const handleViewAllClick = (filter: string) => {
+    // Navigate to search page with filter
+    window.location.href = `/search?q=${encodeURIComponent(
+      searchQuery
+    )}&filter=${filter}`;
   };
 
   // TODO: Replace with actual user data
@@ -98,26 +112,18 @@ export default function HomePage() {
       <DashboardHeader />
 
       <main className='container mx-auto max-w-7xl px-4 pt-24 pb-16'>
-        {' '}
-        {/* Increased top padding for fixed header */}
         {/* Sidebar and Main Content */}
         <div className='flex gap-8'>
           {/* Sidebar - Using dark glass effect */}
           <div className='w-64 flex-shrink-0'>
             <div className='glass-dark rounded-xl p-4 sticky top-24'>
-              {' '}
-              {/* Added sticky positioning */}
               <nav className='space-y-1.5'>
-                <Link
-                  href='/'
-                  className='nav-item-active flex items-center gap-2.5 w-full text-sm font-medium'
+                <button
+                  className='nav-item flex items-center gap-2.5 w-full text-sm'
+                  onClick={handleHomeClick}
                 >
                   <Home className='w-4 h-4' />
                   Home
-                </Link>
-                <button className='nav-item flex items-center gap-2.5 w-full text-sm'>
-                  <PanelLeft className='w-4 h-4' />
-                  Dashboard
                 </button>
                 <button className='nav-item flex items-center gap-2.5 w-full text-sm'>
                   <Settings className='w-4 h-4' />
@@ -130,8 +136,8 @@ export default function HomePage() {
                 </h3>
                 <div className='mt-3 space-y-1.5'>
                   {workspaces.map((workspace) => (
-                    <div key={workspace.id} className='space-y-1.5'>
-                      <button 
+                    <div key={workspace.id} className='space-y-1'>
+                      <button
                         className='nav-item flex items-center justify-between w-full text-sm'
                         onClick={() => toggleWorkspace(workspace.id)}
                       >
@@ -143,13 +149,22 @@ export default function HomePage() {
                           </div>
                           <span className='font-medium'>{workspace.name}</span>
                         </div>
-                        <ChevronDown 
-                          className={`w-4 h-4 text-muted-foreground transition-transform ${expandedWorkspaces[workspace.id] ? 'rotate-180' : ''}`} 
+                        <ChevronDown
+                          className={`w-4 h-4 text-muted-foreground transition-transform ${
+                            expandedWorkspaces[workspace.id] ? 'rotate-180' : ''
+                          }`}
                         />
                       </button>
-                      
+
                       {expandedWorkspaces[workspace.id] && (
-                        <div className='pl-9 space-y-1'>
+                        <div className='pl-9 space-y-1 mt-1'>
+                          <Link
+                            href={`/boards/${workspace.id}`}
+                            className='nav-item flex items-center gap-2.5 w-full text-xs'
+                          >
+                            <LayoutGrid className='w-3.5 h-3.5' />
+                            Boards
+                          </Link>
                           <button className='nav-item flex items-center gap-2.5 w-full text-xs'>
                             <Users className='w-3.5 h-3.5' />
                             Members ({workspace.members.length})
@@ -159,7 +174,7 @@ export default function HomePage() {
                     </div>
                   ))}
 
-                  <button className='btn btn-ghost flex items-center gap-2 w-full text-sm justify-start px-3'>
+                  <button className='btn btn-ghost flex items-center gap-2 w-full text-sm justify-start px-3 mt-3'>
                     <Plus className='w-4 h-4' />
                     Create Workspace
                   </button>
@@ -170,18 +185,6 @@ export default function HomePage() {
 
           {/* Main Content */}
           <div className='flex-1'>
-            {/* Search - Reusing input styling */}
-            <div className='relative mb-8'>
-              <Search className='absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground' />
-              <input
-                type='text'
-                placeholder='Search boards...'
-                className='w-full pl-12 pr-4 py-3 text-base input'
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-
             {/* Starred Boards Section */}
             {starredBoards.length > 0 && (
               <section className='mb-12'>
@@ -190,7 +193,12 @@ export default function HomePage() {
                     <Star className='w-5 h-5 text-yellow-400' />
                     Starred Boards
                   </h2>
-                  <button className='btn btn-ghost text-sm'>View All</button>
+                  <button
+                    className='btn btn-ghost text-sm'
+                    onClick={() => handleViewAllClick('starred')}
+                  >
+                    View All
+                  </button>
                 </div>
 
                 <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
@@ -215,10 +223,7 @@ export default function HomePage() {
                             }}
                             aria-label='Unstar board'
                           >
-                            <Star
-                              className='w-4 h-4'
-                              fill='currentColor'
-                            />
+                            <Star className='w-4 h-4' fill='currentColor' />
                           </button>
                         </div>
                       </div>
@@ -232,11 +237,15 @@ export default function HomePage() {
             <section className='mb-12'>
               <div className='flex items-center justify-between mb-5'>
                 <h2 className='text-xl font-semibold text-foreground flex items-center gap-2'>
-                  <Clock className='w-5 h-5 text-secondary' />{' '}
-                  {/* Using secondary color */}
+                  <Clock className='w-5 h-5 text-secondary' />
                   Recent Boards
                 </h2>
-                <button className='btn btn-ghost text-sm'>View All</button>
+                <button
+                  className='btn btn-ghost text-sm'
+                  onClick={() => handleViewAllClick('recent')}
+                >
+                  View All
+                </button>
               </div>
 
               <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
@@ -265,7 +274,9 @@ export default function HomePage() {
                           onClick={(e) => {
                             e.preventDefault(); /* TODO: Add starring logic */
                           }}
-                          aria-label={board.starred ? 'Unstar board' : 'Star board'}
+                          aria-label={
+                            board.starred ? 'Unstar board' : 'Star board'
+                          }
                         >
                           <Star
                             className='w-4 h-4'
@@ -331,7 +342,9 @@ export default function HomePage() {
                     <div className='w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors'>
                       <Plus className='w-5 h-5 text-primary' />
                     </div>
-                    <span className='font-medium text-sm'>Create New Board</span>
+                    <span className='font-medium text-sm'>
+                      Create New Board
+                    </span>
                   </button>
                 </div>
               </section>
