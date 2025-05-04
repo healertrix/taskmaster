@@ -1,0 +1,494 @@
+# Taskmaster App: Database Structure Documentation
+
+This document outlines the database structure for the Taskmaster application, a Trello-like task management system built on Supabase. The database is designed to support all the features described in the functionality documentation, with a focus on performance, scalability, and security.
+
+## Core Tables
+
+### Authentication and User Management
+
+#### `profiles`
+Stores user profile information linked to Supabase Auth.
+```
+profiles
+  - id: UUID (references auth.users.id) PRIMARY KEY
+  - email: TEXT NOT NULL
+  - full_name: TEXT
+  - avatar_url: TEXT
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - last_active_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+```
+
+### Workspaces
+
+#### `workspaces`
+The top-level organizational unit that contains boards.
+```
+workspaces
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - name: TEXT NOT NULL
+  - color: TEXT NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - owner_id: UUID REFERENCES profiles(id) NOT NULL
+  - visibility: TEXT CHECK (visibility IN ('private', 'public')) DEFAULT 'private'
+```
+
+#### `workspace_members`
+Junction table that connects users to workspaces with role information.
+```
+workspace_members
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - workspace_id: UUID REFERENCES workspaces(id) ON DELETE CASCADE NOT NULL
+  - profile_id: UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL
+  - role: TEXT CHECK (role IN ('admin', 'member', 'guest')) NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - invited_by: UUID REFERENCES profiles(id)
+  - UNIQUE (workspace_id, profile_id)
+```
+
+#### `workspace_settings`
+Stores configurable settings for workspaces.
+```
+workspace_settings
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - workspace_id: UUID REFERENCES workspaces(id) ON DELETE CASCADE NOT NULL
+  - setting_type: TEXT NOT NULL
+  - setting_value: JSONB NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - set_by: UUID REFERENCES profiles(id)
+  - UNIQUE (workspace_id, setting_type)
+```
+
+### Boards
+
+#### `boards`
+Represents kanban boards within workspaces.
+```
+boards
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - name: TEXT NOT NULL
+  - color: TEXT NOT NULL
+  - workspace_id: UUID REFERENCES workspaces(id) ON DELETE CASCADE NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - owner_id: UUID REFERENCES profiles(id) NOT NULL
+  - is_archived: BOOLEAN DEFAULT FALSE
+  - is_closed: BOOLEAN DEFAULT FALSE
+  - closed_at: TIMESTAMP WITH TIME ZONE
+  - closed_by: UUID REFERENCES profiles(id)
+  - visibility: TEXT CHECK (visibility IN ('workspace', 'members', 'public')) DEFAULT 'workspace'
+  - member_management: TEXT CHECK (member_management IN ('admins_only', 'members_can_add')) DEFAULT 'admins_only'
+  - comment_permissions: TEXT CHECK (comment_permissions IN ('members', 'admins_only', 'anyone')) DEFAULT 'members'
+  - members_can_archive: BOOLEAN DEFAULT TRUE
+  - last_activity_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+```
+
+#### `board_members`
+Junction table that connects users to specific boards with role information.
+```
+board_members
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - board_id: UUID REFERENCES boards(id) ON DELETE CASCADE NOT NULL
+  - profile_id: UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL
+  - role: TEXT CHECK (role IN ('admin', 'member')) NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - invited_by: UUID REFERENCES profiles(id)
+  - UNIQUE (board_id, profile_id)
+```
+
+#### `board_stars`
+Tracks which boards a user has starred for quick access.
+```
+board_stars
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - board_id: UUID REFERENCES boards(id) ON DELETE CASCADE NOT NULL
+  - profile_id: UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - UNIQUE (board_id, profile_id)
+```
+
+#### `board_watchers`
+Tracks users who are watching entire boards for updates.
+```
+board_watchers
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - board_id: UUID REFERENCES boards(id) ON DELETE CASCADE NOT NULL
+  - profile_id: UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - UNIQUE (board_id, profile_id)
+```
+
+### Lists
+
+#### `lists`
+Columns/lists within a board that contain cards.
+```
+lists
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - name: TEXT NOT NULL
+  - board_id: UUID REFERENCES boards(id) ON DELETE CASCADE NOT NULL
+  - position: FLOAT NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - is_archived: BOOLEAN DEFAULT FALSE
+```
+
+### Cards
+
+#### `cards`
+The core task/item representation within lists.
+```
+cards
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - title: TEXT NOT NULL
+  - description: TEXT
+  - list_id: UUID REFERENCES lists(id) ON DELETE CASCADE NOT NULL
+  - board_id: UUID REFERENCES boards(id) ON DELETE CASCADE NOT NULL
+  - position: FLOAT NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - start_date: TIMESTAMP WITH TIME ZONE
+  - due_date: TIMESTAMP WITH TIME ZONE
+  - due_status: TEXT CHECK (due_status IN ('due_soon', 'overdue', 'complete', NULL))
+  - created_by: UUID REFERENCES profiles(id) NOT NULL
+  - is_archived: BOOLEAN DEFAULT FALSE
+  - is_watched: BOOLEAN DEFAULT FALSE
+  - cover: JSONB
+```
+
+#### `card_watchers`
+Tracks which users are watching specific cards.
+```
+card_watchers
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - card_id: UUID REFERENCES cards(id) ON DELETE CASCADE NOT NULL
+  - profile_id: UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - UNIQUE (card_id, profile_id)
+```
+
+#### `card_members`
+Junction table for assigning users to cards.
+```
+card_members
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - card_id: UUID REFERENCES cards(id) ON DELETE CASCADE NOT NULL
+  - profile_id: UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - UNIQUE (card_id, profile_id)
+```
+
+## Card Components
+
+### Labels
+
+#### `labels`
+Color-coded labels that can be applied to cards for categorization.
+```
+labels
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - name: TEXT
+  - color: TEXT NOT NULL
+  - board_id: UUID REFERENCES boards(id) ON DELETE CASCADE NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+```
+
+#### `card_labels`
+Junction table connecting cards to labels.
+```
+card_labels
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - card_id: UUID REFERENCES cards(id) ON DELETE CASCADE NOT NULL
+  - label_id: UUID REFERENCES labels(id) ON DELETE CASCADE NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - UNIQUE (card_id, label_id)
+```
+
+### Checklists
+
+#### `checklists`
+Task lists that can be added to cards.
+```
+checklists
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - card_id: UUID REFERENCES cards(id) ON DELETE CASCADE NOT NULL
+  - title: TEXT NOT NULL
+  - position: FLOAT NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+```
+
+#### `checklist_items`
+Individual items within a checklist.
+```
+checklist_items
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - checklist_id: UUID REFERENCES checklists(id) ON DELETE CASCADE NOT NULL
+  - content: TEXT NOT NULL
+  - is_complete: BOOLEAN DEFAULT FALSE
+  - position: FLOAT NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - completed_at: TIMESTAMP WITH TIME ZONE
+  - completed_by: UUID REFERENCES profiles(id)
+```
+
+### Comments
+
+#### `comments`
+User comments on cards.
+```
+comments
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - card_id: UUID REFERENCES cards(id) ON DELETE CASCADE NOT NULL
+  - profile_id: UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL
+  - content: TEXT NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - is_edited: BOOLEAN DEFAULT FALSE
+  - mentions: JSONB
+```
+
+### Attachments
+
+#### `attachments`
+Links or files attached to cards.
+```
+attachments
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - card_id: UUID REFERENCES cards(id) ON DELETE CASCADE NOT NULL
+  - name: TEXT NOT NULL
+  - url: TEXT NOT NULL
+  - type: TEXT NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - created_by: UUID REFERENCES profiles(id) NOT NULL
+```
+
+## Feature-Specific Tables
+
+### Voting System
+
+#### `card_votes`
+Tracks user votes on cards for prioritization.
+```
+card_votes
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - card_id: UUID REFERENCES cards(id) ON DELETE CASCADE NOT NULL
+  - profile_id: UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - UNIQUE (card_id, profile_id)
+```
+
+#### `board_vote_settings`
+Settings for how voting works on a specific board.
+```
+board_vote_settings
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - board_id: UUID REFERENCES boards(id) ON DELETE CASCADE NOT NULL
+  - votes_per_member: INTEGER DEFAULT 5
+  - can_vote: TEXT CHECK (can_vote IN ('members', 'admins', 'anyone')) DEFAULT 'members'
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - set_by: UUID REFERENCES profiles(id)
+```
+
+### Location Data
+
+#### `card_locations`
+Geographic information attached to cards.
+```
+card_locations
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - card_id: UUID REFERENCES cards(id) ON DELETE CASCADE NOT NULL
+  - name: TEXT NOT NULL
+  - address: TEXT
+  - latitude: DECIMAL NOT NULL
+  - longitude: DECIMAL NOT NULL
+  - location_type: TEXT CHECK (location_type IN ('point', 'area')) DEFAULT 'point'
+  - radius: INTEGER
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - created_by: UUID REFERENCES profiles(id) NOT NULL
+```
+
+### Custom Fields
+
+#### `custom_field_definitions`
+Definitions for custom fields at the board level.
+```
+custom_field_definitions
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - board_id: UUID REFERENCES boards(id) ON DELETE CASCADE NOT NULL
+  - name: TEXT NOT NULL
+  - type: TEXT CHECK (type IN ('text', 'number', 'date', 'dropdown', 'checkbox')) NOT NULL
+  - options: JSONB
+  - position: FLOAT NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - created_by: UUID REFERENCES profiles(id) NOT NULL
+  - is_required: BOOLEAN DEFAULT FALSE
+  - is_visible_on_front: BOOLEAN DEFAULT TRUE
+```
+
+#### `card_custom_fields`
+Values for custom fields on specific cards.
+```
+card_custom_fields
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - card_id: UUID REFERENCES cards(id) ON DELETE CASCADE NOT NULL
+  - field_id: UUID REFERENCES custom_field_definitions(id) ON DELETE CASCADE NOT NULL
+  - value: JSONB
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+```
+
+### Advanced Search and Filtering
+
+#### `saved_filters`
+Saved search/filter configurations.
+```
+saved_filters
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - name: TEXT NOT NULL
+  - board_id: UUID REFERENCES boards(id) ON DELETE CASCADE NOT NULL
+  - filter_criteria: JSONB NOT NULL
+  - created_by: UUID REFERENCES profiles(id) NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - is_shared: BOOLEAN DEFAULT FALSE
+```
+
+## Activity and Notifications
+
+#### `activities`
+Records of all actions taken in the system.
+```
+activities
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - profile_id: UUID REFERENCES profiles(id) NOT NULL
+  - board_id: UUID REFERENCES boards(id) NOT NULL
+  - card_id: UUID REFERENCES cards(id)
+  - list_id: UUID REFERENCES lists(id)
+  - comment_id: UUID REFERENCES comments(id)
+  - action_type: TEXT NOT NULL
+  - action_data: JSONB NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+```
+
+#### `notifications`
+User notifications for various events.
+```
+notifications
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - profile_id: UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL
+  - type: TEXT NOT NULL
+  - related_card_id: UUID REFERENCES cards(id) ON DELETE CASCADE
+  - related_board_id: UUID REFERENCES boards(id) ON DELETE CASCADE
+  - related_comment_id: UUID REFERENCES comments(id) ON DELETE CASCADE
+  - content: TEXT NOT NULL
+  - is_read: BOOLEAN DEFAULT FALSE
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+```
+
+## Templates
+
+#### `card_templates`
+Reusable card templates.
+```
+card_templates
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - title: TEXT NOT NULL
+  - description: TEXT
+  - board_id: UUID REFERENCES boards(id) NOT NULL
+  - created_by: UUID REFERENCES profiles(id) NOT NULL
+  - labels: JSONB
+  - checklists: JSONB
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+```
+
+#### `list_templates`
+Reusable list templates with cards.
+```
+list_templates
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - name: TEXT NOT NULL
+  - board_id: UUID REFERENCES boards(id) NOT NULL
+  - cards: JSONB
+  - created_by: UUID REFERENCES profiles(id) NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+```
+
+#### `board_templates`
+Reusable board templates with lists and cards.
+```
+board_templates
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - name: TEXT NOT NULL
+  - workspace_id: UUID REFERENCES workspaces(id) NOT NULL
+  - lists: JSONB
+  - labels: JSONB
+  - created_by: UUID REFERENCES profiles(id) NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+```
+
+## Invitations
+
+#### `invitations`
+Invitation records for workspace and board access.
+```
+invitations
+  - id: UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+  - email: TEXT NOT NULL
+  - workspace_id: UUID REFERENCES workspaces(id) NOT NULL
+  - board_id: UUID REFERENCES boards(id)
+  - invited_by: UUID REFERENCES profiles(id) NOT NULL
+  - role: TEXT CHECK (role IN ('member', 'guest', 'admin')) NOT NULL
+  - token: TEXT NOT NULL
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  - expires_at: TIMESTAMP WITH TIME ZONE NOT NULL
+  - accepted_at: TIMESTAMP WITH TIME ZONE
+```
+
+## Table Relationships
+
+The database structure follows these key relationships:
+
+1. **One-to-Many**:
+   - A profile can own many workspaces
+   - A workspace can contain many boards
+   - A board can contain many lists
+   - A list can contain many cards
+   - A card can have many checklists
+   - A checklist can have many items
+
+2. **Many-to-Many** (represented by junction tables):
+   - Profiles to workspaces (workspace_members)
+   - Profiles to boards (board_members)
+   - Profiles to cards (card_members)
+   - Cards to labels (card_labels)
+
+3. **Special Relationships**:
+   - Activities are linked to multiple entities
+   - Notifications target specific profiles
+   - Templates (card, list, board) contain serialized structures
+
+This database schema is designed to efficiently support all the functionality described in the feature documentation while maintaining data integrity, performance, and scalability within the Supabase PostgreSQL environment.
+
+## Indexes and Performance Considerations
+
+For optimal performance, the following indexes should be created:
+
+1. Foreign key indexes on all reference columns
+2. Position indexes for quick ordering of lists, cards, and checklist items  
+3. Text search indexes on card titles and descriptions
+4. Timestamp indexes for due date queries
+5. Indexes on frequently filtered columns
+
+The schema uses UUIDs for primary keys throughout to ensure global uniqueness and facilitate potential future data synchronization or import/export operations.

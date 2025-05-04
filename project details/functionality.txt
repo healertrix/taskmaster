@@ -1,0 +1,315 @@
+# Taskmaster App: Feature Functionality Documentation
+
+## 1. Authentication System
+
+### Google Authentication
+- Sign in with Google OAuth using Supabase Auth
+- Automatic profile creation on first sign-in
+- Secure session management with tokens
+- Profile information synced from Google (name, email, avatar)
+
+### User Profiles
+- View and edit profile information
+- Update profile picture
+- View personal activity
+- Manage notification preferences
+- Track last active status
+
+## 2. Workspace Management
+
+### Workspace Creation and Settings
+- Create personal or team workspaces
+- Set workspace name and color
+- Control workspace visibility (private/public)
+- Configure workspace-level permission settings:
+  - Who can add members (anyone/admins only)
+  - Who can create different board types (any member/admins only)
+  - Who can delete boards (any member/admins only/owner only)
+  - Who can send board invitations
+
+### Workspace Membership
+- Three membership levels:
+  - Admin: Full control of workspace settings and boards
+  - Member: Can collaborate on all workspace-visible boards
+  - Guest: View-only access with limited permissions
+- Add members via email invitation
+- Remove members from workspace
+- Change member roles (promote/demote)
+- Transfer workspace ownership
+
+### Workspace Navigation
+- See all boards in workspace
+- Filter boards by recent, starred, templates
+- Quick search within workspace
+- Switch between workspaces
+
+## 3. Board Management
+
+### Board Creation and Customization
+- Create boards within workspaces
+- Set board name and background color
+- Set board visibility:
+  - Workspace-visible (all workspace members)
+  - Members-only (only specific members)
+  - Public (anyone can view, read-only)
+- Star important boards for quick access
+- Copy boards with or without content
+
+### Board Permissions and Settings
+- Control who can add members to board
+- Set commenting permissions (members/admins/anyone)
+- Control card/list archiving permissions
+- Close boards when complete (admin-only)
+- Archive or delete boards
+- Board-specific settings independent of workspace defaults
+
+### Board Feature Controls
+- Enable/disable voting features
+- Configure custom fields
+- Set limits for labels, attachments, etc.
+- Control who can watch the board
+
+## 4. List Management
+
+### List Operations
+- Create lists within boards
+- Drag and drop to reorder lists
+- Edit list names
+- Archive lists (manual only, not automatic)
+- Restore archived lists
+- Copy lists with or without cards
+- Move lists between boards
+
+### List Organization
+- Lists maintain position across sessions
+- Visual indication of archived status
+- Collapsible lists to focus on specific sections
+
+## 5. Card Management
+
+### Card Creation and Editing
+- Create cards within lists
+- Set card title and description (markdown supported)
+- Drag and drop between lists and within lists
+- Optional start and due dates
+- Due date status tracking (upcoming, due soon, overdue, complete)
+- Cover images or colors for visual organization
+- Copy or move cards between lists or boards
+- Archive cards to remove from active view
+
+### Card Components
+- Labels: Apply color-coded labels with optional text
+- Checklists: Add task lists within cards
+- Members: Assign cards to team members
+- Comments: Discuss with markdown support and @mentions
+- Attachments: Add links to external resources
+- Custom Fields: Add structured data (text, number, date, selection)
+- Location Data: Add geographical information to cards
+- Voting: Allow team members to vote on cards for prioritization
+
+### Card Actions
+- Self-assignment ("join" functionality)
+- Watch cards for notifications
+- Convert to template for reuse
+- Quick-edit from board view
+- Detailed edit in card modal
+
+## 6. Activity Tracking
+
+### Activity Feed
+- Board-level activity stream
+- Card-specific activity history
+- Filter activity by type, user, date
+- Chronological display of all board changes
+- Comment thread tracking
+
+### Activity Types Tracked
+- Card creation/archiving/deletion
+- List creation/archiving/movement
+- Comment addition/editing
+- Member assignment changes
+- Checklist changes
+- Due date modifications
+- Label changes
+- Custom field updates
+- Votes
+- Location additions
+
+## 7. Notification System
+
+### Notification Types
+- Due date reminders (approaching, overdue)
+- @mentions in comments
+- Assignment to cards
+- Comments on watched cards
+- Updates to watched boards
+- Role changes (made admin, etc.)
+- Board invitations
+
+### Notification Management
+- Notification center UI
+- Mark as read/unread
+- Clear all notifications
+- Notification preferences by type
+- Email notification options
+
+## 8. Template System
+
+### Card Templates
+- Save cards as templates with:
+  - Title and description
+  - Labels and custom fields
+  - Checklists
+  - Due date settings (relative)
+  - Member roles (not specific members)
+
+### List Templates
+- Save lists with predefined cards
+- Apply templates to create new lists
+- Include card templates within list templates
+
+### Board Templates
+- Save complete board structures as templates
+- Include lists, labels, custom fields
+- Create new boards from templates
+- Workspace-level templates
+
+## 9. Invitation and Sharing
+
+### User Invitations
+- Email-based invitations to workspaces and boards
+- Role specification in invitations
+- Secure token-based acceptance
+- Expiration for security
+- Resend/cancel pending invitations
+
+### Sharing Controls
+- Board sharing links
+- Public board links (view-only)
+- Workspace sharing settings
+- Permission presets
+
+## 10. Advanced Search and Filtering
+
+### Search Capabilities
+- Full-text search across cards
+- Search by keyword, label, member, dates
+- Search operators (AND, OR, NOT)
+- Saved searches for reuse
+- Global search across all boards
+
+### Filtering
+- Multi-criteria filtering
+- Filter by any combination of:
+  - Labels
+  - Members
+  - Due dates
+  - Custom field values
+  - Checklists (complete/incomplete)
+  - Content
+  - Voted/not voted
+- Save filters for later use
+- Share filters with team
+
+## 11. Card Voting
+
+### Voting Features
+- Up/down voting on cards
+- Configure maximum votes per user
+- See who voted for which cards
+- Sort cards by vote count
+- Restrict voting to certain roles
+- Remove votes
+
+### Voting Analytics
+- View top-voted cards
+- Track voting patterns over time
+- Use votes for prioritization
+
+## 12. Location Features
+
+### Location Management
+- Add locations to cards
+- Display locations on a mini-map
+- Search cards by location proximity
+- Support for point locations and areas
+- Address geocoding
+
+### Location Integration
+- Link to external maps
+- Show distance information
+- Group cards by location
+
+## 13. Custom Fields
+
+### Field Types Supported
+- Text: Single or multi-line text
+- Number: Integer or decimal with optional units
+- Date: Date picker with optional time
+- Dropdown: Select from predefined options
+- Checkbox: Boolean true/false values
+
+### Custom Field Management
+- Create board-level field definitions
+- Set default values
+- Make fields required or optional
+- Show fields on card fronts or only in detail
+- Sort and filter by custom field values
+- Use in automation rules
+
+## 14. Data Export/Import
+
+### Export Options
+- Export board to JSON
+- Export to CSV for spreadsheet use
+- Print-friendly board view
+- Export specific cards or entire boards
+
+### Import Capabilities
+- Import from CSV
+- Import from other task management tools
+- Bulk card creation
+
+## 15. User Interface Features
+
+### Board Views
+- Standard Kanban board view
+- Compact view for many cards
+- Card details modal
+- Calendar view for date-based planning
+- Table view for spreadsheet-like interactions
+
+### Keyboard Shortcuts
+- Navigation shortcuts
+- Card creation/editing shortcuts
+- List management shortcuts
+- Search and filter shortcuts
+
+### Accessibility
+- Screen reader compatibility
+- Keyboard navigation
+- High contrast options
+- Text size adjustments
+
+## 16. Mobile Experience
+
+### Mobile-Optimized Views
+- Responsive design for all screen sizes
+- Touch-friendly interfaces
+- Swipe gestures for common actions
+- Mobile notifications
+
+## 17. Data Management
+
+### Data Security
+- Row-level security (RLS) with Supabase
+- Encryption for sensitive data
+- Secure authentication flows
+- Permission-based access controls
+
+### Data Integrity
+- Transactional database operations
+- Backup and recovery options
+- Data validation on input
+
+This document outlines the comprehensive functionality of the Taskmaster application, which provides a Trello-like task management experience using Supabase for backend services and Google Authentication for user management. The application is designed to be feature-rich while maintaining a clean, intuitive user interface.
