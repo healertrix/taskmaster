@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { DashboardHeader } from './components/dashboard/header';
 import {
@@ -17,6 +17,8 @@ import {
   LayoutGrid,
   ChevronRight,
 } from 'lucide-react';
+import { CreateWorkspaceModal } from './components/workspace/CreateWorkspaceModal';
+import { createClient } from '@/utils/supabase/client';
 
 // Sample data for boards
 const recentBoards = [
@@ -80,6 +82,56 @@ export default function HomePage() {
     ws1: true, // Set the first workspace to be expanded by default
   });
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+  const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] =
+    useState(false);
+  const [userWorkspaces, setUserWorkspaces] = useState(workspaces);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch user workspaces on component mount
+  useEffect(() => {
+    const fetchWorkspaces = async () => {
+      try {
+        const supabase = createClient();
+
+        // Get the current user
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          // Fetch workspaces where user is owner or member
+          const { data, error } = await supabase
+            .from('workspaces')
+            .select('*')
+            .eq('owner_id', user.id);
+
+          if (error) {
+            console.error('Error fetching workspaces:', error);
+          } else if (data) {
+            // Map the data to match our workspace structure
+            const mappedWorkspaces = data.map((ws) => ({
+              id: ws.id,
+              name: ws.name,
+              initial: ws.name.charAt(0).toUpperCase(),
+              color: ws.color,
+              boards: [], // We'll fetch these separately in a more complex version
+              members: [], // We'll fetch these separately in a more complex version
+            }));
+
+            if (mappedWorkspaces.length > 0) {
+              setUserWorkspaces(mappedWorkspaces);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching workspaces:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchWorkspaces();
+  }, []);
 
   const toggleWorkspace = (id: string) => {
     setExpandedWorkspaces((prev) => ({
@@ -93,17 +145,69 @@ export default function HomePage() {
     window.location.href = '/';
   };
 
-  const handleViewAllClick = (filter: string) => {
-    // Navigate to search page with filter
-    window.location.href = `/search?q=${encodeURIComponent(
-      searchQuery
-    )}&filter=${filter}`;
+  const handleCreateWorkspaceClick = () => {
+    setIsCreateWorkspaceModalOpen(true);
+  };
+
+  const handleWorkspaceCreated = async (newWorkspaceId: string) => {
+    try {
+      const supabase = createClient();
+
+      // Fetch the newly created workspace
+      const { data, error } = await supabase
+        .from('workspaces')
+        .select('*')
+        .eq('id', newWorkspaceId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching new workspace:', error);
+      } else if (data) {
+        // Add the new workspace to the state
+        const newWorkspace = {
+          id: data.id,
+          name: data.name,
+          initial: data.name.charAt(0).toUpperCase(),
+          color: data.color,
+          boards: [],
+          members: [],
+        };
+
+        setUserWorkspaces((prev) => [...prev, newWorkspace]);
+
+        // Auto-expand the new workspace
+        setExpandedWorkspaces((prev) => ({
+          ...prev,
+          [newWorkspaceId]: true,
+        }));
+      }
+    } catch (error) {
+      console.error('Error handling new workspace:', error);
+    }
   };
 
   // TODO: Replace with actual user data
   const currentUser = {
     name: 'Superhero User',
     avatar: '', // Leave empty for initial/icon display
+  };
+
+  // Function to determine if a color is a hex code or a tailwind class
+  const getColorDisplay = (color: string) => {
+    // If it starts with # or rgb, it's a custom color
+    if (color.startsWith('#') || color.startsWith('rgb')) {
+      return {
+        isCustom: true,
+        style: { backgroundColor: color },
+        className: '',
+      };
+    }
+    // Otherwise it's a Tailwind class
+    return {
+      isCustom: false,
+      style: {},
+      className: color,
+    };
   };
 
   return (
@@ -135,7 +239,7 @@ export default function HomePage() {
                   Workspaces
                 </h3>
                 <div className='mt-3 space-y-1.5'>
-                  {workspaces.map((workspace) => (
+                  {userWorkspaces.map((workspace) => (
                     <div key={workspace.id} className='space-y-1'>
                       <button
                         className='nav-item flex items-center justify-between w-full text-sm'
@@ -143,7 +247,12 @@ export default function HomePage() {
                       >
                         <div className='flex items-center gap-2.5'>
                           <div
-                            className={`w-7 h-7 ${workspace.color} rounded-lg flex items-center justify-center text-sm font-bold text-white shadow-md`}
+                            className={`w-7 h-7 ${
+                              getColorDisplay(workspace.color).isCustom
+                                ? ''
+                                : getColorDisplay(workspace.color).className
+                            } rounded-lg flex items-center justify-center text-sm font-bold text-white shadow-md`}
+                            style={getColorDisplay(workspace.color).style}
                           >
                             {workspace.initial}
                           </div>
@@ -169,12 +278,22 @@ export default function HomePage() {
                             <Users className='w-3.5 h-3.5' />
                             Members ({workspace.members.length})
                           </button>
+                          <Link
+                            href={`/workspace/${workspace.id}/settings`}
+                            className='nav-item flex items-center gap-2.5 w-full text-xs'
+                          >
+                            <Settings className='w-3.5 h-3.5' />
+                            Settings
+                          </Link>
                         </div>
                       )}
                     </div>
                   ))}
 
-                  <button className='btn btn-ghost flex items-center gap-2 w-full text-sm justify-start px-3 mt-3'>
+                  <button
+                    className='btn btn-ghost flex items-center gap-2 w-full text-sm justify-start px-3 mt-3'
+                    onClick={handleCreateWorkspaceClick}
+                  >
                     <Plus className='w-4 h-4' />
                     Create Workspace
                   </button>
@@ -193,12 +312,6 @@ export default function HomePage() {
                     <Star className='w-5 h-5 text-yellow-400' />
                     Starred Boards
                   </h2>
-                  <button
-                    className='btn btn-ghost text-sm'
-                    onClick={() => handleViewAllClick('starred')}
-                  >
-                    View All
-                  </button>
                 </div>
 
                 <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
@@ -240,12 +353,6 @@ export default function HomePage() {
                   <Clock className='w-5 h-5 text-secondary' />
                   Recent Boards
                 </h2>
-                <button
-                  className='btn btn-ghost text-sm'
-                  onClick={() => handleViewAllClick('recent')}
-                >
-                  View All
-                </button>
               </div>
 
               <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
@@ -299,23 +406,38 @@ export default function HomePage() {
             </section>
 
             {/* Workspaces Section */}
-            {workspaces.map((workspace) => (
+            {userWorkspaces.map((workspace) => (
               <section key={workspace.id} className='mb-12'>
                 <div className='flex items-center justify-between mb-5'>
                   <h2 className='text-xl font-semibold text-foreground flex items-center gap-2.5'>
                     <div
-                      className={`w-6 h-6 ${workspace.color} rounded-lg text-white flex items-center justify-center text-xs font-bold shadow-md`}
+                      className={`w-6 h-6 ${
+                        getColorDisplay(workspace.color).isCustom
+                          ? ''
+                          : getColorDisplay(workspace.color).className
+                      } rounded-lg text-white flex items-center justify-center text-xs font-bold shadow-md`}
+                      style={getColorDisplay(workspace.color).style}
                     >
                       {workspace.initial}
                     </div>
                     {workspace.name} Workspace
                   </h2>
-                  <button
-                    className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
-                    aria-label='More workspace options'
-                  >
-                    <MoreHorizontal className='w-5 h-5' />
-                  </button>
+                  <div className='flex items-center gap-2'>
+                    <Link
+                      href={`/workspace/${workspace.id}/settings`}
+                      className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+                      aria-label='Workspace settings'
+                      title='Workspace settings'
+                    >
+                      <Settings className='w-4 h-4' />
+                    </Link>
+                    <button
+                      className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+                      aria-label='More workspace options'
+                    >
+                      <MoreHorizontal className='w-5 h-5' />
+                    </button>
+                  </div>
                 </div>
 
                 <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
@@ -352,6 +474,13 @@ export default function HomePage() {
           </div>
         </div>
       </main>
+
+      {/* Workspace creation modal */}
+      <CreateWorkspaceModal
+        isOpen={isCreateWorkspaceModalOpen}
+        onClose={() => setIsCreateWorkspaceModalOpen(false)}
+        onSuccess={handleWorkspaceCreated}
+      />
     </div>
   );
 }
