@@ -5,7 +5,19 @@ import { DashboardHeader } from '../components/dashboard/header';
 import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/utils/supabase/client';
 import Image from 'next/image';
-import { User, Mail, Clock } from 'lucide-react';
+import { 
+  User, 
+  Mail, 
+  Clock, 
+  Activity, 
+  Calendar, 
+  CheckSquare, 
+  Star, 
+  BarChart3,
+  PlusCircle,
+  FileEdit,
+  MessageSquare
+} from 'lucide-react';
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -113,12 +125,72 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Activity Section - Can be expanded later */}
+        {/* Activity Section - Improved design */}
         <div className='glass-dark rounded-xl p-6 mt-8'>
-          <h2 className='text-xl font-semibold mb-6'>Recent Activity</h2>
-          <div className='py-8 text-center text-muted-foreground'>
-            <p>Your activity will appear here.</p>
+          <div className='flex items-center justify-between mb-6'>
+            <h2 className='text-xl font-semibold flex items-center'>
+              <Activity className='w-5 h-5 mr-2 text-primary' />
+              Recent Activity
+            </h2>
+            <div className='flex space-x-2'>
+              <button className='px-3 py-1.5 text-xs bg-background hover:bg-muted/20 rounded-lg transition-colors text-foreground'>
+                All
+              </button>
+              <button className='px-3 py-1.5 text-xs bg-background/40 hover:bg-muted/20 rounded-lg transition-colors text-muted-foreground'>
+                Comments
+              </button>
+              <button className='px-3 py-1.5 text-xs bg-background/40 hover:bg-muted/20 rounded-lg transition-colors text-muted-foreground'>
+                Cards
+              </button>
+            </div>
           </div>
+          
+          {/* Empty state with better design */}
+          <div className='bg-background/30 rounded-xl p-8 flex flex-col items-center justify-center border border-border'>
+            <div className='w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4'>
+              <Activity className='w-8 h-8 text-primary/70' />
+            </div>
+            <h3 className='text-lg font-medium mb-2'>No activity yet</h3>
+            <p className='text-muted-foreground text-center max-w-md mb-6'>
+              Your recent actions across boards and cards will appear here. Start collaborating to see your activity.
+            </p>
+            <div className='grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-lg'>
+              <div className='flex flex-col items-center p-4 rounded-lg bg-background/50 hover:bg-background/70 transition-colors'>
+                <PlusCircle className='w-6 h-6 text-blue-500 mb-2' />
+                <span className='text-xs text-center'>Create cards</span>
+              </div>
+              <div className='flex flex-col items-center p-4 rounded-lg bg-background/50 hover:bg-background/70 transition-colors'>
+                <MessageSquare className='w-6 h-6 text-green-500 mb-2' />
+                <span className='text-xs text-center'>Add comments</span>
+              </div>
+              <div className='flex flex-col items-center p-4 rounded-lg bg-background/50 hover:bg-background/70 transition-colors'>
+                <FileEdit className='w-6 h-6 text-purple-500 mb-2' />
+                <span className='text-xs text-center'>Edit boards</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Future activity items would be listed here */}
+          {/* Example of what an activity item might look like (commented out) */}
+          {/* 
+          <div className='border-b border-border py-4 first:pt-0 last:border-0 last:pb-0'>
+            <div className='flex'>
+              <div className='mr-4 mt-1'>
+                <div className='w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center'>
+                  <CheckSquare className='w-4 h-4 text-blue-500' />
+                </div>
+              </div>
+              <div className='flex-1'>
+                <p className='text-sm'>
+                  <span className='font-medium'>You</span> completed a task{' '}
+                  <span className='font-medium text-primary'>Update design specs</span> on{' '}
+                  <span className='font-medium'>Website Redesign</span> board
+                </p>
+                <span className='text-xs text-muted-foreground'>2 hours ago</span>
+              </div>
+            </div>
+          </div>
+          */}
         </div>
       </main>
     </div>
