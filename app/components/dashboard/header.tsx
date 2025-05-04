@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
+import { UserProfileMenu } from './UserProfileMenu';
 
 // Mock search results data
 const searchResultsData = {
@@ -437,51 +438,18 @@ export function DashboardHeader() {
             </div>
           )}
 
-          {/* Right section */}
-          <div
-            className={`flex items-center space-x-4 ${
-              isSearchPage ? 'w-1/4' : 'w-1/6'
-            } justify-end`}
-          >
+          {/* Right section with profile menu */}
+          <div className='flex items-center gap-4'>
             <button
-              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors relative'
+              className='relative p-2 text-muted-foreground hover:text-foreground rounded-full'
               aria-label='Notifications'
             >
               <Bell className='w-5 h-5' />
-              <span className='absolute top-1.5 right-1.5 w-2 h-2 bg-secondary rounded-full border-2 border-background'></span>
+              {/* Notification indicator */}
+              <span className='absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full'></span>
             </button>
 
-            <div className='relative'>
-              <button
-                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                className='w-9 h-9 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center text-primary-foreground text-sm hover:opacity-90 transition-opacity ring-2 ring-primary/30 hover:ring-primary/50'
-                aria-label='Profile menu'
-                aria-haspopup='true'
-              >
-                <User className='w-5 h-5' />
-              </button>
-
-              {isUserMenuOpen && (
-                <div className='absolute top-full right-0 mt-2 w-60 card p-2 animate-fade-in z-10'>
-                  <div className='px-2 py-2 border-b border-border mb-1'>
-                    <p className='text-sm font-semibold text-foreground'>
-                      User Name
-                    </p>
-                    <p className='text-xs text-muted-foreground'>
-                      user@example.com
-                    </p>
-                  </div>
-                  <nav className='flex flex-col gap-1'>
-                    <button className='flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors'>
-                      <Settings className='w-4 h-4' /> Settings
-                    </button>
-                    <button className='flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-md transition-colors'>
-                      <LogOut className='w-4 h-4' /> Sign out
-                    </button>
-                  </nav>
-                </div>
-              )}
-            </div>
+            <UserProfileMenu />
           </div>
         </div>
       </div>
