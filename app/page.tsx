@@ -420,7 +420,7 @@ export default function HomePage() {
                     >
                       {workspace.initial}
                     </div>
-                    {workspace.name} Workspace
+                    {workspace.name}
                   </h2>
                   <div className='flex items-center gap-2'>
                     <Link

@@ -98,13 +98,42 @@ const OneTapComponent = () => {
 
                   if (profileError) {
                     console.error('Profile error:', profileError);
-                    // Continue anyway - profile creation via trigger should handle this
                   } else {
                     console.log('Profile backup upsert successful');
                   }
+
+                  // Create default workspace via API
+                  try {
+                    console.log('🏢 Creating default workspace...');
+                    const workspaceResponse = await fetch(
+                      '/api/create-workspace',
+                      {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        },
+                      }
+                    );
+
+                    const workspaceResult = await workspaceResponse.json();
+
+                    if (workspaceResult.success) {
+                      console.log(
+                        '✅ Workspace ready:',
+                        workspaceResult.message
+                      );
+                    } else {
+                      console.error(
+                        '❌ Workspace creation failed:',
+                        workspaceResult.error
+                      );
+                    }
+                  } catch (workspaceError) {
+                    console.error('❌ Workspace API error:', workspaceError);
+                  }
                 }
 
-                // Redirect to main app - let the app handle onboarding
+                // Redirect to main app
                 router.push('/');
               } catch (error) {
                 console.error('Authentication failed:', error);
