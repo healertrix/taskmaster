@@ -2,7 +2,8 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import OneTapComponent from '@/app/components/auth/OneTapComponent';
 import {
   CheckSquare,
@@ -13,10 +14,34 @@ import {
   Layout,
   Users,
   Calendar,
+  AlertCircle,
 } from 'lucide-react';
 
 export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    const messageParam = searchParams.get('message');
+
+    if (errorParam) {
+      switch (errorParam) {
+        case 'auth':
+          setError(messageParam || 'Authentication failed. Please try again.');
+          break;
+        case 'session':
+          setError('Session error. Please try again.');
+          break;
+        case 'unexpected':
+          setError('An unexpected error occurred. Please try again.');
+          break;
+        default:
+          setError('An error occurred during authentication.');
+      }
+    }
+  }, [searchParams]);
 
   return (
     <div className='flex min-h-screen flex-col lg:flex-row overflow-hidden'>
@@ -227,6 +252,20 @@ export default function Login() {
               Sign in to your account to continue your productivity journey
             </p>
           </div>
+
+          {/* Error display */}
+          {error && (
+            <div className='mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center gap-3'>
+              <AlertCircle className='w-5 h-5 text-red-500 flex-shrink-0' />
+              <div className='text-sm text-red-500'>{error}</div>
+              <button
+                onClick={() => setError(null)}
+                className='ml-auto text-red-500 hover:text-red-400 transition-colors'
+              >
+                ×
+              </button>
+            </div>
+          )}
 
           <div className='glass-dark rounded-xl p-8 shadow-xl backdrop-blur-sm border border-border/50'>
             <div className='flex flex-col space-y-8'>

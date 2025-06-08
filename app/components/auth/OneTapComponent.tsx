@@ -52,6 +52,8 @@ const OneTapComponent = () => {
             client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
             callback: async (response: CredentialResponse) => {
               try {
+                console.log('Google One Tap response received');
+
                 // send id token returned in response.credential to supabase
                 const { data, error } = await supabase.auth.signInWithIdToken({
                   provider: 'google',
@@ -59,16 +61,54 @@ const OneTapComponent = () => {
                   nonce,
                 });
 
-                if (error) throw error;
-                console.log('Successfully logged in with Google One Tap');
+                if (error) {
+                  console.error('Supabase auth error:', error);
+                  throw error;
+                }
 
-                // Create or update profile information
-                // This will happen in the auth webhook
+                console.log('Successfully logged in with Google One Tap', data);
 
-                // redirect to protected page
+                // Ensure user session is established
+                if (data.user) {
+                  console.log('User authenticated:', data.user.id);
+
+                  // Simple profile creation/update (backup if trigger fails)
+                  const { error: profileError } = await supabase
+                    .from('profiles')
+                    .upsert(
+                      {
+                        id: data.user.id,
+                        email: data.user.email,
+                        full_name:
+                          data.user.user_metadata?.full_name ||
+                          data.user.user_metadata?.name ||
+                          '',
+                        avatar_url:
+                          data.user.user_metadata?.avatar_url ||
+                          data.user.user_metadata?.picture ||
+                          '',
+                        updated_at: new Date().toISOString(),
+                        last_active_at: new Date().toISOString(),
+                      },
+                      {
+                        onConflict: 'id',
+                        ignoreDuplicates: false,
+                      }
+                    );
+
+                  if (profileError) {
+                    console.error('Profile error:', profileError);
+                    // Continue anyway - profile creation via trigger should handle this
+                  } else {
+                    console.log('Profile backup upsert successful');
+                  }
+                }
+
+                // Redirect to main app - let the app handle onboarding
                 router.push('/');
               } catch (error) {
-                console.error('Error logging in with Google One Tap', error);
+                console.error('Authentication failed:', error);
+                alert('Authentication failed. Please try again.');
               }
             },
             nonce: hashedNonce,

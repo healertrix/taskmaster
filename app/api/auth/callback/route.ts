@@ -7,49 +7,85 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get('code');
   const next = requestUrl.searchParams.get('next') || '/';
 
+  console.log('Auth callback received:', { code: !!code, next });
+
   if (code) {
-    const cookieStore = cookies();
     const supabase = createClient();
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    try {
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-    if (error) {
-      console.error('Error exchanging code for session:', error);
-      return NextResponse.redirect(
-        `${requestUrl.origin}/auth/login?error=auth`
-      );
-    }
+      if (error) {
+        console.error('Error exchanging code for session:', error);
+        return NextResponse.redirect(
+          `${
+            requestUrl.origin
+          }/auth/login?error=auth&message=${encodeURIComponent(error.message)}`
+        );
+      }
 
-    // Get current session to fetch user information
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (session?.user) {
-      // Update or create profile information in the database
-      // Get user info from the session
-      const { id, email, user_metadata } = session.user;
+      console.log('Session exchange successful:', {
+        userId: data.session?.user?.id,
+      });
 
-      // Try updating the profile record first, if it doesn't exist, create it
-      const { error: profileError } = await supabase.from('profiles').upsert(
-        {
+      // Get current session to fetch user information
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        console.error('Error getting session:', sessionError);
+        return NextResponse.redirect(
+          `${requestUrl.origin}/auth/login?error=session`
+        );
+      }
+
+      if (session?.user) {
+        // Simple profile creation/update in the database
+        const { id, email, user_metadata } = session.user;
+
+        console.log('Creating/updating profile for user:', {
           id,
           email,
-          full_name: user_metadata?.full_name || '',
-          avatar_url: user_metadata?.avatar_url || '',
-          updated_at: new Date().toISOString(),
-          last_active_at: new Date().toISOString(),
-        },
-        {
-          onConflict: 'id',
-          ignoreDuplicates: false,
-        }
-      );
+          metadata: user_metadata,
+        });
 
-      if (profileError) {
-        console.error('Error updating profile:', profileError);
+        // Simple profile upsert (backup if trigger fails)
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .upsert(
+            {
+              id,
+              email,
+              full_name: user_metadata?.full_name || user_metadata?.name || '',
+              avatar_url:
+                user_metadata?.avatar_url || user_metadata?.picture || '',
+              updated_at: new Date().toISOString(),
+              last_active_at: new Date().toISOString(),
+            },
+            {
+              onConflict: 'id',
+              ignoreDuplicates: false,
+            }
+          )
+          .select();
+
+        if (profileError) {
+          console.error('Profile error:', profileError);
+          // Continue anyway - the user is authenticated
+        } else {
+          console.log('Profile backup upsert successful:', profileData);
+        }
       }
+    } catch (error) {
+      console.error('Unexpected error in auth callback:', error);
+      return NextResponse.redirect(
+        `${requestUrl.origin}/auth/login?error=unexpected`
+      );
     }
   }
 
+  console.log('Redirecting to:', `${requestUrl.origin}${next}`);
   return NextResponse.redirect(`${requestUrl.origin}${next}`);
 }

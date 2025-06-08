@@ -18,16 +18,21 @@ CREATE TABLE profiles (
   last_active_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create a trigger to create a profile when a new user signs up
+-- SIMPLIFIED: Create a basic profile when a new user signs up
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, full_name, avatar_url)
+  INSERT INTO public.profiles (
+    id, 
+    email, 
+    full_name, 
+    avatar_url
+  )
   VALUES (
     NEW.id, 
     NEW.email,
-    NEW.raw_user_meta_data->>'full_name',
-    NEW.raw_user_meta_data->>'avatar_url'
+    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', ''),
+    COALESCE(NEW.raw_user_meta_data->>'avatar_url', NEW.raw_user_meta_data->>'picture', '')
   );
   RETURN NEW;
 END;
@@ -101,55 +106,6 @@ CREATE TABLE workspace_settings (
 CREATE TRIGGER update_workspace_settings_updated_at
   BEFORE UPDATE ON workspace_settings
   FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-
--- Auto-add workspace owner as admin
-CREATE OR REPLACE FUNCTION handle_new_workspace()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- Add owner as admin member
-  INSERT INTO workspace_members (workspace_id, profile_id, role, invited_by)
-  VALUES (NEW.id, NEW.owner_id, 'admin', NEW.owner_id);
-  
-  -- Initialize default settings
-  INSERT INTO workspace_settings (workspace_id, setting_type, setting_value, set_by)
-  VALUES (
-    NEW.id, 
-    'membership_restriction', 
-    '"anyone"',
-    NEW.owner_id
-  );
-  
-  INSERT INTO workspace_settings (workspace_id, setting_type, setting_value, set_by)
-  VALUES (
-    NEW.id, 
-    'board_creation_restriction', 
-    '{"public_boards":"any_member","workspace_visible_boards":"any_member","private_boards":"any_member"}',
-    NEW.owner_id
-  );
-  
-  INSERT INTO workspace_settings (workspace_id, setting_type, setting_value, set_by)
-  VALUES (
-    NEW.id, 
-    'board_deletion_restriction', 
-    '{"public_boards":"any_member","workspace_visible_boards":"any_member","private_boards":"any_member"}',
-    NEW.owner_id
-  );
-  
-  INSERT INTO workspace_settings (workspace_id, setting_type, setting_value, set_by)
-  VALUES (
-    NEW.id, 
-    'board_sharing_restriction', 
-    '"anyone"',
-    NEW.owner_id
-  );
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER on_workspace_created
-  AFTER INSERT ON workspaces
-  FOR EACH ROW EXECUTE PROCEDURE handle_new_workspace();
 ```
 
 ### Boards Tables
@@ -208,7 +164,7 @@ CREATE TABLE board_watchers (
   UNIQUE (board_id, profile_id)
 );
 
--- Auto-add board creator as admin
+-- SIMPLIFIED: Auto-add board creator as admin member only
 CREATE OR REPLACE FUNCTION handle_new_board()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -218,15 +174,6 @@ BEGIN
   
   -- Update board's last activity
   UPDATE boards SET last_activity_at = NOW() WHERE id = NEW.id;
-  
-  -- Create activity record for board creation
-  INSERT INTO activities (profile_id, board_id, action_type, action_data)
-  VALUES (
-    NEW.owner_id,
-    NEW.id,
-    'board_created',
-    jsonb_build_object('board_name', NEW.name)
-  );
   
   RETURN NEW;
 END;
