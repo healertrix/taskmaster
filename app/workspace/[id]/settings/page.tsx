@@ -12,6 +12,8 @@ import {
   Share2,
   AlertCircle,
   Info,
+  Settings,
+  ArrowLeft,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -370,41 +372,48 @@ export default function WorkspaceSettingsPage() {
   const canUpdateSettings = userRole === 'admin' || userRole === 'owner';
 
   return (
-    <div className='container mx-auto max-w-4xl px-4 py-10'>
+    <div className='container mx-auto max-w-6xl px-4 py-8'>
       {/* Header */}
       <div className='mb-8'>
-        <div className='flex items-center gap-2 mb-2'>
+        <div className='flex items-center gap-2 mb-4'>
           <Link
-            href={`/workspace/${workspaceId}`}
-            className='text-muted-foreground hover:text-foreground transition-colors'
+            href={`/#workspace-${workspaceId}`}
+            className='text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2'
           >
+            <ArrowLeft className='w-4 h-4' />
             {workspace?.name || 'Workspace'}
           </Link>
-          <span className='text-muted-foreground'>/</span>
-          <h1 className='text-xl font-semibold'>Settings</h1>
         </div>
 
-        <div className='flex items-center gap-3'>
-          {workspace && (
-            <div
-              className={`w-10 h-10 ${
-                getColorDisplay(workspace.color).isCustom
-                  ? ''
-                  : getColorDisplay(workspace.color).className
-              } rounded-lg flex items-center justify-center text-lg font-bold text-white`}
-              style={getColorDisplay(workspace.color).style}
-            >
-              {workspace.name.charAt(0).toUpperCase()}
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-4'>
+            <div className='flex items-center gap-3'>
+              <div className='w-12 h-12 bg-primary rounded-lg flex items-center justify-center text-white text-lg font-bold'>
+                <Settings className='w-6 h-6' />
+              </div>
+              <div>
+                <h1 className='text-3xl font-bold text-foreground'>Settings</h1>
+                <p className='text-muted-foreground'>
+                  Manage workspace permissions and access controls
+                </p>
+              </div>
             </div>
-          )}
-          <div>
-            <h1 className='text-2xl font-bold'>
-              {workspace?.name || 'Workspace'} Settings
-            </h1>
-            <p className='text-muted-foreground'>
-              Manage permissions and access controls
-            </p>
           </div>
+        </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className='mb-8'>
+        <div className='flex items-center gap-1 border-b border-border'>
+          <Link
+            href={`/workspace/${workspaceId}/members`}
+            className='px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-b-2 hover:border-primary transition-colors'
+          >
+            Members
+          </Link>
+          <span className='px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary'>
+            Settings
+          </span>
         </div>
       </div>
 
@@ -446,13 +455,14 @@ export default function WorkspaceSettingsPage() {
         </div>
       )}
 
-      {/* Settings form */}
-      <div className='space-y-8'>
+      <div className='grid gap-6'>
         {/* Membership restrictions */}
         <div className='card p-6'>
-          <div className='flex items-center gap-3 mb-4'>
-            <Users className='w-5 h-5 text-primary' />
-            <h2 className='text-lg font-semibold'>Membership Controls</h2>
+          <div className='flex items-center justify-between mb-6'>
+            <h2 className='text-xl font-semibold flex items-center gap-2'>
+              <Users className='w-5 h-5' />
+              Membership Controls
+            </h2>
           </div>
 
           <div className='mb-4'>
@@ -478,9 +488,11 @@ export default function WorkspaceSettingsPage() {
 
         {/* Board creation restrictions */}
         <div className='card p-6'>
-          <div className='flex items-center gap-3 mb-4'>
-            <LayoutGrid className='w-5 h-5 text-primary' />
-            <h2 className='text-lg font-semibold'>Board Creation Controls</h2>
+          <div className='flex items-center justify-between mb-6'>
+            <h2 className='text-xl font-semibold flex items-center gap-2'>
+              <LayoutGrid className='w-5 h-5' />
+              Board Creation Controls
+            </h2>
           </div>
 
           <div className='space-y-4'>
@@ -567,9 +579,11 @@ export default function WorkspaceSettingsPage() {
 
         {/* Board deletion restrictions */}
         <div className='card p-6'>
-          <div className='flex items-center gap-3 mb-4'>
-            <Trash2 className='w-5 h-5 text-primary' />
-            <h2 className='text-lg font-semibold'>Board Deletion Controls</h2>
+          <div className='flex items-center justify-between mb-6'>
+            <h2 className='text-xl font-semibold flex items-center gap-2'>
+              <Trash2 className='w-5 h-5' />
+              Board Deletion Controls
+            </h2>
           </div>
 
           <div className='space-y-4'>
@@ -649,9 +663,11 @@ export default function WorkspaceSettingsPage() {
 
         {/* Board sharing restrictions */}
         <div className='card p-6'>
-          <div className='flex items-center gap-3 mb-4'>
-            <Share2 className='w-5 h-5 text-primary' />
-            <h2 className='text-lg font-semibold'>Board Sharing Controls</h2>
+          <div className='flex items-center justify-between mb-6'>
+            <h2 className='text-xl font-semibold flex items-center gap-2'>
+              <Share2 className='w-5 h-5' />
+              Board Sharing Controls
+            </h2>
           </div>
 
           <div className='mb-4'>
@@ -678,24 +694,26 @@ export default function WorkspaceSettingsPage() {
 
         {/* Save button */}
         {canUpdateSettings && (
-          <div className='flex justify-end'>
-            <button
-              className='btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center'
-              onClick={handleSaveSettings}
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className='w-4 h-4 mr-2 animate-spin' />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className='w-4 h-4 mr-2' />
-                  Save Settings
-                </>
-              )}
-            </button>
+          <div className='card p-6'>
+            <div className='flex justify-end'>
+              <button
+                className='flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50'
+                onClick={handleSaveSettings}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className='w-4 h-4 animate-spin' />
+                    Saving Settings...
+                  </>
+                ) : (
+                  <>
+                    <Save className='w-4 h-4' />
+                    Save Settings
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
       </div>

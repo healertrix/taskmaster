@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { DashboardHeader } from './components/dashboard/header';
 import {
@@ -20,30 +20,36 @@ import {
 import { CreateWorkspaceModal } from './components/workspace/CreateWorkspaceModal';
 import { createClient } from '@/utils/supabase/client';
 
-// Sample data for boards
-const recentBoards = [
+// Sample data for boards (demo boards)
+const recentBoards: Board[] = [
   {
-    id: 'board1',
-    name: 'TaskmasterSprint1',
+    id: 'demo1',
+    name: 'Project Planning',
     color: 'bg-blue-600',
-    starred: true,
-  },
-  {
-    id: 'board2',
-    name: 'Website Redesign',
-    color: 'bg-purple-600',
     starred: false,
   },
   {
-    id: 'board3',
-    name: 'Mobile App Development',
+    id: 'demo2',
+    name: 'Website Redesign',
+    color: 'bg-purple-600',
+    starred: true,
+  },
+  {
+    id: 'demo3',
+    name: 'Marketing Campaign',
     color: 'bg-green-600',
+    starred: false,
+  },
+  {
+    id: 'demo4',
+    name: 'Mobile App Dev',
+    color: 'bg-red-600',
     starred: true,
   },
 ];
 
-// Get starred boards
-const starredBoards = recentBoards.filter((board) => board.starred);
+// Get starred boards from recent boards
+const starredBoards: Board[] = recentBoards.filter((board) => board.starred);
 
 const workspaces = [
   {
@@ -52,14 +58,11 @@ const workspaces = [
     initial: 'T',
     color: 'bg-blue-600',
     boards: [
-      { id: 'board1', name: 'TaskmasterSprint1', color: 'bg-blue-600' },
-      { id: 'board4', name: 'Project Planning', color: 'bg-yellow-600' },
-      { id: 'board5', name: 'Marketing Campaign', color: 'bg-red-600' },
+      { id: 'demo1', name: 'Project Planning', color: 'bg-blue-600' },
+      { id: 'demo2', name: 'Website Redesign', color: 'bg-purple-600' },
+      { id: 'demo3', name: 'Marketing Campaign', color: 'bg-green-600' },
     ],
-    members: [
-      { id: 'user1', name: 'John Doe', avatar: '' },
-      { id: 'user2', name: 'Jane Smith', avatar: '' },
-    ],
+    members: [],
   },
   {
     id: 'ws2',
@@ -67,10 +70,10 @@ const workspaces = [
     initial: 'P',
     color: 'bg-green-600',
     boards: [
-      { id: 'board6', name: 'Travel Plans', color: 'bg-indigo-600' },
-      { id: 'board7', name: 'Reading List', color: 'bg-pink-600' },
+      { id: 'demo4', name: 'Mobile App Dev', color: 'bg-red-600' },
+      { id: 'demo1', name: 'Task Manager', color: 'bg-indigo-600' },
     ],
-    members: [{ id: 'user1', name: 'John Doe', avatar: '' }],
+    members: [],
   },
 ];
 
@@ -99,23 +102,36 @@ export default function HomePage() {
         } = await supabase.auth.getUser();
 
         if (user) {
-          // Fetch workspaces where user is owner or member
-          const { data, error } = await supabase
+          // Fetch workspaces where user is owner
+          const { data: workspaceData, error } = await supabase
             .from('workspaces')
             .select('*')
             .eq('owner_id', user.id);
 
           if (error) {
             console.error('Error fetching workspaces:', error);
-          } else if (data) {
+          } else if (workspaceData) {
             // Map the data to match our workspace structure
-            const mappedWorkspaces = data.map((ws) => ({
+            const mappedWorkspaces = workspaceData.map((ws) => ({
               id: ws.id,
               name: ws.name,
               initial: ws.name.charAt(0).toUpperCase(),
               color: ws.color,
-              boards: [], // We'll fetch these separately in a more complex version
-              members: [], // We'll fetch these separately in a more complex version
+              boards: [
+                // Add demo boards for each workspace
+                {
+                  id: 'demo-sprint',
+                  name: 'Sprint Planning',
+                  color: 'bg-blue-600',
+                },
+                {
+                  id: 'demo-design',
+                  name: 'Design System',
+                  color: 'bg-purple-600',
+                },
+                { id: 'demo-bugs', name: 'Bug Tracking', color: 'bg-red-600' },
+              ],
+              members: [], // Simplified - no member count display
             }));
 
             if (mappedWorkspaces.length > 0) {
@@ -133,21 +149,93 @@ export default function HomePage() {
     fetchWorkspaces();
   }, []);
 
-  const toggleWorkspace = (id: string) => {
+  // Handle initial page load with hash
+  useEffect(() => {
+    // Check if there's a hash when the component first mounts
+    if (
+      typeof window !== 'undefined' &&
+      window.location.hash &&
+      userWorkspaces.length === 0
+    ) {
+      // Store the hash to scroll to after data loads
+      const hash = window.location.hash;
+      if (hash) {
+        localStorage.setItem('pendingScroll', hash);
+      }
+    }
+  }, []);
+
+  // Handle scroll after data loads
+  useEffect(() => {
+    if (typeof window !== 'undefined' && userWorkspaces.length > 0) {
+      const pendingScroll = localStorage.getItem('pendingScroll');
+      if (pendingScroll) {
+        // Clear the pending scroll
+        localStorage.removeItem('pendingScroll');
+        // Set the hash and trigger scroll
+        window.location.hash = pendingScroll;
+      }
+    }
+  }, [userWorkspaces.length]);
+
+  // Handle hash navigation when page loads
+  useEffect(() => {
+    const handleHashNavigation = () => {
+      if (typeof window !== 'undefined' && window.location.hash) {
+        const hash = window.location.hash.substring(1); // Remove the #
+
+        // Try multiple times to find the element as it might not be rendered yet
+        let attempts = 0;
+        const maxAttempts = 10;
+
+        const tryScroll = () => {
+          const element = document.getElementById(hash);
+          if (element) {
+            // Scroll to element with offset for fixed header
+            const offsetTop = element.offsetTop - 100; // Account for fixed header
+            window.scrollTo({
+              top: offsetTop,
+              behavior: 'smooth',
+            });
+          } else if (attempts < maxAttempts) {
+            attempts++;
+            setTimeout(tryScroll, 200); // Try again after 200ms
+          }
+        };
+
+        // Start trying after a small delay
+        setTimeout(tryScroll, 100);
+      }
+    };
+
+    // Run when workspaces are loaded
+    if (userWorkspaces.length > 0) {
+      handleHashNavigation();
+    }
+
+    // Also listen for hash changes (when navigating back from other pages)
+    window.addEventListener('hashchange', handleHashNavigation);
+
+    return () => {
+      window.removeEventListener('hashchange', handleHashNavigation);
+    };
+  }, [userWorkspaces.length]);
+
+  const toggleWorkspace = useCallback((id: string) => {
     setExpandedWorkspaces((prev) => ({
       ...prev,
       [id]: !prev[id],
     }));
-  };
+  }, []);
 
-  const handleHomeClick = () => {
+  const handleHomeClick = useCallback(() => {
     // Navigate to home page
     window.location.href = '/';
-  };
+  }, []);
 
-  const handleCreateWorkspaceClick = () => {
+  const handleCreateWorkspaceClick = useCallback(() => {
     setIsCreateWorkspaceModalOpen(true);
-  };
+  }, []);
 
   const handleWorkspaceCreated = async (newWorkspaceId: string) => {
     try {
@@ -193,7 +281,7 @@ export default function HomePage() {
   };
 
   // Function to determine if a color is a hex code or a tailwind class
-  const getColorDisplay = (color: string) => {
+  const getColorDisplay = useCallback((color: string) => {
     // If it starts with # or rgb, it's a custom color
     if (color.startsWith('#') || color.startsWith('rgb')) {
       return {
@@ -208,7 +296,7 @@ export default function HomePage() {
       style: {},
       className: color,
     };
-  };
+  }, []);
 
   return (
     // Use the dark dot pattern for the body background
@@ -274,10 +362,13 @@ export default function HomePage() {
                             <LayoutGrid className='w-3.5 h-3.5' />
                             Boards
                           </Link>
-                          <button className='nav-item flex items-center gap-2.5 w-full text-xs'>
+                          <Link
+                            href={`/workspace/${workspace.id}/members`}
+                            className='nav-item flex items-center gap-2.5 w-full text-xs'
+                          >
                             <Users className='w-3.5 h-3.5' />
-                            Members ({workspace.members.length})
-                          </button>
+                            Members
+                          </Link>
                           <Link
                             href={`/workspace/${workspace.id}/settings`}
                             className='nav-item flex items-center gap-2.5 w-full text-xs'
@@ -407,7 +498,12 @@ export default function HomePage() {
 
             {/* Workspaces Section */}
             {userWorkspaces.map((workspace) => (
-              <section key={workspace.id} className='mb-12'>
+              <section
+                key={workspace.id}
+                id={`workspace-${workspace.id}`}
+                className='mb-12 scroll-mt-24 pt-4'
+                style={{ scrollMarginTop: '6rem' }}
+              >
                 <div className='flex items-center justify-between mb-5'>
                   <h2 className='text-xl font-semibold text-foreground flex items-center gap-2.5'>
                     <div
@@ -423,6 +519,14 @@ export default function HomePage() {
                     {workspace.name}
                   </h2>
                   <div className='flex items-center gap-2'>
+                    <Link
+                      href={`/workspace/${workspace.id}/members`}
+                      className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+                      aria-label='Workspace members'
+                      title='Workspace members'
+                    >
+                      <Users className='w-4 h-4' />
+                    </Link>
                     <Link
                       href={`/workspace/${workspace.id}/settings`}
                       className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
