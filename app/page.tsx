@@ -18,7 +18,16 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { CreateWorkspaceModal } from './components/workspace/CreateWorkspaceModal';
+import { CreateBoardModal } from './components/board/CreateBoardModal';
 import { createClient } from '@/utils/supabase/client';
+
+// Type definitions
+type Board = {
+  id: string;
+  name: string;
+  color: string;
+  starred: boolean;
+};
 
 // Sample data for boards (demo boards)
 const recentBoards: Board[] = [
@@ -87,67 +96,97 @@ export default function HomePage() {
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
   const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] =
     useState(false);
+  const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
+  const [boardModalContext, setBoardModalContext] = useState<{
+    workspaceId?: string;
+    workspaceName?: string;
+    workspaceColor?: string;
+  } | null>(null);
   const [userWorkspaces, setUserWorkspaces] = useState(workspaces);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Fetch user workspaces and their boards
+  const fetchWorkspacesWithBoards = useCallback(async () => {
+    try {
+      const supabase = createClient();
+
+      // Get the current user
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        // Fetch workspaces where user is a member (owner or regular member)
+        const { data: workspaceData, error: workspaceError } = await supabase
+          .from('workspace_members')
+          .select(
+            `
+            workspace_id,
+            role,
+            workspaces (
+              id,
+              name,
+              color,
+              owner_id
+            )
+          `
+          )
+          .eq('profile_id', user.id);
+
+        if (workspaceError) {
+          console.error('Error fetching workspaces:', workspaceError);
+          return;
+        }
+
+        if (workspaceData) {
+          // Fetch boards for all workspaces
+          const workspaceIds = workspaceData.map((wm) => wm.workspaces.id);
+          const { data: boardsData, error: boardsError } = await supabase
+            .from('boards')
+            .select('id, name, color, workspace_id')
+            .in('workspace_id', workspaceIds);
+
+          if (boardsError) {
+            console.error('Error fetching boards:', boardsError);
+          }
+
+          // Group boards by workspace
+          const boardsByWorkspace = (boardsData || []).reduce((acc, board) => {
+            if (!acc[board.workspace_id]) {
+              acc[board.workspace_id] = [];
+            }
+            acc[board.workspace_id].push({
+              id: board.id,
+              name: board.name,
+              color: board.color,
+            });
+            return acc;
+          }, {} as Record<string, any[]>);
+
+          // Map the data to match our workspace structure
+          const mappedWorkspaces = workspaceData.map((wm) => ({
+            id: wm.workspaces.id,
+            name: wm.workspaces.name,
+            initial: wm.workspaces.name.charAt(0).toUpperCase(),
+            color: wm.workspaces.color,
+            boards: boardsByWorkspace[wm.workspaces.id] || [],
+            members: [], // Simplified - no member count display
+          }));
+
+          setUserWorkspaces(mappedWorkspaces);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching workspaces:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   // Fetch user workspaces on component mount
   useEffect(() => {
-    const fetchWorkspaces = async () => {
-      try {
-        const supabase = createClient();
-
-        // Get the current user
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (user) {
-          // Fetch workspaces where user is owner
-          const { data: workspaceData, error } = await supabase
-            .from('workspaces')
-            .select('*')
-            .eq('owner_id', user.id);
-
-          if (error) {
-            console.error('Error fetching workspaces:', error);
-          } else if (workspaceData) {
-            // Map the data to match our workspace structure
-            const mappedWorkspaces = workspaceData.map((ws) => ({
-              id: ws.id,
-              name: ws.name,
-              initial: ws.name.charAt(0).toUpperCase(),
-              color: ws.color,
-              boards: [
-                // Add demo boards for each workspace
-                {
-                  id: 'demo-sprint',
-                  name: 'Sprint Planning',
-                  color: 'bg-blue-600',
-                },
-                {
-                  id: 'demo-design',
-                  name: 'Design System',
-                  color: 'bg-purple-600',
-                },
-                { id: 'demo-bugs', name: 'Bug Tracking', color: 'bg-red-600' },
-              ],
-              members: [], // Simplified - no member count display
-            }));
-
-            if (mappedWorkspaces.length > 0) {
-              setUserWorkspaces(mappedWorkspaces);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching workspaces:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchWorkspaces();
-  }, []);
+    fetchWorkspacesWithBoards();
+  }, [fetchWorkspacesWithBoards]);
 
   // Handle initial page load with hash
   useEffect(() => {
@@ -272,6 +311,28 @@ export default function HomePage() {
     } catch (error) {
       console.error('Error handling new workspace:', error);
     }
+  };
+
+  // Handle board creation from top-level (recent boards section)
+  const handleCreateBoardTopLevel = () => {
+    setBoardModalContext(null); // No workspace context
+    setIsCreateBoardModalOpen(true);
+  };
+
+  // Handle board creation from workspace section
+  const handleCreateBoardInWorkspace = (workspace: any) => {
+    setBoardModalContext({
+      workspaceId: workspace.id,
+      workspaceName: workspace.name,
+      workspaceColor: workspace.color,
+    });
+    setIsCreateBoardModalOpen(true);
+  };
+
+  const handleBoardCreated = async (newBoardId: string) => {
+    // Refresh the workspace data to show the new board
+    await fetchWorkspacesWithBoards();
+    console.log('Board created and workspaces refreshed:', newBoardId);
   };
 
   // TODO: Replace with actual user data
@@ -487,7 +548,10 @@ export default function HomePage() {
                 ))}
 
                 {/* Create New Board Card */}
-                <button className='h-32 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'>
+                <button
+                  onClick={handleCreateBoardTopLevel}
+                  className='h-32 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
+                >
                   <div className='w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors'>
                     <Plus className='w-5 h-5 text-primary' />
                   </div>
@@ -564,7 +628,10 @@ export default function HomePage() {
                   ))}
 
                   {/* Create New Board (in workspace) */}
-                  <button className='h-32 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'>
+                  <button
+                    onClick={() => handleCreateBoardInWorkspace(workspace)}
+                    className='h-32 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
+                  >
                     <div className='w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors'>
                       <Plus className='w-5 h-5 text-primary' />
                     </div>
@@ -584,6 +651,17 @@ export default function HomePage() {
         isOpen={isCreateWorkspaceModalOpen}
         onClose={() => setIsCreateWorkspaceModalOpen(false)}
         onSuccess={handleWorkspaceCreated}
+      />
+
+      {/* Board creation modal */}
+      <CreateBoardModal
+        isOpen={isCreateBoardModalOpen}
+        onClose={() => setIsCreateBoardModalOpen(false)}
+        onSuccess={handleBoardCreated}
+        workspaceId={boardModalContext?.workspaceId}
+        workspaceName={boardModalContext?.workspaceName}
+        workspaceColor={boardModalContext?.workspaceColor}
+        userWorkspaces={userWorkspaces}
       />
     </div>
   );
