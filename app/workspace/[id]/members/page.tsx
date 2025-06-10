@@ -15,6 +15,10 @@ import {
   ChevronRight,
   Send,
   X,
+  Loader2,
+  Check,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -67,6 +71,14 @@ export default function WorkspaceMembersPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
   const [isInviting, setIsInviting] = useState(false);
+
+  // Notification states
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showErrorToast, setShowErrorToast] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSuccessToastFading, setIsSuccessToastFading] = useState(false);
+  const [isErrorToastFading, setIsErrorToastFading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -202,6 +214,103 @@ export default function WorkspaceMembersPage() {
     }
   }, [workspaceId, router]);
 
+  // Notification helper functions
+  const showSuccess = (message: string) => {
+    setSuccessMessage(message);
+    setShowSuccessToast(true);
+    setIsSuccessToastFading(false);
+
+    // Start fade out animation after 3.5 seconds
+    setTimeout(() => {
+      setIsSuccessToastFading(true);
+      // Remove toast after fade animation completes
+      setTimeout(() => {
+        setShowSuccessToast(false);
+        setIsSuccessToastFading(false);
+      }, 500);
+    }, 3500);
+  };
+
+  const showError = (message: string) => {
+    setErrorMessage(message);
+    setShowErrorToast(true);
+    setIsErrorToastFading(false);
+
+    // Start fade out animation after 4.5 seconds
+    setTimeout(() => {
+      setIsErrorToastFading(true);
+      // Remove toast after fade animation completes
+      setTimeout(() => {
+        setShowErrorToast(false);
+        setIsErrorToastFading(false);
+      }, 500);
+    }, 4500);
+  };
+
+  // Beautiful loading component
+  const LoadingSpinner = ({ size = 'md', className = '' }) => {
+    const sizeClasses = {
+      sm: 'w-4 h-4',
+      md: 'w-6 h-6',
+      lg: 'w-8 h-8',
+      xl: 'w-12 h-12',
+    };
+
+    return (
+      <div className={`relative ${sizeClasses[size]} ${className}`}>
+        <div className='absolute inset-0 rounded-full border-2 border-primary/20'></div>
+        <div className='absolute inset-0 rounded-full border-2 border-transparent border-t-primary animate-spin'></div>
+      </div>
+    );
+  };
+
+  // Page loading skeleton
+  const PageLoadingSkeleton = () => (
+    <div className='min-h-screen dot-pattern-dark'>
+      <DashboardHeader />
+      <main className='container mx-auto max-w-4xl px-4 pt-24 pb-16'>
+        <div className='space-y-6'>
+          {/* Header skeleton */}
+          <div className='flex items-center justify-between mb-8'>
+            <div className='flex items-center gap-4'>
+              <div className='w-8 h-8 bg-muted/50 rounded-lg animate-pulse'></div>
+              <div className='space-y-2'>
+                <div className='w-48 h-6 bg-muted/50 rounded animate-pulse'></div>
+                <div className='w-64 h-4 bg-muted/50 rounded animate-pulse'></div>
+              </div>
+            </div>
+            <div className='w-32 h-10 bg-muted/50 rounded animate-pulse'></div>
+          </div>
+
+          {/* Members card skeleton */}
+          <div className='card p-6 space-y-4'>
+            <div className='w-40 h-5 bg-muted/50 rounded animate-pulse'></div>
+            <div className='space-y-3'>
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className='flex items-center justify-between p-3 rounded-lg border border-border'
+                >
+                  <div className='flex items-center gap-3'>
+                    <div className='w-8 h-8 bg-muted/50 rounded-full animate-pulse'></div>
+                    <div className='space-y-2'>
+                      <div className='w-32 h-4 bg-muted/50 rounded animate-pulse'></div>
+                      <div className='w-48 h-3 bg-muted/50 rounded animate-pulse'></div>
+                    </div>
+                  </div>
+                  <div className='flex items-center gap-3'>
+                    <div className='w-16 h-6 bg-muted/50 rounded animate-pulse'></div>
+                    <div className='w-16 h-8 bg-muted/50 rounded animate-pulse'></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+
   const canInviteMembers =
     currentUserRole === 'owner' || currentUserRole === 'admin';
   const canManageMembers =
@@ -226,15 +335,16 @@ export default function WorkspaceMembersPage() {
       if (response.ok) {
         setInviteEmail('');
         setShowInviteModal(false);
+        showSuccess(`Invitation sent to ${inviteEmail.trim()}`);
         // Refresh invitations
         window.location.reload();
       } else {
         const error = await response.text();
-        alert(`Failed to send invitation: ${error}`);
+        showError(`Failed to send invitation: ${error}`);
       }
     } catch (error) {
       console.error('Error sending invitation:', error);
-      alert('Failed to send invitation');
+      showError('Failed to send invitation');
     } finally {
       setIsInviting(false);
     }
@@ -275,16 +385,7 @@ export default function WorkspaceMembersPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className='min-h-screen dot-pattern-dark'>
-        <DashboardHeader />
-        <main className='container mx-auto max-w-4xl px-4 pt-24 pb-16'>
-          <div className='flex items-center justify-center h-64'>
-            <div className='text-muted-foreground'>Loading...</div>
-          </div>
-        </main>
-      </div>
-    );
+    return <PageLoadingSkeleton />;
   }
 
   if (error || !workspace) {
@@ -505,11 +606,115 @@ export default function WorkspaceMembersPage() {
               <button
                 onClick={handleInviteMember}
                 disabled={isInviting || !inviteEmail.trim()}
-                className='btn btn-primary flex items-center gap-2 disabled:opacity-50'
+                className={`btn btn-primary flex items-center gap-2 transition-all duration-200 ${
+                  isInviting ? 'scale-95 opacity-90' : 'hover:scale-105'
+                } disabled:opacity-50`}
               >
-                <Send className='w-4 h-4' />
-                {isInviting ? 'Sending...' : 'Send Invitation'}
+                {isInviting ? (
+                  <>
+                    <LoadingSpinner size='sm' />
+                    <span className='animate-pulse'>Sending...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className='w-4 h-4' />
+                    Send Invitation
+                  </>
+                )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Toast */}
+      {showSuccessToast && (
+        <div
+          className={`fixed top-20 right-6 z-[9999] transition-all duration-500 ${
+            isSuccessToastFading
+              ? 'animate-out slide-out-to-top-2 fade-out opacity-0 scale-95'
+              : 'animate-in slide-in-from-top-2 fade-in opacity-100 scale-100'
+          }`}
+        >
+          <div className='bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 shadow-2xl max-w-sm backdrop-blur-sm'>
+            <div className='flex items-center gap-3'>
+              <div className='flex-shrink-0'>
+                <CheckCircle2 className='w-5 h-5 text-green-600 dark:text-green-400' />
+              </div>
+              <div className='flex-1'>
+                <p className='text-sm font-medium text-green-800 dark:text-green-200'>
+                  {successMessage}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsSuccessToastFading(true);
+                  setTimeout(() => {
+                    setShowSuccessToast(false);
+                    setIsSuccessToastFading(false);
+                  }, 300);
+                }}
+                className='flex-shrink-0 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 transition-colors'
+                aria-label='Close success notification'
+              >
+                <X className='w-4 h-4' />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Toast */}
+      {showErrorToast && (
+        <div
+          className={`fixed top-20 right-6 z-[9999] transition-all duration-500 ${
+            isErrorToastFading
+              ? 'animate-out slide-out-to-top-2 fade-out opacity-0 scale-95'
+              : 'animate-in slide-in-from-top-2 fade-in opacity-100 scale-100'
+          }`}
+        >
+          <div className='bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 shadow-2xl max-w-sm backdrop-blur-sm'>
+            <div className='flex items-center gap-3'>
+              <div className='flex-shrink-0'>
+                <AlertCircle className='w-5 h-5 text-red-600 dark:text-red-400' />
+              </div>
+              <div className='flex-1'>
+                <p className='text-sm font-medium text-red-800 dark:text-red-200'>
+                  {errorMessage}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsErrorToastFading(true);
+                  setTimeout(() => {
+                    setShowErrorToast(false);
+                    setIsErrorToastFading(false);
+                  }, 300);
+                }}
+                className='flex-shrink-0 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors'
+                aria-label='Close error notification'
+              >
+                <X className='w-4 h-4' />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Loading Overlay for Critical Actions */}
+      {isInviting && (
+        <div className='fixed inset-0 bg-black/10 backdrop-blur-sm z-[90] flex items-center justify-center'>
+          <div className='bg-background/90 backdrop-blur border border-border rounded-lg p-6 shadow-xl'>
+            <div className='flex items-center gap-4'>
+              <LoadingSpinner size='lg' />
+              <div>
+                <p className='font-medium text-foreground'>
+                  Sending invitation...
+                </p>
+                <p className='text-sm text-muted-foreground'>
+                  This will only take a moment
+                </p>
+              </div>
             </div>
           </div>
         </div>

@@ -13,6 +13,10 @@ import {
   ArrowLeft,
   Clock,
   Grid3x3,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -48,6 +52,120 @@ export default function WorkspaceBoardsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
+
+  // Notification states
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showErrorToast, setShowErrorToast] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSuccessToastFading, setIsSuccessToastFading] = useState(false);
+  const [isErrorToastFading, setIsErrorToastFading] = useState(false);
+
+  // Notification helper functions
+  const showSuccess = (message: string) => {
+    setSuccessMessage(message);
+    setShowSuccessToast(true);
+    setIsSuccessToastFading(false);
+
+    // Start fade out animation after 3.5 seconds
+    setTimeout(() => {
+      setIsSuccessToastFading(true);
+      // Remove toast after fade animation completes
+      setTimeout(() => {
+        setShowSuccessToast(false);
+        setIsSuccessToastFading(false);
+      }, 500);
+    }, 3500);
+  };
+
+  const showError = (message: string) => {
+    setErrorMessage(message);
+    setShowErrorToast(true);
+    setIsErrorToastFading(false);
+
+    // Start fade out animation after 4.5 seconds
+    setTimeout(() => {
+      setIsErrorToastFading(true);
+      // Remove toast after fade animation completes
+      setTimeout(() => {
+        setShowErrorToast(false);
+        setIsErrorToastFading(false);
+      }, 500);
+    }, 4500);
+  };
+
+  // Loading Spinner Component
+  const LoadingSpinner = ({
+    size = 'md',
+  }: {
+    size?: 'sm' | 'md' | 'lg' | 'xl';
+  }) => {
+    const sizeClasses = {
+      sm: 'w-4 h-4',
+      md: 'w-6 h-6',
+      lg: 'w-8 h-8',
+      xl: 'w-12 h-12',
+    };
+
+    return (
+      <Loader2 className={`${sizeClasses[size]} animate-spin text-primary`} />
+    );
+  };
+
+  // Page Loading Skeleton
+  const PageLoadingSkeleton = () => (
+    <div className='min-h-screen dot-pattern-dark'>
+      <DashboardHeader />
+      <main className='container mx-auto max-w-7xl px-4 pt-24 pb-16'>
+        {/* Header Skeleton */}
+        <div className='flex items-center justify-between mb-8'>
+          <div className='flex items-center gap-4'>
+            <div className='w-9 h-9 bg-muted/50 rounded-lg animate-pulse' />
+            <div className='flex items-center gap-3'>
+              <div className='w-10 h-10 bg-muted/50 rounded-lg animate-pulse' />
+              <div className='space-y-2'>
+                <div className='h-7 w-48 bg-muted/50 rounded animate-pulse' />
+                <div className='h-4 w-32 bg-muted/50 rounded animate-pulse' />
+              </div>
+            </div>
+          </div>
+          <div className='flex items-center gap-2'>
+            <div className='w-9 h-9 bg-muted/50 rounded-lg animate-pulse' />
+            <div className='w-9 h-9 bg-muted/50 rounded-lg animate-pulse' />
+          </div>
+        </div>
+
+        {/* Boards Grid Skeleton */}
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'>
+          {/* Create Board Card Skeleton */}
+          <div className='h-40 rounded-xl border-2 border-dashed border-border/50 bg-card/30 flex flex-col items-center justify-center'>
+            <div className='w-12 h-12 bg-muted/50 rounded-full animate-pulse mb-3' />
+            <div className='h-4 w-24 bg-muted/50 rounded animate-pulse mb-1' />
+            <div className='h-3 w-32 bg-muted/50 rounded animate-pulse' />
+          </div>
+
+          {/* Board Card Skeletons */}
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={i}
+              className='h-40 rounded-xl bg-card border border-border/50 p-5'
+            >
+              <div className='h-2 bg-muted/50 rounded mb-4 animate-pulse' />
+              <div className='space-y-2 mb-4'>
+                <div className='h-5 bg-muted/50 rounded animate-pulse' />
+                <div className='h-4 bg-muted/50 rounded w-3/4 animate-pulse' />
+                <div className='h-4 bg-muted/50 rounded w-1/2 animate-pulse' />
+              </div>
+              <div className='flex items-center justify-between mt-auto'>
+                <div className='h-3 w-16 bg-muted/50 rounded animate-pulse' />
+                <div className='w-4 h-4 bg-muted/50 rounded animate-pulse' />
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
+    </div>
+  );
 
   // Fetch workspace and boards
   useEffect(() => {
@@ -103,12 +221,14 @@ export default function WorkspaceBoardsPage() {
 
         if (boardsError) {
           console.error('Error fetching boards:', boardsError);
+          showError('Failed to load boards');
           setError('Failed to load boards');
         } else {
           setBoards(boardsData || []);
         }
       } catch (err) {
         console.error('Error fetching data:', err);
+        showError('An unexpected error occurred');
         setError('An unexpected error occurred');
       } finally {
         setIsLoading(false);
@@ -122,6 +242,7 @@ export default function WorkspaceBoardsPage() {
 
   const handleBoardCreated = (newBoardId: string) => {
     // The modal handles navigation to the new board
+    showSuccess('Board created successfully!');
     console.log('Board created:', newBoardId);
   };
 
@@ -150,16 +271,7 @@ export default function WorkspaceBoardsPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className='min-h-screen dot-pattern-dark'>
-        <DashboardHeader />
-        <main className='container mx-auto max-w-7xl px-4 pt-24 pb-16'>
-          <div className='flex items-center justify-center h-64'>
-            <div className='text-muted-foreground'>Loading...</div>
-          </div>
-        </main>
-      </div>
-    );
+    return <PageLoadingSkeleton />;
   }
 
   if (error || !workspace) {
@@ -340,6 +452,76 @@ export default function WorkspaceBoardsPage() {
         workspaceName={workspace.name}
         workspaceColor={workspace.color}
       />
+
+      {/* Success Toast */}
+      {showSuccessToast && (
+        <div
+          className={`fixed top-20 right-6 z-[9999] transition-all duration-500 ${
+            isSuccessToastFading
+              ? 'animate-out slide-out-to-top-2 fade-out opacity-0 scale-95'
+              : 'animate-in slide-in-from-top-2 fade-in opacity-100 scale-100'
+          }`}
+        >
+          <div className='bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 shadow-2xl max-w-sm backdrop-blur-sm'>
+            <div className='flex items-center gap-3'>
+              <CheckCircle2 className='w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0' />
+              <div className='flex-1'>
+                <p className='text-sm font-medium text-green-800 dark:text-green-200'>
+                  {successMessage}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsSuccessToastFading(true);
+                  setTimeout(() => {
+                    setShowSuccessToast(false);
+                    setIsSuccessToastFading(false);
+                  }, 300);
+                }}
+                className='flex-shrink-0 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 transition-colors'
+                aria-label='Close success notification'
+              >
+                <X className='w-4 h-4' />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Toast */}
+      {showErrorToast && (
+        <div
+          className={`fixed top-20 right-6 z-[9999] transition-all duration-500 ${
+            isErrorToastFading
+              ? 'animate-out slide-out-to-top-2 fade-out opacity-0 scale-95'
+              : 'animate-in slide-in-from-top-2 fade-in opacity-100 scale-100'
+          }`}
+        >
+          <div className='bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 shadow-2xl max-w-sm backdrop-blur-sm'>
+            <div className='flex items-center gap-3'>
+              <AlertCircle className='w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0' />
+              <div className='flex-1'>
+                <p className='text-sm font-medium text-red-800 dark:text-red-200'>
+                  {errorMessage}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsErrorToastFading(true);
+                  setTimeout(() => {
+                    setShowErrorToast(false);
+                    setIsErrorToastFading(false);
+                  }, 300);
+                }}
+                className='flex-shrink-0 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors'
+                aria-label='Close error notification'
+              >
+                <X className='w-4 h-4' />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
