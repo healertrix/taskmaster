@@ -444,12 +444,19 @@ export default function HomePage() {
             {/* Demo Data Banner */}
             {useDemoData && (
               <div className='mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl'>
-                <div className='flex items-center gap-2 text-blue-400'>
+                <div className='flex items-center gap-2 text-blue-400 mb-2'>
                   <div className='w-2 h-2 bg-blue-400 rounded-full animate-pulse'></div>
                   <span className='text-sm font-medium'>
                     Demo Mode - These are sample boards. Sign in to create real
                     boards and use starring functionality.
                   </span>
+                </div>
+                <div className='text-xs text-blue-300'>
+                  📋 To enable recent boards tracking: Run{' '}
+                  <code className='bg-blue-600/20 px-1 rounded'>
+                    add_recent_boards_column.sql
+                  </code>{' '}
+                  in your database
                 </div>
               </div>
             )}
@@ -495,7 +502,7 @@ export default function HomePage() {
                   <Clock className='w-5 h-5 text-secondary' />
                   Recent Boards
                   <span className='text-sm text-muted-foreground font-normal ml-2'>
-                    (Latest 3)
+                    (Last 3 accessed)
                   </span>
                 </h2>
 
@@ -530,8 +537,8 @@ export default function HomePage() {
                   // Empty state
                   <div className='col-span-full p-8 text-center text-muted-foreground'>
                     <p>
-                      No recent boards found. Create your first board to get
-                      started!
+                      No recently accessed boards. Visit some boards to see them
+                      here!
                     </p>
                   </div>
                 ) : (
@@ -544,17 +551,6 @@ export default function HomePage() {
                     />
                   ))
                 )}
-
-                {/* Create New Board Card */}
-                <button
-                  onClick={handleCreateBoardTopLevel}
-                  className='h-32 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
-                >
-                  <div className='w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors'>
-                    <Plus className='w-5 h-5 text-primary' />
-                  </div>
-                  <span className='font-medium text-sm'>Create New Board</span>
-                </button>
               </div>
             </section>
 

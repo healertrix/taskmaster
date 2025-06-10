@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import {
   DndContext,
@@ -239,6 +239,22 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
+
+  // Track board access when component mounts
+  useEffect(() => {
+    const trackAccess = async () => {
+      if (params.id) {
+        try {
+          const { trackBoardAccess } = await import('@/utils/boardAccess');
+          await trackBoardAccess(params.id);
+        } catch (error) {
+          console.error('Error tracking board access:', error);
+        }
+      }
+    };
+
+    trackAccess();
+  }, [params.id]);
   const [dragOverInfo, setDragOverInfo] = useState<{
     id: UniqueIdentifier | null;
     type: 'task' | 'column' | null;

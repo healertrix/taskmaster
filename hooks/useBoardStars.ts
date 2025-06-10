@@ -26,7 +26,7 @@ const DEMO_BOARDS: Board[] = [
   },
   {
     id: 'demo3',
-    name: 'Marketing Campaign',
+    name: 'Development Tasks',
     color: 'bg-green-600',
     starred: false,
   },
@@ -115,54 +115,62 @@ export const useBoardStars = () => {
         return;
       }
 
-      // Get workspaces where user is a member
-      const { data: workspaceData, error: workspaceError } = await supabase
-        .from('workspace_members')
-        .select('workspace_id')
-        .eq('profile_id', user.id);
+      // Get user's recent board IDs from their profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('recent_boards')
+        .eq('id', user.id)
+        .single();
 
-      if (workspaceError) {
-        console.error('Error fetching workspaces:', workspaceError);
+      if (profileError) {
+        console.error(
+          'Error fetching user profile for recent boards:',
+          profileError
+        );
         // Fallback to demo data on error
         setUseDemoData(true);
         setRecentBoards(DEMO_BOARDS);
         return;
       }
 
-      const workspaceIds = workspaceData?.map((wm) => wm.workspace_id) || [];
+      const recentBoardIds: string[] = profile?.recent_boards || [];
 
-      if (workspaceIds.length === 0) {
-        // Use demo data if user has no workspaces
+      if (recentBoardIds.length === 0) {
+        // Use demo data if user has no recent boards
         setUseDemoData(true);
         setRecentBoards(DEMO_BOARDS);
         return;
       }
 
-      // Get recent boards from these workspaces (limit to 3)
-      const { data: boardsData, error: boardsError } = await supabase
-        .from('boards')
-        .select('id, name, color, workspace_id, updated_at')
-        .in('workspace_id', workspaceIds)
-        .order('updated_at', { ascending: false })
-        .limit(3);
+      // Fetch board details for the recent board IDs
+      // We need to preserve the order from the recent_boards array
+      const boardPromises = recentBoardIds.map(async (boardId) => {
+        const { data: boardData, error: boardError } = await supabase
+          .from('boards')
+          .select('id, name, color, workspace_id, updated_at')
+          .eq('id', boardId)
+          .single();
 
-      if (boardsError) {
-        console.error('Error fetching recent boards:', boardsError);
-        // Fallback to demo data on error
-        setUseDemoData(true);
-        setRecentBoards(DEMO_BOARDS);
-        return;
-      }
+        if (boardError) {
+          console.error(`Error fetching board ${boardId}:`, boardError);
+          return null;
+        }
 
-      if (!boardsData || boardsData.length === 0) {
-        // Use demo data if no boards found
+        return boardData;
+      });
+
+      const boardResults = await Promise.all(boardPromises);
+      const boardsData = boardResults.filter((board) => board !== null);
+
+      if (boardsData.length === 0) {
+        // Use demo data if no valid boards found
         setUseDemoData(true);
         setRecentBoards(DEMO_BOARDS);
         return;
       }
 
       // Get starred status for these boards
-      const boardIds = boardsData?.map((board) => board.id) || [];
+      const boardIds = boardsData.map((board) => board.id);
 
       const { data: starsData, error: starsError } = await supabase
         .from('board_stars')
@@ -179,11 +187,10 @@ export const useBoardStars = () => {
         starsData?.map((star) => star.board_id) || []
       );
 
-      const boardsWithStarStatus =
-        boardsData?.map((board) => ({
-          ...board,
-          starred: starredBoardIds.has(board.id),
-        })) || [];
+      const boardsWithStarStatus = boardsData.map((board) => ({
+        ...board,
+        starred: starredBoardIds.has(board.id),
+      }));
 
       setUseDemoData(false);
       setRecentBoards(boardsWithStarStatus as Board[]);
@@ -253,9 +260,7 @@ export const useBoardStars = () => {
             .eq('board_id', boardId)
             .eq('profile_id', user.id);
 
-          if (deleteError) {
-            throw deleteError;
-          }
+          if (deleteError) throw deleteError;
 
           // Update local state
           setStarredBoards((prev) =>
@@ -275,11 +280,9 @@ export const useBoardStars = () => {
               profile_id: user.id,
             });
 
-          if (insertError) {
-            throw insertError;
-          }
+          if (insertError) throw insertError;
 
-          // Find the board in recent boards to add to starred
+          // Update local state
           const boardToStar = recentBoards.find(
             (board) => board.id === boardId
           );
@@ -295,21 +298,24 @@ export const useBoardStars = () => {
         }
       } catch (err) {
         console.error('Error toggling board star:', err);
-        setError('Failed to toggle board star');
+        setError('Failed to update board star status');
       }
     },
     [supabase, recentBoards, useDemoData]
   );
 
-  // Initialize data
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       setError(null);
-
-      await Promise.all([fetchStarredBoards(), fetchRecentBoards()]);
-
-      setLoading(false);
+      try {
+        await Promise.all([fetchStarredBoards(), fetchRecentBoards()]);
+      } catch (err) {
+        console.error('Error loading board data:', err);
+        setError('Failed to load boards');
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadData();
@@ -320,10 +326,13 @@ export const useBoardStars = () => {
     recentBoards,
     loading,
     error,
-    useDemoData,
     toggleBoardStar,
-    refetch: useCallback(async () => {
-      await Promise.all([fetchStarredBoards(), fetchRecentBoards()]);
+    refetch: useCallback(() => {
+      setLoading(true);
+      Promise.all([fetchStarredBoards(), fetchRecentBoards()]).finally(() =>
+        setLoading(false)
+      );
     }, [fetchStarredBoards, fetchRecentBoards]),
+    useDemoData,
   };
 };
