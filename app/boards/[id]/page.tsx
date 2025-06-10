@@ -11,7 +11,6 @@ import {
   Settings,
   Users,
   ArrowLeft,
-  MoreHorizontal,
   Clock,
   Grid3x3,
 } from 'lucide-react';
@@ -231,12 +230,6 @@ export default function WorkspaceBoardsPage() {
             >
               <Settings className='w-5 h-5' />
             </Link>
-            <button
-              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
-              aria-label='More options'
-            >
-              <MoreHorizontal className='w-5 h-5' />
-            </button>
           </div>
         </div>
 

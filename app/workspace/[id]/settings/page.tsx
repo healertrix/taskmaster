@@ -90,6 +90,11 @@ export default function WorkspaceSettingsPage() {
   const [showWorkspaceEditModal, setShowWorkspaceEditModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Board restriction modal states
+  const [currentBoardType, setCurrentBoardType] = useState<
+    'public_boards' | 'workspace_visible_boards' | 'private_boards' | null
+  >(null);
+
   // Workspace edit form state
   const [editWorkspaceName, setEditWorkspaceName] = useState('');
   const [editWorkspaceColor, setEditWorkspaceColor] = useState('');
@@ -388,6 +393,34 @@ export default function WorkspaceSettingsPage() {
   const handleColorSelection = (color: string) => {
     setSelectedColor(color);
     setEditWorkspaceColor(color);
+  };
+
+  // Function to update board creation restriction
+  const updateBoardCreationRestriction = async (
+    boardType: 'public_boards' | 'workspace_visible_boards' | 'private_boards',
+    newValue: 'any_member' | 'admins_only' | 'owner_only'
+  ) => {
+    const newSettings = {
+      ...settings.board_creation_restriction,
+      [boardType]: newValue,
+    };
+    await updateWorkspaceSetting('board_creation_restriction', newSettings);
+    setShowCreationModal(false);
+    setCurrentBoardType(null);
+  };
+
+  // Function to update board deletion restriction
+  const updateBoardDeletionRestriction = async (
+    boardType: 'public_boards' | 'workspace_visible_boards' | 'private_boards',
+    newValue: 'any_member' | 'admins_only' | 'owner_only'
+  ) => {
+    const newSettings = {
+      ...settings.board_deletion_restriction,
+      [boardType]: newValue,
+    };
+    await updateWorkspaceSetting('board_deletion_restriction', newSettings);
+    setShowDeletionModal(false);
+    setCurrentBoardType(null);
   };
 
   const getRoleDisplay = (role: string) => {
@@ -732,9 +765,10 @@ export default function WorkspaceSettingsPage() {
                 </div>
                 {canUpdateSettings && (
                   <button
-                    onClick={() =>
-                      alert('Board permission settings coming soon!')
-                    }
+                    onClick={() => {
+                      setCurrentBoardType('public_boards');
+                      setShowCreationModal(true);
+                    }}
                     className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
                   >
                     Change
@@ -766,9 +800,10 @@ export default function WorkspaceSettingsPage() {
                 </div>
                 {canUpdateSettings && (
                   <button
-                    onClick={() =>
-                      alert('Board permission settings coming soon!')
-                    }
+                    onClick={() => {
+                      setCurrentBoardType('workspace_visible_boards');
+                      setShowCreationModal(true);
+                    }}
                     className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
                   >
                     Change
@@ -799,9 +834,10 @@ export default function WorkspaceSettingsPage() {
                 </div>
                 {canUpdateSettings && (
                   <button
-                    onClick={() =>
-                      alert('Board permission settings coming soon!')
-                    }
+                    onClick={() => {
+                      setCurrentBoardType('private_boards');
+                      setShowCreationModal(true);
+                    }}
                     className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
                   >
                     Change
@@ -838,9 +874,10 @@ export default function WorkspaceSettingsPage() {
                 </div>
                 {canUpdateSettings && (
                   <button
-                    onClick={() =>
-                      alert('Board permission settings coming soon!')
-                    }
+                    onClick={() => {
+                      setCurrentBoardType('public_boards');
+                      setShowDeletionModal(true);
+                    }}
                     className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
                   >
                     Change
@@ -869,9 +906,10 @@ export default function WorkspaceSettingsPage() {
                 </div>
                 {canUpdateSettings && (
                   <button
-                    onClick={() =>
-                      alert('Board permission settings coming soon!')
-                    }
+                    onClick={() => {
+                      setCurrentBoardType('workspace_visible_boards');
+                      setShowDeletionModal(true);
+                    }}
                     className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
                   >
                     Change
@@ -899,9 +937,10 @@ export default function WorkspaceSettingsPage() {
                 </div>
                 {canUpdateSettings && (
                   <button
-                    onClick={() =>
-                      alert('Board permission settings coming soon!')
-                    }
+                    onClick={() => {
+                      setCurrentBoardType('private_boards');
+                      setShowDeletionModal(true);
+                    }}
                     className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
                   >
                     Change
@@ -1268,6 +1307,128 @@ export default function WorkspaceSettingsPage() {
             <div className='flex justify-end gap-3 mt-6'>
               <button
                 onClick={() => setShowSharingModal(false)}
+                disabled={isUpdating}
+                className='px-4 py-2 text-muted-foreground hover:text-foreground disabled:opacity-50'
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Board Creation Restriction Modal */}
+      {showCreationModal && currentBoardType && (
+        <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
+          <div className='bg-background border border-border rounded-lg p-6 w-full max-w-md mx-4'>
+            <h3 className='text-lg font-semibold mb-4'>
+              Change{' '}
+              {currentBoardType
+                .replace('_', ' ')
+                .replace(/\b\w/g, (l) => l.toUpperCase())}{' '}
+              Creation Permissions
+            </h3>
+
+            <div className='space-y-3'>
+              {(['any_member', 'admins_only', 'owner_only'] as const).map(
+                (option) => {
+                  const info = getRoleDisplay(option);
+                  const isSelected =
+                    settings.board_creation_restriction[currentBoardType] ===
+                    option;
+
+                  return (
+                    <button
+                      key={option}
+                      onClick={() =>
+                        updateBoardCreationRestriction(currentBoardType, option)
+                      }
+                      disabled={isUpdating}
+                      className={`w-full p-3 text-left rounded-lg border ${
+                        isSelected
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border hover:bg-muted/50'
+                      } transition-colors flex items-center gap-3`}
+                    >
+                      {React.createElement(info.icon, {
+                        className: `w-4 h-4 ${info.color}`,
+                      })}
+                      <div>
+                        <div className='font-medium'>{info.text}</div>
+                      </div>
+                    </button>
+                  );
+                }
+              )}
+            </div>
+
+            <div className='flex justify-end gap-3 mt-6'>
+              <button
+                onClick={() => {
+                  setShowCreationModal(false);
+                  setCurrentBoardType(null);
+                }}
+                disabled={isUpdating}
+                className='px-4 py-2 text-muted-foreground hover:text-foreground disabled:opacity-50'
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Board Deletion Restriction Modal */}
+      {showDeletionModal && currentBoardType && (
+        <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
+          <div className='bg-background border border-border rounded-lg p-6 w-full max-w-md mx-4'>
+            <h3 className='text-lg font-semibold mb-4'>
+              Change{' '}
+              {currentBoardType
+                .replace('_', ' ')
+                .replace(/\b\w/g, (l) => l.toUpperCase())}{' '}
+              Deletion Permissions
+            </h3>
+
+            <div className='space-y-3'>
+              {(['any_member', 'admins_only', 'owner_only'] as const).map(
+                (option) => {
+                  const info = getRoleDisplay(option);
+                  const isSelected =
+                    settings.board_deletion_restriction[currentBoardType] ===
+                    option;
+
+                  return (
+                    <button
+                      key={option}
+                      onClick={() =>
+                        updateBoardDeletionRestriction(currentBoardType, option)
+                      }
+                      disabled={isUpdating}
+                      className={`w-full p-3 text-left rounded-lg border ${
+                        isSelected
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border hover:bg-muted/50'
+                      } transition-colors flex items-center gap-3`}
+                    >
+                      {React.createElement(info.icon, {
+                        className: `w-4 h-4 ${info.color}`,
+                      })}
+                      <div>
+                        <div className='font-medium'>{info.text}</div>
+                      </div>
+                    </button>
+                  );
+                }
+              )}
+            </div>
+
+            <div className='flex justify-end gap-3 mt-6'>
+              <button
+                onClick={() => {
+                  setShowDeletionModal(false);
+                  setCurrentBoardType(null);
+                }}
                 disabled={isUpdating}
                 className='px-4 py-2 text-muted-foreground hover:text-foreground disabled:opacity-50'
               >
