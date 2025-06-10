@@ -15,10 +15,16 @@ import {
   Filter,
   Clock,
   Star,
+  ChevronDown,
+  Briefcase,
+  LayoutGrid,
+  Zap,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { UserProfileMenu } from './UserProfileMenu';
+import { CreateWorkspaceModal } from '../workspace/CreateWorkspaceModal';
+import { CreateBoardModal } from '../board/CreateBoardModal';
 
 // Mock search results data
 const searchResultsData = {
@@ -99,23 +105,34 @@ export function DashboardHeader() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [activeFilter, setActiveFilter] = useState('all');
-  const searchRef = useRef<HTMLDivElement>(null);
-  const pathname = usePathname();
+  const [activeFilter, setActiveFilter] = useState<
+    'all' | 'cards' | 'boards' | 'workspaces'
+  >('all');
+  const [showCreateDropdown, setShowCreateDropdown] = useState(false);
+  const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] =
+    useState(false);
+  const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
 
-  // Check if we're on the search page
-  const isSearchPage = pathname?.includes('/search');
+  const searchRef = useRef<HTMLDivElement>(null);
+  const createDropdownRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+  const isSearchPage = pathname === '/search';
 
   useEffect(() => {
     setMounted(true);
 
-    // Close search results when clicking outside
     const handleClickOutside = (event: MouseEvent) => {
       if (
         searchRef.current &&
         !searchRef.current.contains(event.target as Node)
       ) {
         setShowSearchResults(false);
+      }
+      if (
+        createDropdownRef.current &&
+        !createDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowCreateDropdown(false);
       }
     };
 
@@ -169,33 +186,26 @@ export function DashboardHeader() {
   }
 
   return (
-    <header className='fixed top-0 left-0 right-0 superhero-header z-50'>
-      <div className='container mx-auto px-4 py-3'>
-        <div className='flex items-center justify-between'>
-          {/* Left section */}
-          <div
-            className={`flex items-center space-x-5 ${
-              isSearchPage ? 'w-1/4' : 'w-1/6'
-            }`}
-          >
-            <Link
-              href='/'
-              className='font-bold text-xl flex items-center gap-2 text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity'
+    <>
+      <header className='fixed top-0 left-0 right-0 superhero-header z-50'>
+        <div className='container mx-auto px-4 py-3'>
+          <div className='flex items-center justify-between'>
+            {/* Left section */}
+            <div
+              className={`flex items-center space-x-5 ${
+                isSearchPage ? 'w-1/4' : 'w-1/6'
+              }`}
             >
-              <CheckSquare className='w-6 h-6 text-primary' />
-              Taskmaster
-            </Link>
-          </div>
-
-          {/* Search or Create Button */}
-          {isSearchPage ? (
-            <div className='flex-1 flex justify-center'>
-              <button className='btn btn-primary flex items-center gap-1.5 text-sm hover:bg-primary/90 hover:text-primary-foreground'>
-                <Plus className='w-4 h-4' />
-                Create
-              </button>
+              <Link
+                href='/'
+                className='font-bold text-xl flex items-center gap-2 text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity'
+              >
+                <CheckSquare className='w-6 h-6 text-primary' />
+                Taskmaster
+              </Link>
             </div>
-          ) : (
+
+            {/* Search Bar and Create Button */}
             <div
               className='flex items-center w-3/4 mx-auto px-4'
               ref={searchRef}
@@ -431,28 +441,150 @@ export function DashboardHeader() {
                   </div>
                 )}
               </div>
-              <button className='btn btn-primary flex items-center gap-1.5 text-sm ml-3 hover:bg-primary/90 hover:text-primary-foreground'>
-                <Plus className='w-4 h-4' />
-                Create
-              </button>
+
+              {/* Create Button */}
+              <div className='relative ml-3' ref={createDropdownRef}>
+                <button
+                  className='btn btn-primary flex items-center gap-1.5 text-sm hover:bg-primary/90 hover:text-primary-foreground'
+                  onClick={() => setShowCreateDropdown(!showCreateDropdown)}
+                >
+                  <Plus className='w-4 h-4' />
+                  Create
+                  <ChevronDown className='w-3 h-3 ml-1' />
+                </button>
+
+                {/* Create Dropdown Menu */}
+                {showCreateDropdown && (
+                  <div className='absolute top-full right-0 mt-2 w-80 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-50 overflow-hidden'>
+                    {/* Board Creation Section */}
+                    <div className='p-4 border-b border-slate-700'>
+                      <h3 className='text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 px-1'>
+                        CREATE BOARD
+                      </h3>
+
+                      <button
+                        onClick={() => {
+                          setIsCreateBoardModalOpen(true);
+                          setShowCreateDropdown(false);
+                        }}
+                        className='w-full flex items-start gap-3 p-3 hover:bg-slate-700/50 rounded-lg transition-colors text-left group'
+                      >
+                        <div className='w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-purple-500/30 transition-colors'>
+                          <LayoutGrid className='w-4 h-4 text-purple-400' />
+                        </div>
+                        <div className='flex-1'>
+                          <h4 className='font-semibold text-sm text-white mb-1'>
+                            Create board
+                          </h4>
+                          <p className='text-xs text-slate-400 leading-relaxed'>
+                            A board is made up of cards ordered on lists. Use it
+                            to manage projects, track information, or organize
+                            anything.
+                          </p>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          // For now, just show the regular create board modal
+                          setIsCreateBoardModalOpen(true);
+                          setShowCreateDropdown(false);
+                        }}
+                        className='w-full flex items-start gap-3 p-3 hover:bg-slate-700/50 rounded-lg transition-colors text-left group mt-2'
+                      >
+                        <div className='w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-blue-500/30 transition-colors'>
+                          <Zap className='w-4 h-4 text-blue-400' />
+                        </div>
+                        <div className='flex-1'>
+                          <div className='flex items-center gap-2 mb-1'>
+                            <h4 className='font-semibold text-sm text-white'>
+                              Start with a template
+                            </h4>
+                            <span className='relative inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white rounded-full shadow-lg overflow-hidden group'>
+                              <span className='absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300'></span>
+                              <span className='absolute inset-0 bg-white/20 rounded-full animate-pulse'></span>
+                              <span className='relative z-10 flex items-center gap-1'>
+                                <svg
+                                  className='w-3 h-3 animate-spin'
+                                  fill='currentColor'
+                                  viewBox='0 0 20 20'
+                                >
+                                  <path
+                                    fillRule='evenodd'
+                                    d='M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z'
+                                    clipRule='evenodd'
+                                  />
+                                </svg>
+                                Coming Soon
+                              </span>
+                            </span>
+                          </div>
+                          <p className='text-xs text-slate-400 leading-relaxed'>
+                            Get started faster with a board template.
+                          </p>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Workspace Creation Section */}
+                    <div className='p-4'>
+                      <h3 className='text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 px-1'>
+                        CREATE WORKSPACE
+                      </h3>
+
+                      <button
+                        onClick={() => {
+                          setIsCreateWorkspaceModalOpen(true);
+                          setShowCreateDropdown(false);
+                        }}
+                        className='w-full flex items-start gap-3 p-3 hover:bg-slate-700/50 rounded-lg transition-colors text-left group'
+                      >
+                        <div className='w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-green-500/30 transition-colors'>
+                          <Briefcase className='w-4 h-4 text-green-400' />
+                        </div>
+                        <div className='flex-1'>
+                          <h4 className='font-semibold text-sm text-white mb-1'>
+                            Create workspace
+                          </h4>
+                          <p className='text-xs text-slate-400 leading-relaxed'>
+                            A workspace is a group of boards and people. Use it
+                            to organize your company, side project, or family.
+                          </p>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
 
-          {/* Right section with profile menu */}
-          <div className='flex items-center gap-4'>
-            <button
-              className='relative p-2 text-muted-foreground hover:text-foreground rounded-full'
-              aria-label='Notifications'
-            >
-              <Bell className='w-5 h-5' />
-              {/* Notification indicator */}
-              <span className='absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full'></span>
-            </button>
+            {/* Right section with profile menu */}
+            <div className='flex items-center gap-4'>
+              <button
+                className='relative p-2 text-muted-foreground hover:text-foreground rounded-full'
+                aria-label='Notifications'
+              >
+                <Bell className='w-5 h-5' />
+                {/* Notification indicator */}
+                <span className='absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full'></span>
+              </button>
 
-            <UserProfileMenu />
+              <UserProfileMenu />
+            </div>
           </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {/* Modals */}
+      <CreateWorkspaceModal
+        isOpen={isCreateWorkspaceModalOpen}
+        onClose={() => setIsCreateWorkspaceModalOpen(false)}
+      />
+
+      <CreateBoardModal
+        isOpen={isCreateBoardModalOpen}
+        onClose={() => setIsCreateBoardModalOpen(false)}
+      />
+    </>
   );
 }
