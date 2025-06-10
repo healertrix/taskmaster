@@ -19,46 +19,10 @@ import {
 } from 'lucide-react';
 import { CreateWorkspaceModal } from './components/workspace/CreateWorkspaceModal';
 import { CreateBoardModal } from './components/board/CreateBoardModal';
+import { BoardCard } from './components/board/BoardCard';
 import { createClient } from '@/utils/supabase/client';
-
-// Type definitions
-type Board = {
-  id: string;
-  name: string;
-  color: string;
-  starred: boolean;
-};
-
-// Sample data for boards (demo boards)
-const recentBoards: Board[] = [
-  {
-    id: 'demo1',
-    name: 'Project Planning',
-    color: 'bg-blue-600',
-    starred: false,
-  },
-  {
-    id: 'demo2',
-    name: 'Website Redesign',
-    color: 'bg-purple-600',
-    starred: true,
-  },
-  {
-    id: 'demo3',
-    name: 'Marketing Campaign',
-    color: 'bg-green-600',
-    starred: false,
-  },
-  {
-    id: 'demo4',
-    name: 'Mobile App Dev',
-    color: 'bg-red-600',
-    starred: true,
-  },
-];
-
-// Get starred boards from recent boards
-const starredBoards: Board[] = recentBoards.filter((board) => board.starred);
+import { useBoardStars } from '@/hooks/useBoardStars';
+import { useWorkspaceBoardsForHome } from '@/hooks/useWorkspaceBoardsForHome';
 
 const workspaces = [
   {
@@ -104,6 +68,21 @@ export default function HomePage() {
   } | null>(null);
   const [userWorkspaces, setUserWorkspaces] = useState(workspaces);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Use the custom hook for board stars
+  const {
+    starredBoards,
+    recentBoards,
+    loading: boardsLoading,
+    error: boardsError,
+    useDemoData,
+    toggleBoardStar,
+    refetch: refetchBoards,
+  } = useBoardStars();
+
+  // Use the workspace boards hook for workspace sections
+  const { workspaceBoards, fetchWorkspaceBoards, toggleWorkspaceBoardStar } =
+    useWorkspaceBoardsForHome();
 
   // Fetch user workspaces and their boards
   const fetchWorkspacesWithBoards = useCallback(async () => {
@@ -174,6 +153,9 @@ export default function HomePage() {
           }));
 
           setUserWorkspaces(mappedWorkspaces);
+
+          // Fetch workspace boards with starred status (reuse existing workspaceIds)
+          await fetchWorkspaceBoards(workspaceIds);
         }
       }
     } catch (error) {
@@ -181,7 +163,7 @@ export default function HomePage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchWorkspaceBoards]);
 
   // Fetch user workspaces on component mount
   useEffect(() => {
@@ -332,7 +314,10 @@ export default function HomePage() {
   const handleBoardCreated = async (newBoardId: string) => {
     // Refresh the workspace data to show the new board
     await fetchWorkspacesWithBoards();
-    console.log('Board created and workspaces refreshed:', newBoardId);
+    await refetchBoards();
+    setIsCreateBoardModalOpen(false);
+    setBoardModalContext(null);
+    console.log('Board created and data refreshed:', newBoardId);
   };
 
   // TODO: Replace with actual user data
@@ -456,8 +441,21 @@ export default function HomePage() {
 
           {/* Main Content */}
           <div className='flex-1'>
+            {/* Demo Data Banner */}
+            {useDemoData && (
+              <div className='mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl'>
+                <div className='flex items-center gap-2 text-blue-400'>
+                  <div className='w-2 h-2 bg-blue-400 rounded-full animate-pulse'></div>
+                  <span className='text-sm font-medium'>
+                    Demo Mode - These are sample boards. Sign in to create real
+                    boards and use starring functionality.
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Starred Boards Section */}
-            {starredBoards.length > 0 && (
+            {(boardsLoading || starredBoards.length > 0) && (
               <section className='mb-12'>
                 <div className='flex items-center justify-between mb-5'>
                   <h2 className='text-xl font-semibold text-foreground flex items-center gap-2'>
@@ -467,33 +465,25 @@ export default function HomePage() {
                 </div>
 
                 <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
-                  {starredBoards.map((board) => (
-                    <Link
-                      key={board.id}
-                      href={`/board/${board.id}`}
-                      className='group relative block p-5 rounded-xl card card-hover h-32 overflow-hidden'
-                    >
-                      <div
-                        className={`absolute top-0 left-0 right-0 h-1.5 ${board.color}`}
-                      ></div>
-                      <div className='relative z-10 flex flex-col justify-between h-full'>
-                        <h3 className='font-semibold text-foreground'>
-                          {board.name}
-                        </h3>
-                        <div className='flex justify-end'>
-                          <button
-                            className='p-1 rounded-full transition-colors text-yellow-400 hover:bg-yellow-400/10'
-                            onClick={(e) => {
-                              e.preventDefault(); /* TODO: Add starring logic */
-                            }}
-                            aria-label='Unstar board'
-                          >
-                            <Star className='w-4 h-4' fill='currentColor' />
-                          </button>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
+                  {boardsLoading ? (
+                    // Loading skeleton for starred boards
+                    <>
+                      {[1, 2].map((i) => (
+                        <div
+                          key={i}
+                          className='h-32 rounded-xl bg-card/50 animate-pulse'
+                        />
+                      ))}
+                    </>
+                  ) : (
+                    starredBoards.map((board) => (
+                      <BoardCard
+                        key={board.id}
+                        board={board}
+                        onToggleStar={toggleBoardStar}
+                      />
+                    ))
+                  )}
                 </div>
               </section>
             )}
@@ -504,48 +494,56 @@ export default function HomePage() {
                 <h2 className='text-xl font-semibold text-foreground flex items-center gap-2'>
                   <Clock className='w-5 h-5 text-secondary' />
                   Recent Boards
+                  <span className='text-sm text-muted-foreground font-normal ml-2'>
+                    (Latest 3)
+                  </span>
                 </h2>
+
+                {!boardsLoading && recentBoards.length > 0 && (
+                  <Link
+                    href='/search'
+                    className='text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1'
+                  >
+                    View all boards
+                    <ChevronRight className='w-3 h-3' />
+                  </Link>
+                )}
               </div>
 
               <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
-                {/* Board Cards - Applying new card styles */}
-                {recentBoards.map((board) => (
-                  <Link
-                    key={board.id}
-                    href={`/board/${board.id}`}
-                    className='group relative block p-5 rounded-xl card card-hover h-32 overflow-hidden'
-                  >
-                    {/* Using absolute positioning for color bar */}
-                    <div
-                      className={`absolute top-0 left-0 right-0 h-1.5 ${board.color}`}
-                    ></div>
-                    <div className='relative z-10 flex flex-col justify-between h-full'>
-                      <h3 className='font-semibold text-foreground'>
-                        {board.name}
-                      </h3>
-                      <div className='flex justify-end'>
-                        <button
-                          className={`p-1 rounded-full transition-colors ${
-                            board.starred
-                              ? 'text-yellow-400'
-                              : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100'
-                          } hover:text-yellow-400 hover:bg-yellow-400/10`}
-                          onClick={(e) => {
-                            e.preventDefault(); /* TODO: Add starring logic */
-                          }}
-                          aria-label={
-                            board.starred ? 'Unstar board' : 'Star board'
-                          }
-                        >
-                          <Star
-                            className='w-4 h-4'
-                            fill={board.starred ? 'currentColor' : 'none'}
-                          />
-                        </button>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
+                {boardsLoading ? (
+                  // Loading skeleton
+                  <>
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className='h-32 rounded-xl bg-card/50 animate-pulse'
+                      />
+                    ))}
+                  </>
+                ) : boardsError ? (
+                  // Error state
+                  <div className='col-span-full p-8 text-center text-muted-foreground'>
+                    <p>Error loading boards: {boardsError}</p>
+                  </div>
+                ) : recentBoards.length === 0 ? (
+                  // Empty state
+                  <div className='col-span-full p-8 text-center text-muted-foreground'>
+                    <p>
+                      No recent boards found. Create your first board to get
+                      started!
+                    </p>
+                  </div>
+                ) : (
+                  // Board cards
+                  recentBoards.map((board) => (
+                    <BoardCard
+                      key={board.id}
+                      board={board}
+                      onToggleStar={toggleBoardStar}
+                    />
+                  ))
+                )}
 
                 {/* Create New Board Card */}
                 <button
@@ -609,23 +607,31 @@ export default function HomePage() {
                 </div>
 
                 <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
-                  {workspace.boards.map((board) => (
-                    <Link
-                      key={board.id}
-                      href={`/board/${board.id}`}
-                      className='group relative block p-5 rounded-xl card card-hover h-32 overflow-hidden'
-                    >
-                      <div
-                        className={`absolute top-0 left-0 right-0 h-1.5 ${board.color}`}
-                      ></div>
-                      <div className='relative z-10'>
-                        <h3 className='font-semibold text-foreground'>
-                          {board.name}
-                        </h3>
-                        {/* Potential placeholder for members or stats */}
-                      </div>
-                    </Link>
-                  ))}
+                  {(workspaceBoards[workspace.id] || workspace.boards).map(
+                    (board) => {
+                      // Use boards with starred status from the hook, fallback to workspace.boards
+                      const boardForCard = workspaceBoards[workspace.id]
+                        ? board // Already has starred status from hook
+                        : {
+                            id: board.id,
+                            name: board.name,
+                            color: board.color,
+                            starred: false, // Fallback doesn't have starred status
+                          };
+                      return (
+                        <BoardCard
+                          key={board.id}
+                          board={boardForCard}
+                          onToggleStar={
+                            workspaceBoards[workspace.id]
+                              ? toggleWorkspaceBoardStar
+                              : toggleBoardStar
+                          }
+                          showStar={true} // Show star button in workspace sections like recent boards
+                        />
+                      );
+                    }
+                  )}
 
                   {/* Create New Board (in workspace) */}
                   <button

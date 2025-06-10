@@ -4,14 +4,14 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { DashboardHeader } from '../../components/dashboard/header';
 import { CreateBoardModal } from '../../components/board/CreateBoardModal';
+import { WorkspaceBoardCard } from '../../components/board/WorkspaceBoardCard';
+import { useWorkspaceBoards } from '@/hooks/useWorkspaceBoards';
 import { createClient } from '@/utils/supabase/client';
 import {
   Plus,
-  Star,
   Settings,
   Users,
   ArrowLeft,
-  Clock,
   Grid3x3,
   Loader2,
   CheckCircle2,
@@ -20,38 +20,22 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
-type Board = {
-  id: string;
-  name: string;
-  description?: string;
-  color: string;
-  created_at: string;
-  updated_at: string;
-  last_activity_at: string;
-  is_archived: boolean;
-  is_closed: boolean;
-  visibility: string;
-};
-
-type Workspace = {
-  id: string;
-  name: string;
-  color: string;
-  owner_id: string;
-  visibility: string;
-  created_at: string;
-};
-
 export default function WorkspaceBoardsPage() {
   const params = useParams();
   const router = useRouter();
   const workspaceId = params.id as string;
 
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [boards, setBoards] = useState<Board[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
+
+  // Use the workspace boards hook
+  const {
+    workspace,
+    boards,
+    loading: isLoading,
+    error,
+    toggleBoardStar,
+    refetch,
+  } = useWorkspaceBoards(workspaceId);
 
   // Notification states
   const [showSuccessToast, setShowSuccessToast] = useState(false);
@@ -167,81 +151,27 @@ export default function WorkspaceBoardsPage() {
     </div>
   );
 
-  // Fetch workspace and boards
+  // Check authentication
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const supabase = createClient();
+    const checkAuth = async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-        // Get the current user
-        const {
-          data: { user },
-          error: authError,
-        } = await supabase.auth.getUser();
-
-        if (authError || !user) {
-          router.push('/auth/login');
-          return;
-        }
-
-        // Fetch workspace
-        const { data: workspaceData, error: workspaceError } = await supabase
-          .from('workspaces')
-          .select('*')
-          .eq('id', workspaceId)
-          .single();
-
-        if (workspaceError) {
-          setError('Workspace not found');
-          return;
-        }
-
-        // Check if user has access to this workspace
-        const { data: membershipData, error: membershipError } = await supabase
-          .from('workspace_members')
-          .select('role')
-          .eq('workspace_id', workspaceId)
-          .eq('profile_id', user.id)
-          .single();
-
-        if (membershipError || !membershipData) {
-          setError('Access denied');
-          return;
-        }
-
-        setWorkspace(workspaceData);
-
-        // Fetch boards in this workspace
-        const { data: boardsData, error: boardsError } = await supabase
-          .from('boards')
-          .select('*')
-          .eq('workspace_id', workspaceId)
-          .eq('is_archived', false)
-          .order('last_activity_at', { ascending: false });
-
-        if (boardsError) {
-          console.error('Error fetching boards:', boardsError);
-          showError('Failed to load boards');
-          setError('Failed to load boards');
-        } else {
-          setBoards(boardsData || []);
-        }
-      } catch (err) {
-        console.error('Error fetching data:', err);
-        showError('An unexpected error occurred');
-        setError('An unexpected error occurred');
-      } finally {
-        setIsLoading(false);
+      if (authError || !user) {
+        router.push('/auth/login');
+        return;
       }
     };
 
-    if (workspaceId) {
-      fetchData();
-    }
-  }, [workspaceId, router]);
+    checkAuth();
+  }, [router]);
 
-  const handleBoardCreated = (newBoardId: string) => {
-    // The modal handles navigation to the new board
+  const handleBoardCreated = async (newBoardId: string) => {
+    // Refresh the boards data
+    await refetch();
     showSuccess('Board created successfully!');
     console.log('Board created:', newBoardId);
   };
@@ -362,61 +292,15 @@ export default function WorkspaceBoardsPage() {
           </button>
 
           {/* Board Cards */}
-          {boards.map((board) => {
-            const boardColorDisplay = getColorDisplay(board.color);
-            return (
-              <Link
-                key={board.id}
-                href={`/board/${board.id}`}
-                className='group relative block p-5 rounded-xl card card-hover h-40 overflow-hidden'
-              >
-                {/* Color bar at top */}
-                <div
-                  className={`absolute top-0 left-0 right-0 h-2 ${
-                    boardColorDisplay.isCustom
-                      ? ''
-                      : boardColorDisplay.className
-                  }`}
-                  style={
-                    boardColorDisplay.isCustom ? boardColorDisplay.style : {}
-                  }
-                />
-
-                <div className='relative z-10 flex flex-col justify-between h-full'>
-                  <div>
-                    <h3 className='font-semibold text-foreground mb-2 line-clamp-2'>
-                      {board.name}
-                    </h3>
-                    {board.description && (
-                      <p className='text-sm text-muted-foreground line-clamp-3 mb-3'>
-                        {board.description}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className='flex items-center justify-between'>
-                    <div className='flex items-center gap-1 text-xs text-muted-foreground'>
-                      <Clock className='w-3 h-3' />
-                      {formatDate(board.last_activity_at)}
-                    </div>
-
-                    <div className='flex items-center gap-1'>
-                      <button
-                        className='p-1 rounded-full text-muted-foreground/50 opacity-0 group-hover:opacity-100 hover:text-yellow-400 hover:bg-yellow-400/10 transition-all'
-                        onClick={(e) => {
-                          e.preventDefault();
-                          // TODO: Add starring logic
-                        }}
-                        aria-label='Star board'
-                      >
-                        <Star className='w-4 h-4' />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+          {boards.map((board) => (
+            <WorkspaceBoardCard
+              key={board.id}
+              board={board}
+              onToggleStar={toggleBoardStar}
+              formatDate={formatDate}
+              getColorDisplay={getColorDisplay}
+            />
+          ))}
         </div>
 
         {/* Empty state */}
@@ -444,14 +328,16 @@ export default function WorkspaceBoardsPage() {
       </main>
 
       {/* Board creation modal */}
-      <CreateBoardModal
-        isOpen={isCreateBoardModalOpen}
-        onClose={() => setIsCreateBoardModalOpen(false)}
-        onSuccess={handleBoardCreated}
-        workspaceId={workspace.id}
-        workspaceName={workspace.name}
-        workspaceColor={workspace.color}
-      />
+      {workspace && (
+        <CreateBoardModal
+          isOpen={isCreateBoardModalOpen}
+          onClose={() => setIsCreateBoardModalOpen(false)}
+          onSuccess={handleBoardCreated}
+          workspaceId={workspace.id}
+          workspaceName={workspace.name}
+          workspaceColor={workspace.color}
+        />
+      )}
 
       {/* Success Toast */}
       {showSuccessToast && (
