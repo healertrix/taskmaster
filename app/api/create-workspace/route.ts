@@ -21,17 +21,22 @@ export async function POST(request: Request) {
 
     console.log('Creating workspace for user:', user.id);
 
-    // Check if user already has a workspace
-    const { data: existingWorkspace } = await supabase
+    // Check if user already has a workspace (more robust check)
+    const { data: existingWorkspaces, error: checkError } = await supabase
       .from('workspaces')
       .select('id, name')
-      .eq('owner_id', user.id)
-      .single();
+      .eq('owner_id', user.id);
 
-    if (existingWorkspace) {
+    if (checkError) {
+      console.error('Error checking existing workspaces:', checkError);
+      throw checkError;
+    }
+
+    if (existingWorkspaces && existingWorkspaces.length > 0) {
+      console.log('User already has workspaces:', existingWorkspaces.length);
       return NextResponse.json({
         success: true,
-        workspace: existingWorkspace,
+        workspace: existingWorkspaces[0],
         message: 'Workspace already exists',
       });
     }

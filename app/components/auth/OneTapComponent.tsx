@@ -10,6 +10,7 @@ const OneTapComponent = () => {
   const supabase = createClient();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [workspaceCreated, setWorkspaceCreated] = useState(false);
 
   // generate nonce to use for google id token sign-in
   const generateNonce = async (): Promise<string[]> => {
@@ -33,13 +34,13 @@ const OneTapComponent = () => {
       setIsLoading(true);
 
       try {
-        // check if there's already an existing session before initializing the one-tap UI
-        const { data, error } = await supabase.auth.getSession();
+        // Use getUser() to check if there's already an existing session before initializing the one-tap UI
+        const { data, error } = await supabase.auth.getUser();
         if (error) {
-          console.error('Error getting session', error);
+          console.error('Error getting user', error);
         }
 
-        if (data.session) {
+        if (data.user) {
           router.push('/');
           return;
         }
@@ -53,6 +54,12 @@ const OneTapComponent = () => {
             callback: async (response: CredentialResponse) => {
               try {
                 console.log('Google One Tap response received');
+
+                // Prevent multiple simultaneous authentication attempts
+                if (workspaceCreated) {
+                  console.log('Workspace already created, skipping...');
+                  return;
+                }
 
                 // send id token returned in response.credential to supabase
                 const { data, error } = await supabase.auth.signInWithIdToken({
@@ -71,6 +78,9 @@ const OneTapComponent = () => {
                 // Ensure user session is established
                 if (data.user) {
                   console.log('User authenticated:', data.user.id);
+
+                  // Set flag to prevent multiple workspace creations
+                  setWorkspaceCreated(true);
 
                   // Simple profile creation/update (backup if trigger fails)
                   const { error: profileError } = await supabase
@@ -102,7 +112,7 @@ const OneTapComponent = () => {
                     console.log('Profile backup upsert successful');
                   }
 
-                  // Create default workspace via API
+                  // Create default workspace via API (only once)
                   try {
                     console.log('🏢 Creating default workspace...');
                     const workspaceResponse = await fetch(
@@ -138,6 +148,7 @@ const OneTapComponent = () => {
               } catch (error) {
                 console.error('Authentication failed:', error);
                 alert('Authentication failed. Please try again.');
+                setWorkspaceCreated(false); // Reset flag on error
               }
             },
             nonce: hashedNonce,
@@ -176,7 +187,7 @@ const OneTapComponent = () => {
     return () => {
       clearTimeout(timer);
     };
-  }, [router, supabase.auth]);
+  }, [router, supabase.auth, workspaceCreated]); // Add workspaceCreated to dependencies
 
   return (
     <>
