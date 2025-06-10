@@ -21,6 +21,7 @@ import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { DashboardHeader } from '../../components/dashboard/header';
 import { ColumnContainer } from '../../components/board/ColumnContainer';
 import { TaskCard } from '../../components/board/TaskCard';
+import { useBoard } from '@/hooks/useBoard';
 import {
   Star,
   User,
@@ -38,6 +39,14 @@ import {
   Paperclip,
   MessageSquare,
   X,
+  ArrowLeft,
+  Settings,
+  Share2,
+  Archive,
+  Edit3,
+  Loader2,
+  Info,
+  Save,
 } from 'lucide-react';
 
 // Define card/task type
@@ -66,7 +75,7 @@ const labelColors = {
   'bg-gray-500': 'bg-slate-500 text-white',
 };
 
-// Sample data for columns and cards
+// Sample data for columns and cards (will be replaced with real data eventually)
 const initialColumns: Column[] = [
   {
     id: 'review-pending',
@@ -198,34 +207,355 @@ const initialColumns: Column[] = [
       },
       {
         id: 'card20',
-        title: 'Figma Designs',
-        labels: [{ color: 'bg-green-500', text: 'Design' }],
-        attachments: 1,
-      },
-      {
-        id: 'card21',
-        title: 'DB Design',
-        labels: [{ color: 'bg-green-500', text: 'Design' }],
-        attachments: 1,
+        title: 'Support Page',
+        labels: [{ color: 'bg-red-500', text: 'Priority' }],
       },
     ],
   },
-  {
-    id: 'in-progress',
-    title: 'In Progress',
-    cards: [],
-  },
 ];
 
-// Helper function to get a column style based on ID
+// Map color database values to CSS classes
+const getColorClass = (color: string) => {
+  const colorMap: { [key: string]: string } = {
+    'bg-red-600': 'bg-red-600',
+    'bg-blue-600': 'bg-blue-600',
+    'bg-green-600': 'bg-green-600',
+    'bg-purple-600': 'bg-purple-600',
+    'bg-yellow-600': 'bg-yellow-600',
+    'bg-pink-600': 'bg-pink-600',
+    'bg-indigo-600': 'bg-indigo-600',
+    'bg-orange-600': 'bg-orange-600',
+  };
+
+  return colorMap[color] || 'bg-blue-600';
+};
+
+// Board name editor component
+const BoardNameEditor = ({
+  boardName,
+  onSave,
+}: {
+  boardName: string;
+  onSave: (name: string) => Promise<boolean>;
+}) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(boardName);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (editName.trim() === boardName || !editName.trim()) {
+      setIsEditing(false);
+      setEditName(boardName);
+      return;
+    }
+
+    setIsSaving(true);
+    const success = await onSave(editName);
+    setIsSaving(false);
+
+    if (success) {
+      setIsEditing(false);
+    } else {
+      setEditName(boardName); // Revert on failure
+      setIsEditing(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setEditName(boardName);
+      setIsEditing(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div className='flex items-center gap-2'>
+        <input
+          type='text'
+          value={editName}
+          onChange={(e) => setEditName(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+          className='text-2xl font-bold bg-transparent border-b-2 border-primary focus:outline-none'
+          autoFocus
+          disabled={isSaving}
+          placeholder='Board name'
+          aria-label='Edit board name'
+        />
+        {isSaving && <Loader2 className='w-4 h-4 animate-spin' />}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setIsEditing(true)}
+      className='text-2xl font-bold hover:bg-muted/50 px-2 py-1 rounded transition-colors flex items-center gap-2'
+    >
+      {boardName}
+      <Edit3 className='w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity' />
+    </button>
+  );
+};
+
+// Description Editor Modal Component
+const DescriptionModal = ({
+  isOpen,
+  onClose,
+  boardName,
+  description,
+  onSave,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  boardName: string;
+  description: string;
+  onSave: (description: string) => Promise<boolean>;
+}) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDescription, setEditDescription] = useState(description);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setEditDescription(description);
+      setIsEditing(false);
+    }
+  }, [isOpen, description]);
+
+  const handleSave = async () => {
+    if (editDescription.trim() === description) {
+      setIsEditing(false);
+      return;
+    }
+
+    setIsSaving(true);
+    const success = await onSave(editDescription);
+    setIsSaving(false);
+
+    if (success) {
+      setIsEditing(false);
+    } else {
+      setEditDescription(description); // Revert on failure
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && e.ctrlKey) {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setEditDescription(description);
+      setIsEditing(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  // Handle click outside to close
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'
+      onClick={handleBackdropClick}
+    >
+      <div className='bg-card rounded-xl shadow-2xl border border-border max-w-2xl w-full max-h-[80vh] overflow-hidden'>
+        {/* Header */}
+        <div className='flex items-center justify-between p-6 border-b border-border'>
+          <div className='flex items-center gap-3'>
+            <div className='w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center'>
+              <Info className='w-5 h-5 text-primary' />
+            </div>
+            <div>
+              <h2 className='text-xl font-semibold'>Board Information</h2>
+              <p className='text-sm text-muted-foreground'>{boardName}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className='p-2 hover:bg-muted/50 rounded-lg transition-colors'
+            title='Close'
+          >
+            <X className='w-5 h-5' />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className='p-6'>
+          <div className='space-y-4'>
+            <div className='flex items-center justify-between'>
+              <label className='text-sm font-medium text-foreground'>
+                Description
+              </label>
+              {!isEditing && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className='text-sm text-primary hover:text-primary/80 flex items-center gap-1 transition-colors'
+                >
+                  <Edit3 className='w-3 h-3' />
+                  Edit
+                </button>
+              )}
+            </div>
+
+            {isEditing ? (
+              <div className='space-y-3'>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className='w-full h-32 p-3 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none text-sm'
+                  placeholder='Add a description for this board...'
+                  disabled={isSaving}
+                  autoFocus
+                />
+                <div className='flex items-center justify-between'>
+                  <p className='text-xs text-muted-foreground'>
+                    Ctrl + Enter to save, Escape to cancel
+                  </p>
+                  <div className='flex items-center gap-2'>
+                    <button
+                      onClick={() => {
+                        setEditDescription(description);
+                        setIsEditing(false);
+                      }}
+                      className='px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors'
+                      disabled={isSaving}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className='px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50'
+                    >
+                      {isSaving ? (
+                        <>
+                          <Loader2 className='w-3 h-3 animate-spin' />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className='w-3 h-3' />
+                          Save
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div
+                className='min-h-[128px] p-3 bg-muted/20 border border-border/50 rounded-lg cursor-pointer hover:bg-muted/30 transition-colors group'
+                onClick={() => setIsEditing(true)}
+                title='Click to edit description'
+              >
+                {description && description.trim() ? (
+                  <div className='relative'>
+                    <p className='text-sm text-foreground whitespace-pre-wrap leading-relaxed'>
+                      {description}
+                    </p>
+                    <div className='absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity'>
+                      <Edit3 className='w-3 h-3 text-muted-foreground' />
+                    </div>
+                  </div>
+                ) : (
+                  <div className='flex items-center justify-center h-full'>
+                    <div className='text-center'>
+                      <p className='text-sm text-muted-foreground mb-2'>
+                        No description added yet
+                      </p>
+                      <p className='text-xs text-muted-foreground flex items-center gap-1 justify-center'>
+                        <Edit3 className='w-3 h-3' />
+                        Click here to add one
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className='px-6 py-4 bg-muted/20 border-t border-border'>
+          <div className='flex items-center justify-between text-xs text-muted-foreground'>
+            <span>Click outside or press Esc to close</span>
+            <span>Ctrl + Enter to save when editing</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Loading component
+const BoardLoading = () => (
+  <div className='min-h-screen dot-pattern-dark'>
+    <DashboardHeader />
+    <div className='container mx-auto max-w-7xl px-4 pt-24 pb-16'>
+      <div className='flex items-center justify-between mb-8'>
+        <div className='flex items-center gap-4'>
+          <div className='w-8 h-8 bg-muted/50 rounded animate-pulse' />
+          <div className='space-y-2'>
+            <div className='h-8 w-48 bg-muted/50 rounded animate-pulse' />
+            <div className='h-4 w-32 bg-muted/50 rounded animate-pulse' />
+          </div>
+        </div>
+        <div className='flex items-center gap-2'>
+          <div className='w-9 h-9 bg-muted/50 rounded-lg animate-pulse' />
+          <div className='w-9 h-9 bg-muted/50 rounded-lg animate-pulse' />
+          <div className='w-9 h-9 bg-muted/50 rounded-lg animate-pulse' />
+        </div>
+      </div>
+      <div className='text-center py-12'>
+        <Loader2 className='w-8 h-8 animate-spin mx-auto text-primary' />
+        <p className='text-muted-foreground mt-2'>Loading board...</p>
+      </div>
+    </div>
+  </div>
+);
+
+// Error component
+const BoardError = ({ error, backUrl }: { error: string; backUrl: string }) => (
+  <div className='min-h-screen dot-pattern-dark'>
+    <DashboardHeader />
+    <div className='container mx-auto max-w-7xl px-4 pt-24 pb-16'>
+      <div className='text-center py-12'>
+        <div className='w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4'>
+          <X className='w-8 h-8 text-red-500' />
+        </div>
+        <h1 className='text-2xl font-bold text-foreground mb-2'>
+          Board Not Found
+        </h1>
+        <p className='text-muted-foreground mb-6'>{error}</p>
+        <Link
+          href={backUrl}
+          className='inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors'
+        >
+          <ArrowLeft className='w-4 h-4' />
+          Back
+        </Link>
+      </div>
+    </div>
+  </div>
+);
+
 const getColumnStyle = (id: string) => {
   const styles = {
-    'review-pending': 'bg-purple-500/10 border-purple-500/30 text-purple-500',
-    'android-pending': 'bg-violet-500/10 border-violet-500/30 text-violet-500',
-    'web-pending': 'bg-green-500/10 border-green-500/30 text-green-500',
-    'backend-pending': 'bg-blue-500/10 border-blue-500/30 text-blue-500',
+    'review-pending': 'bg-orange-500/10 border-orange-500/30 text-orange-400',
+    'android-pending': 'bg-purple-500/10 border-purple-500/30 text-purple-400',
+    'web-pending': 'bg-green-500/10 border-green-500/30 text-green-400',
+    'backend-pending': 'bg-blue-500/10 border-blue-500/30 text-blue-400',
     references: 'bg-slate-500/10 border-slate-500/30 text-slate-400',
-    'in-progress': 'bg-primary/10 border-primary/30 text-primary',
   };
 
   return (
@@ -239,6 +569,40 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
+
+  // Use the board hook to fetch real data
+  const {
+    board,
+    members,
+    loading,
+    error,
+    isStarring,
+    toggleStar,
+    updateBoardName,
+    updateBoardDescription,
+  } = useBoard(params.id);
+
+  // Get navigation context from URL params
+  const searchParams = new URLSearchParams(
+    typeof window !== 'undefined' ? window.location.search : ''
+  );
+  const fromContext = searchParams.get('from');
+  const workspaceId = searchParams.get('workspaceId');
+
+  // Smart navigation function
+  const getBackUrl = () => {
+    if (fromContext === 'workspace' && workspaceId) {
+      return `/boards/${workspaceId}`;
+    }
+    return '/'; // Default to home page
+  };
+
+  const getBackLabel = () => {
+    if (fromContext === 'workspace') {
+      return 'Back to Workspace';
+    }
+    return 'Back to Home';
+  };
 
   // Track board access when component mounts
   useEffect(() => {
@@ -255,6 +619,21 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
     trackAccess();
   }, [params.id]);
+
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isDescriptionModalOpen) {
+        setIsDescriptionModalOpen(false);
+      }
+    };
+
+    if (isDescriptionModalOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isDescriptionModalOpen]);
+
   const [dragOverInfo, setDragOverInfo] = useState<{
     id: UniqueIdentifier | null;
     type: 'task' | 'column' | null;
@@ -266,7 +645,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     index: null,
     columnId: null,
   });
-  const boardName = 'TouristSprint1'; // Dynamically get this based on params.id in a real app
 
   // Configure sensors
   const sensors = useSensors(
@@ -279,6 +657,18 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  // Show loading state
+  if (loading) {
+    return <BoardLoading />;
+  }
+
+  // Show error state
+  if (error || !board) {
+    return (
+      <BoardError error={error || 'Board not found'} backUrl={getBackUrl()} />
+    );
+  }
 
   function findColumnById(id: string): Column | undefined {
     return columns.find((column) => column.id === id);
@@ -446,16 +836,18 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         });
       });
     } else {
-      // Over a task
+      // Handle dropping on a task
       const overTaskInfo = findTaskById(overId);
       if (!overTaskInfo) return;
 
       const { columnId: overColumnId } = overTaskInfo;
 
-      setColumns((prevColumns) => {
-        return prevColumns.map((column) => {
-          // Same column - reordering
-          if (column.id === activeColumnId && column.id === overColumnId) {
+      if (activeColumnId === overColumnId) {
+        // Same column - reorder tasks
+        setColumns((prevColumns) => {
+          return prevColumns.map((column) => {
+            if (column.id !== activeColumnId) return column;
+
             const oldIndex = column.cards.findIndex(
               (card) => card.id === activeId
             );
@@ -467,187 +859,146 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               ...column,
               cards: arrayMove(column.cards, oldIndex, newIndex),
             };
-          }
-
-          // Remove from source column
-          if (column.id === activeColumnId) {
-            return {
-              ...column,
-              cards: column.cards.filter((card) => card.id !== activeId),
-            };
-          }
-
-          // Add to target column
-          if (column.id === overColumnId) {
-            const newIndex = column.cards.findIndex(
-              (card) => card.id === overId
-            );
-            const newCards = [...column.cards];
-            newCards.splice(newIndex, 0, activeTask);
-
-            return {
-              ...column,
-              cards: newCards,
-            };
-          }
-
-          return column;
+          });
         });
-      });
+      } else {
+        // Different columns - move task
+        setColumns((prevColumns) => {
+          return prevColumns.map((column) => {
+            // Remove from source column
+            if (column.id === activeColumnId) {
+              return {
+                ...column,
+                cards: column.cards.filter((card) => card.id !== activeId),
+              };
+            }
+
+            // Add to target column at the position of the over task
+            if (column.id === overColumnId) {
+              const newCards = [...column.cards];
+              const insertIndex = newCards.findIndex(
+                (card) => card.id === overId
+              );
+              newCards.splice(insertIndex, 0, activeTask);
+              return {
+                ...column,
+                cards: newCards,
+              };
+            }
+
+            return column;
+          });
+        });
+      }
     }
   }
 
+  // Get workspace color class
+  const workspaceColorClass = getColorClass(board.workspace.color);
+
+  // Format the last access time
+  const formatLastAccess = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400)
+      return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  };
+
   return (
-    <div className='h-screen overflow-hidden dot-pattern-dark flex flex-col'>
+    <div className='min-h-screen dot-pattern-dark'>
       <DashboardHeader />
 
-      <main className='flex-1 flex flex-col overflow-hidden pt-16'>
-        {/* Board Header - Clean, minimal design */}
-        <div className='w-full mx-auto px-6 py-3 border-b border-white/10'>
-          <div className='flex items-center justify-between'>
-            {/* Left side - Title and description */}
+      <main className='container mx-auto max-w-full px-4 pt-24 pb-16 overflow-x-auto'>
+        {/* Board Header */}
+        <div className='flex items-center justify-between mb-8 group'>
+          {/* Left side - Board info */}
+          <div className='flex items-center gap-4'>
+            <Link
+              href={getBackUrl()}
+              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+              title={getBackLabel()}
+            >
+              <ArrowLeft className='w-5 h-5' />
+            </Link>
+
             <div className='flex items-center gap-3'>
-              <h1 className='text-xl font-bold text-purple-400'>{boardName}</h1>
-              <button
-                className='text-purple-400/70 hover:text-purple-400 transition-colors ml-1'
-                aria-label='Star board'
-              >
-                <Star className='w-5 h-5' />
-              </button>
-              {/* Info icon that opens description modal */}
-              <button
-                className='text-gray-400/70 hover:text-gray-400 transition-colors ml-1'
-                aria-label='View project description'
-                onClick={() => setIsDescriptionModalOpen(true)}
-              >
-                <svg
-                  xmlns='http://www.w3.org/2000/svg'
-                  width='16'
-                  height='16'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='currentColor'
-                  strokeWidth='2'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  className='w-5 h-5'
+              {/* Workspace indicator */}
+              <div className='flex items-center gap-2'>
+                <div
+                  className={`w-8 h-8 ${workspaceColorClass} rounded-lg text-white flex items-center justify-center text-sm font-bold shadow-md`}
                 >
-                  <circle cx='12' cy='12' r='10' />
-                  <path d='M12 16v-4' />
-                  <path d='M12 8h.01' />
-                </svg>
-              </button>
+                  {board.workspace.name.charAt(0).toUpperCase()}
+                </div>
+                <span className='text-sm text-muted-foreground'>
+                  {board.workspace.name}
+                </span>
+              </div>
+
+              <span className='text-muted-foreground'>/</span>
+
+              {/* Board name - editable */}
+              <BoardNameEditor
+                boardName={board.name}
+                onSave={updateBoardName}
+              />
+            </div>
+          </div>
+
+          {/* Right side - Board info and actions */}
+          <div className='flex items-center gap-4'>
+            {/* Info button */}
+            <button
+              onClick={() => setIsDescriptionModalOpen(true)}
+              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+              title='Board information'
+            >
+              <Info className='w-5 h-5' />
+            </button>
+
+            {/* Last access time */}
+            <div className='flex items-center gap-2 text-sm text-muted-foreground'>
+              <Clock className='w-4 h-4' />
+              <span>Last accessed {formatLastAccess(board.updated_at)}</span>
             </div>
 
-            {/* Right side - Actions and info */}
-            <div className='flex items-center gap-3'>
-              <div className='text-xs text-gray-400 flex items-center'>
-                <Clock className='w-3.5 h-3.5 mr-1' />
-                <span>2h ago</span>
-              </div>
-
-              <div className='flex items-center'>
-                <button className='flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-300 hover:bg-white/10 transition-colors'>
-                  <Filter className='w-3.5 h-3.5' />
-                  <span>Filters</span>
-                </button>
-                <button className='flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-300 hover:bg-white/10 transition-colors ml-1'>
-                  <Users className='w-3.5 h-3.5' />
-                  <span>Share</span>
-                </button>
-              </div>
-
-              <div className='flex -space-x-1.5'>
-                <div className='w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white text-xs font-medium ring-1 ring-background'>
-                  AN
-                </div>
-                <div className='w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-xs font-medium ring-1 ring-background'>
-                  KV
-                </div>
-              </div>
-            </div>
+            {/* Star button */}
+            <button
+              onClick={toggleStar}
+              disabled={isStarring}
+              className={`p-2 rounded-lg transition-all duration-200 ${
+                board.is_starred
+                  ? 'text-yellow-400 hover:text-yellow-500 bg-yellow-400/10'
+                  : 'text-muted-foreground hover:text-yellow-400 hover:bg-yellow-400/10'
+              } ${isStarring ? 'animate-pulse' : ''}`}
+              title={board.is_starred ? 'Unstar board' : 'Star board'}
+            >
+              <Star
+                className={`w-5 h-5 transition-transform duration-200 ${
+                  isStarring ? 'scale-110' : ''
+                }`}
+                fill={board.is_starred ? 'currentColor' : 'none'}
+              />
+            </button>
           </div>
         </div>
 
-        {/* Description Modal */}
-        {isDescriptionModalOpen && (
-          <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6'>
-            <div className='bg-card/95 rounded-lg shadow-lg max-w-md w-full p-5 border border-border'>
-              <div className='flex justify-between items-center mb-3'>
-                <h3 className='text-xl font-bold text-foreground'>
-                  Project Description
-                </h3>
-                <button
-                  onClick={() => setIsDescriptionModalOpen(false)}
-                  className='text-muted-foreground hover:text-foreground transition-colors'
-                  aria-label='Close description modal'
-                >
-                  <X className='w-5 h-5' />
-                </button>
-              </div>
-
-              <div className='space-y-4'>
-                {/* Project basics */}
-                <div>
-                  <h4 className='text-base font-semibold mb-2 text-purple-400'>
-                    {boardName}
-                  </h4>
-                  <p className='text-sm text-foreground'>
-                    Tourism Safety application: Android, Web, and Backend
-                  </p>
-                </div>
-
-                {/* Brief description */}
-                <div className='pt-3 border-t border-border/50'>
-                  <p className='text-sm text-foreground'>
-                    This project includes a mobile app for tourists, a web
-                    portal for officials, and a backend system to handle data
-                    and authorization.
-                  </p>
-                </div>
-
-                {/* Team members */}
-                <div className='pt-3 border-t border-border/50 flex items-center justify-between'>
-                  <h5 className='text-sm font-medium text-muted-foreground'>
-                    Team Members
-                  </h5>
-                  <div className='flex -space-x-2'>
-                    <div className='w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white text-xs font-medium ring-1 ring-background'>
-                      AN
-                    </div>
-                    <div className='w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white text-xs font-medium ring-1 ring-background'>
-                      KV
-                    </div>
-                  </div>
-                </div>
-
-                <div className='pt-3 border-t border-border flex justify-end'>
-                  <button
-                    onClick={() => setIsDescriptionModalOpen(false)}
-                    className='btn btn-primary px-4 py-2'
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Board Content - Wrapped with DndContext */}
-        <div className='flex-1 overflow-x-auto overflow-y-auto px-8 pb-6 pt-4'>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={collisionDetectionStrategy}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragEnd={handleDragEnd}
-          >
-            <div className='flex items-start gap-5 min-h-[450px] pb-4 px-4'>
-              {/* Render columns using ColumnContainer */}
-              {columns.map((column) => (
+        {/* Kanban Board */}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={collisionDetectionStrategy}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className='flex gap-6 overflow-x-auto pb-6'>
+            {columns.map((column) => (
+              <div key={column.id} className='flex-shrink-0'>
                 <ColumnContainer
-                  key={column.id}
                   column={column}
                   tasks={column.cards}
                   getColumnStyle={getColumnStyle}
@@ -655,46 +1006,68 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   dragOverInfo={dragOverInfo}
                   activeTaskId={activeTask?.id}
                 />
-              ))}
-
-              {/* Button to add new list - translucent purple style */}
-              <div className='flex items-start gap-2'>
-                <div className='w-64 flex-shrink-0'>
-                  <button className='w-full h-[45px] flex items-center justify-center py-2 px-5 bg-gray-700/60 hover:bg-purple-600/70 text-white rounded-2xl shadow-sm transition-all duration-200 border border-gray-600/30 backdrop-blur-sm'>
-                    <Plus className='w-4 h-4 text-white mr-2' />
-                    <span className='text-sm font-medium'>
-                      Add another list
-                    </span>
-                  </button>
-                </div>
-
-                {/* Reduced spacer for better layout */}
-                <div className='w-8 flex-shrink-0'></div>
               </div>
-            </div>
+            ))}
 
-            {/* Drag Overlay - Renders the task being dragged */}
-            <DragOverlay
-              dropAnimation={{
-                duration: 300,
-                easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
-              }}
-            >
-              {activeTask ? (
-                <div className='rotate-1 scale-105 transition-transform duration-200 opacity-90 shadow-lg w-80 pointer-events-none'>
-                  <TaskCard
-                    task={activeTask}
-                    labelColors={labelColors}
-                    columnId={activeColumnId || ''}
-                    isDragTarget={false}
-                    isBeingDragged={false}
-                  />
+            {/* Add List Button */}
+            <div className='flex-shrink-0 w-80'>
+              <button className='w-full h-12 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex items-center justify-center text-muted-foreground hover:text-primary transition-all group'>
+                <div className='flex items-center gap-2'>
+                  <Plus className='w-4 h-4' />
+                  <span className='font-medium text-sm'>Add another list</span>
                 </div>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
-        </div>
+              </button>
+            </div>
+          </div>
+
+          <DragOverlay>
+            {activeTask && (
+              <TaskCard
+                task={activeTask}
+                labelColors={labelColors}
+                columnId={activeColumnId || ''}
+                isDragTarget={false}
+                isBeingDragged={false}
+              />
+            )}
+          </DragOverlay>
+        </DndContext>
       </main>
+
+      {/* Description Modal */}
+      <DescriptionModal
+        isOpen={isDescriptionModalOpen}
+        onClose={() => setIsDescriptionModalOpen(false)}
+        boardName={board.name}
+        description={board.description || ''}
+        onSave={updateBoardDescription}
+      />
+
+      {/* Debug Info - Remove after fixing */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className='fixed bottom-4 right-4 bg-black/80 text-white p-3 rounded-lg text-xs max-w-sm'>
+          <div className='font-bold mb-1'>Debug Info:</div>
+          <div>
+            Board Description:{' '}
+            {board.description === null
+              ? 'NULL'
+              : board.description === undefined
+              ? 'UNDEFINED'
+              : `"${board.description}"`}
+          </div>
+          <div>
+            Modal Description:{' '}
+            {(board.description || '') === ''
+              ? 'EMPTY STRING'
+              : `"${board.description || ''}"`}
+          </div>
+          <div className='mt-1 text-yellow-300'>
+            {!board.description
+              ? '⚠️ Run migration: ALTER TABLE boards ADD COLUMN description TEXT;'
+              : '✅ Description column exists'}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -299,6 +299,7 @@ export default function WorkspaceBoardsPage() {
               onToggleStar={toggleBoardStar}
               formatDate={formatDate}
               getColorDisplay={getColorDisplay}
+              workspaceId={workspace.id}
             />
           ))}
         </div>

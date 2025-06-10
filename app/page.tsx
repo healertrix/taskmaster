@@ -615,16 +615,66 @@ export default function HomePage() {
                             starred: false, // Fallback doesn't have starred status
                           };
                       return (
-                        <BoardCard
+                        <Link
                           key={board.id}
-                          board={boardForCard}
-                          onToggleStar={
-                            workspaceBoards[workspace.id]
-                              ? toggleWorkspaceBoardStar
-                              : toggleBoardStar
-                          }
-                          showStar={true} // Show star button in workspace sections like recent boards
-                        />
+                          href={`/board/${board.id}?from=workspace&workspaceId=${workspace.id}`}
+                          className='group relative block p-5 rounded-xl card card-hover h-32 overflow-hidden transition-all duration-200'
+                        >
+                          {/* Color bar at top */}
+                          <div
+                            className={`absolute top-0 left-0 right-0 h-1.5 ${board.color}`}
+                          ></div>
+
+                          {/* Content */}
+                          <div className='relative z-10 flex flex-col justify-between h-full'>
+                            <div>
+                              <h3 className='font-semibold text-foreground truncate pr-8'>
+                                {board.name}
+                              </h3>
+                            </div>
+
+                            {/* Star button */}
+                            <div className='flex justify-end relative z-20'>
+                              <button
+                                className={`relative z-30 p-2 rounded-full transition-all duration-200 ${
+                                  boardForCard.starred
+                                    ? 'text-yellow-400 hover:text-yellow-500'
+                                    : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100 hover:text-yellow-400'
+                                } hover:bg-yellow-400/10`}
+                                onClick={async (e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (workspaceBoards[workspace.id]) {
+                                    await toggleWorkspaceBoardStar(board.id);
+                                  } else {
+                                    await toggleBoardStar(board.id);
+                                  }
+                                }}
+                                aria-label={
+                                  boardForCard.starred
+                                    ? 'Unstar board'
+                                    : 'Star board'
+                                }
+                                title={
+                                  boardForCard.starred
+                                    ? 'Unstar board'
+                                    : 'Star board'
+                                }
+                                style={{ pointerEvents: 'auto' }}
+                              >
+                                <Star
+                                  className='w-4 h-4'
+                                  fill={
+                                    boardForCard.starred
+                                      ? 'currentColor'
+                                      : 'none'
+                                  }
+                                  stroke='currentColor'
+                                />
+                              </button>
+                            </div>
+                          </div>
+                        </Link>
                       );
                     }
                   )}

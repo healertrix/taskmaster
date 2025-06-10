@@ -14,6 +14,7 @@ interface WorkspaceBoardCardProps {
     style: any;
     className: string;
   };
+  workspaceId?: string;
 }
 
 export function WorkspaceBoardCard({
@@ -21,6 +22,7 @@ export function WorkspaceBoardCard({
   onToggleStar,
   formatDate,
   getColorDisplay,
+  workspaceId,
 }: WorkspaceBoardCardProps) {
   const [isToggling, setIsToggling] = useState(false);
 
@@ -44,7 +46,9 @@ export function WorkspaceBoardCard({
 
   return (
     <Link
-      href={`/board/${board.id}`}
+      href={`/board/${board.id}${
+        workspaceId ? `?from=workspace&workspaceId=${workspaceId}` : ''
+      }`}
       className='group relative block p-5 rounded-xl card card-hover h-40 overflow-hidden transition-all duration-200'
     >
       {/* Color bar at top */}
