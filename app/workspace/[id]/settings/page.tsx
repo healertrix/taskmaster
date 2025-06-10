@@ -687,7 +687,23 @@ export default function WorkspaceSettingsPage() {
 
             <div className='space-y-3'>
               {/* Workspace Name */}
-              <div className='flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors'>
+              <button
+                onClick={
+                  canUpdateSettings
+                    ? () => {
+                        setEditField('name');
+                        setEditWorkspaceName(workspace?.name || '');
+                        setShowWorkspaceEditModal(true);
+                      }
+                    : undefined
+                }
+                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
+                  canUpdateSettings
+                    ? 'hover:bg-muted/50 cursor-pointer'
+                    : 'cursor-default'
+                }`}
+                disabled={!canUpdateSettings}
+              >
                 <div className='flex items-center gap-3'>
                   <div className='w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center'>
                     <span className='text-sm font-medium text-primary'>
@@ -704,22 +720,41 @@ export default function WorkspaceSettingsPage() {
                   </div>
                 </div>
                 {canUpdateSettings && (
-                  <button
-                    onClick={() => {
-                      setEditField('name');
-                      setEditWorkspaceName(workspace?.name || '');
-                      setShowWorkspaceEditModal(true);
-                    }}
-                    className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
-                  >
+                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
                     Edit
                     <ChevronRight className='w-4 h-4' />
-                  </button>
+                  </div>
                 )}
-              </div>
+              </button>
 
               {/* Workspace Color */}
-              <div className='flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors'>
+              <button
+                onClick={
+                  canUpdateSettings
+                    ? () => {
+                        setEditField('color');
+                        setEditWorkspaceColor(workspace?.color || '');
+                        // Initialize color selection state
+                        const isCustomColor =
+                          workspace?.color?.startsWith('#') ||
+                          workspace?.color?.startsWith('rgb');
+                        if (isCustomColor) {
+                          setSelectedColor('custom');
+                          setCustomColor(workspace?.color || '#3B82F6');
+                        } else {
+                          setSelectedColor(workspace?.color || 'bg-blue-600');
+                        }
+                        setShowWorkspaceEditModal(true);
+                      }
+                    : undefined
+                }
+                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
+                  canUpdateSettings
+                    ? 'hover:bg-muted/50 cursor-pointer'
+                    : 'cursor-default'
+                }`}
+                disabled={!canUpdateSettings}
+              >
                 <div className='flex items-center gap-3'>
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center ${
@@ -747,29 +782,12 @@ export default function WorkspaceSettingsPage() {
                   </div>
                 </div>
                 {canUpdateSettings && (
-                  <button
-                    onClick={() => {
-                      setEditField('color');
-                      setEditWorkspaceColor(workspace?.color || '');
-                      // Initialize color selection state
-                      const isCustomColor =
-                        workspace?.color?.startsWith('#') ||
-                        workspace?.color?.startsWith('rgb');
-                      if (isCustomColor) {
-                        setSelectedColor('custom');
-                        setCustomColor(workspace?.color || '#3B82F6');
-                      } else {
-                        setSelectedColor(workspace?.color || 'bg-blue-600');
-                      }
-                      setShowWorkspaceEditModal(true);
-                    }}
-                    className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
-                  >
+                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
                     Edit
                     <ChevronRight className='w-4 h-4' />
-                  </button>
+                  </div>
                 )}
-              </div>
+              </button>
             </div>
           </div>
 
@@ -777,7 +795,19 @@ export default function WorkspaceSettingsPage() {
           <div className='card p-6'>
             <h2 className='text-lg font-semibold mb-4'>Workspace visibility</h2>
 
-            <div className='flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors'>
+            <button
+              onClick={
+                canUpdateSettings
+                  ? () => setShowVisibilityModal(true)
+                  : undefined
+              }
+              className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
+                canUpdateSettings
+                  ? 'hover:bg-muted/50 cursor-pointer'
+                  : 'cursor-default'
+              }`}
+              disabled={!canUpdateSettings}
+            >
               <div className='flex items-center gap-3'>
                 <div
                   className={`w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center`}
@@ -796,15 +826,12 @@ export default function WorkspaceSettingsPage() {
                 </div>
               </div>
               {canUpdateSettings && (
-                <button
-                  onClick={() => setShowVisibilityModal(true)}
-                  className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
-                >
+                <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
                   Change
                   <ChevronRight className='w-4 h-4' />
-                </button>
+                </div>
               )}
-            </div>
+            </button>
           </div>
 
           {/* Workspace Membership Restrictions */}
@@ -813,7 +840,19 @@ export default function WorkspaceSettingsPage() {
               Workspace membership restrictions
             </h2>
 
-            <div className='flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors'>
+            <button
+              onClick={
+                canUpdateSettings
+                  ? () => setShowMembershipModal(true)
+                  : undefined
+              }
+              className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
+                canUpdateSettings
+                  ? 'hover:bg-muted/50 cursor-pointer'
+                  : 'cursor-default'
+              }`}
+              disabled={!canUpdateSettings}
+            >
               <div className='flex items-center gap-3'>
                 <div
                   className={`w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center`}
@@ -832,15 +871,12 @@ export default function WorkspaceSettingsPage() {
                 </div>
               </div>
               {canUpdateSettings && (
-                <button
-                  onClick={() => setShowMembershipModal(true)}
-                  className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
-                >
+                <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
                   Change
                   <ChevronRight className='w-4 h-4' />
-                </button>
+                </div>
               )}
-            </div>
+            </button>
           </div>
 
           {/* Board Creation Restrictions */}
@@ -851,7 +887,22 @@ export default function WorkspaceSettingsPage() {
 
             <div className='space-y-2'>
               {/* Public Boards */}
-              <div className='flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors'>
+              <button
+                onClick={
+                  canUpdateSettings
+                    ? () => {
+                        setCurrentBoardType('public_boards');
+                        setShowCreationModal(true);
+                      }
+                    : undefined
+                }
+                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
+                  canUpdateSettings
+                    ? 'hover:bg-muted/50 cursor-pointer'
+                    : 'cursor-default'
+                }`}
+                disabled={!canUpdateSettings}
+              >
                 <div className='flex items-center gap-3'>
                   <div className='w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center'>
                     <Globe className='w-4 h-4 text-green-600 dark:text-green-400' />
@@ -872,21 +923,30 @@ export default function WorkspaceSettingsPage() {
                   </div>
                 </div>
                 {canUpdateSettings && (
-                  <button
-                    onClick={() => {
-                      setCurrentBoardType('public_boards');
-                      setShowCreationModal(true);
-                    }}
-                    className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
-                  >
+                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
                     Change
                     <ChevronRight className='w-4 h-4' />
-                  </button>
+                  </div>
                 )}
-              </div>
+              </button>
 
               {/* Workspace Visible Boards */}
-              <div className='flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors'>
+              <button
+                onClick={
+                  canUpdateSettings
+                    ? () => {
+                        setCurrentBoardType('workspace_visible_boards');
+                        setShowCreationModal(true);
+                      }
+                    : undefined
+                }
+                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
+                  canUpdateSettings
+                    ? 'hover:bg-muted/50 cursor-pointer'
+                    : 'cursor-default'
+                }`}
+                disabled={!canUpdateSettings}
+              >
                 <div className='flex items-center gap-3'>
                   <div className='w-8 h-8 rounded-full bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center'>
                     <Users className='w-4 h-4 text-yellow-600 dark:text-yellow-400' />
@@ -907,21 +967,30 @@ export default function WorkspaceSettingsPage() {
                   </div>
                 </div>
                 {canUpdateSettings && (
-                  <button
-                    onClick={() => {
-                      setCurrentBoardType('workspace_visible_boards');
-                      setShowCreationModal(true);
-                    }}
-                    className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
-                  >
+                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
                     Change
                     <ChevronRight className='w-4 h-4' />
-                  </button>
+                  </div>
                 )}
-              </div>
+              </button>
 
               {/* Private Boards */}
-              <div className='flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors'>
+              <button
+                onClick={
+                  canUpdateSettings
+                    ? () => {
+                        setCurrentBoardType('private_boards');
+                        setShowCreationModal(true);
+                      }
+                    : undefined
+                }
+                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
+                  canUpdateSettings
+                    ? 'hover:bg-muted/50 cursor-pointer'
+                    : 'cursor-default'
+                }`}
+                disabled={!canUpdateSettings}
+              >
                 <div className='flex items-center gap-3'>
                   <div className='w-8 h-8 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center'>
                     <Lock className='w-4 h-4 text-red-600 dark:text-red-400' />
@@ -941,18 +1010,12 @@ export default function WorkspaceSettingsPage() {
                   </div>
                 </div>
                 {canUpdateSettings && (
-                  <button
-                    onClick={() => {
-                      setCurrentBoardType('private_boards');
-                      setShowCreationModal(true);
-                    }}
-                    className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
-                  >
+                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
                     Change
                     <ChevronRight className='w-4 h-4' />
-                  </button>
+                  </div>
                 )}
-              </div>
+              </button>
             </div>
           </div>
 
@@ -964,7 +1027,22 @@ export default function WorkspaceSettingsPage() {
 
             <div className='space-y-2'>
               {/* Public Boards Deletion */}
-              <div className='flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors'>
+              <button
+                onClick={
+                  canUpdateSettings
+                    ? () => {
+                        setCurrentBoardType('public_boards');
+                        setShowDeletionModal(true);
+                      }
+                    : undefined
+                }
+                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
+                  canUpdateSettings
+                    ? 'hover:bg-muted/50 cursor-pointer'
+                    : 'cursor-default'
+                }`}
+                disabled={!canUpdateSettings}
+              >
                 <div className='flex items-center gap-3'>
                   <div className='w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center'>
                     <Trash2 className='w-4 h-4 text-green-600 dark:text-green-400' />
@@ -981,21 +1059,30 @@ export default function WorkspaceSettingsPage() {
                   </div>
                 </div>
                 {canUpdateSettings && (
-                  <button
-                    onClick={() => {
-                      setCurrentBoardType('public_boards');
-                      setShowDeletionModal(true);
-                    }}
-                    className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
-                  >
+                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
                     Change
                     <ChevronRight className='w-4 h-4' />
-                  </button>
+                  </div>
                 )}
-              </div>
+              </button>
 
               {/* Workspace Visible Boards Deletion */}
-              <div className='flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors'>
+              <button
+                onClick={
+                  canUpdateSettings
+                    ? () => {
+                        setCurrentBoardType('workspace_visible_boards');
+                        setShowDeletionModal(true);
+                      }
+                    : undefined
+                }
+                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
+                  canUpdateSettings
+                    ? 'hover:bg-muted/50 cursor-pointer'
+                    : 'cursor-default'
+                }`}
+                disabled={!canUpdateSettings}
+              >
                 <div className='flex items-center gap-3'>
                   <div className='w-8 h-8 rounded-full bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center'>
                     <Trash2 className='w-4 h-4 text-yellow-600 dark:text-yellow-400' />
@@ -1013,21 +1100,30 @@ export default function WorkspaceSettingsPage() {
                   </div>
                 </div>
                 {canUpdateSettings && (
-                  <button
-                    onClick={() => {
-                      setCurrentBoardType('workspace_visible_boards');
-                      setShowDeletionModal(true);
-                    }}
-                    className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
-                  >
+                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
                     Change
                     <ChevronRight className='w-4 h-4' />
-                  </button>
+                  </div>
                 )}
-              </div>
+              </button>
 
               {/* Private Boards Deletion */}
-              <div className='flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors'>
+              <button
+                onClick={
+                  canUpdateSettings
+                    ? () => {
+                        setCurrentBoardType('private_boards');
+                        setShowDeletionModal(true);
+                      }
+                    : undefined
+                }
+                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
+                  canUpdateSettings
+                    ? 'hover:bg-muted/50 cursor-pointer'
+                    : 'cursor-default'
+                }`}
+                disabled={!canUpdateSettings}
+              >
                 <div className='flex items-center gap-3'>
                   <div className='w-8 h-8 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center'>
                     <Trash2 className='w-4 h-4 text-red-600 dark:text-red-400' />
@@ -1044,18 +1140,12 @@ export default function WorkspaceSettingsPage() {
                   </div>
                 </div>
                 {canUpdateSettings && (
-                  <button
-                    onClick={() => {
-                      setCurrentBoardType('private_boards');
-                      setShowDeletionModal(true);
-                    }}
-                    className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
-                  >
+                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
                     Change
                     <ChevronRight className='w-4 h-4' />
-                  </button>
+                  </div>
                 )}
-              </div>
+              </button>
             </div>
           </div>
 
@@ -1065,7 +1155,17 @@ export default function WorkspaceSettingsPage() {
               Board sharing restrictions
             </h2>
 
-            <div className='flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors'>
+            <button
+              onClick={
+                canUpdateSettings ? () => setShowSharingModal(true) : undefined
+              }
+              className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
+                canUpdateSettings
+                  ? 'hover:bg-muted/50 cursor-pointer'
+                  : 'cursor-default'
+              }`}
+              disabled={!canUpdateSettings}
+            >
               <div className='flex items-center gap-3'>
                 <div
                   className={`w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center`}
@@ -1088,15 +1188,12 @@ export default function WorkspaceSettingsPage() {
                 </div>
               </div>
               {canUpdateSettings && (
-                <button
-                  onClick={() => setShowSharingModal(true)}
-                  className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'
-                >
+                <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
                   Change
                   <ChevronRight className='w-4 h-4' />
-                </button>
+                </div>
               )}
-            </div>
+            </button>
           </div>
         </div>
       </main>
