@@ -93,7 +93,7 @@ export function ColumnContainer({
   return (
     <div
       ref={setColumnRef}
-      className='flex flex-col w-80 flex-shrink-0 mr-5 kanban-column rounded-xl overflow-hidden max-h-[calc(100vh-200px)]'
+      className='flex flex-col w-80 flex-shrink-0 mr-5 kanban-column rounded-xl overflow-hidden max-h-[calc(100vh-350px)]'
     >
       <div
         className={`p-4 rounded-t-xl kanban-column-header flex justify-between items-center ${getColumnStyle(
@@ -118,7 +118,7 @@ export function ColumnContainer({
         className={`flex-1 overflow-y-auto p-4 kanban-column-content rounded-b-xl ${getColumnStyle(
           column.id
         )}`}
-        style={{ maxHeight: 'calc(100vh - 310px)' }} // Further reduced max height
+        style={{ maxHeight: 'calc(100vh - 460px)' }} // Reduced max height to prevent scrolling
       >
         <SortableContext items={taskIds}>
           <div className='space-y-2 transition-all duration-300 ease-in-out'>

@@ -910,10 +910,10 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   };
 
   return (
-    <div className='min-h-screen dot-pattern-dark'>
+    <div className='min-h-screen dot-pattern-dark flex flex-col'>
       <DashboardHeader />
 
-      <main className='container mx-auto max-w-full px-4 pt-24 pb-16 overflow-x-auto'>
+      <main className='flex-1 flex flex-col container mx-auto max-w-full px-4 pt-24'>
         {/* Board Header */}
         <div className='flex items-center justify-between mb-8 group'>
           {/* Left side - Board info */}
@@ -933,7 +933,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   className={`w-8 h-8 ${workspaceColorClass} rounded-lg text-white flex items-center justify-center text-sm font-bold shadow-md`}
                 >
                   {board.workspace.name.charAt(0).toUpperCase()}
-              </div>
+                </div>
                 <span className='text-sm text-muted-foreground'>
                   {board.workspace.name}
                 </span>
@@ -946,28 +946,28 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 boardName={board.name}
                 onSave={updateBoardName}
               />
+            </div>
           </div>
-        </div>
 
           {/* Right side - Board info and actions */}
           <div className='flex items-center gap-4'>
             {/* Info button */}
-                <button
+            <button
               onClick={() => setIsDescriptionModalOpen(true)}
               className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
               title='Board information'
             >
               <Info className='w-5 h-5' />
-                </button>
+            </button>
 
             {/* Last access time */}
             <div className='flex items-center gap-2 text-sm text-muted-foreground'>
               <Clock className='w-4 h-4' />
               <span>Last accessed {formatLastAccess(board.updated_at)}</span>
-                </div>
+            </div>
 
             {/* Star button */}
-                  <button
+            <button
               onClick={toggleStar}
               disabled={isStarring}
               className={`p-2 rounded-lg transition-all duration-200 ${
@@ -983,11 +983,12 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 }`}
                 fill={board.is_starred ? 'currentColor' : 'none'}
               />
-                  </button>
-                </div>
-              </div>
+            </button>
+          </div>
+        </div>
 
         {/* Kanban Board */}
+        <div className='flex-1 overflow-x-auto'>
           <DndContext
             sensors={sensors}
             collisionDetection={collisionDetectionStrategy}
@@ -995,43 +996,46 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-          <div className='flex gap-6 overflow-x-auto pb-6'>
+            <div className='flex gap-6 h-full min-w-max'>
               {columns.map((column) => (
-              <div key={column.id} className='flex-shrink-0'>
-                <ColumnContainer
-                  column={column}
-                  tasks={column.cards}
-                  getColumnStyle={getColumnStyle}
-                  labelColors={labelColors}
-                  dragOverInfo={dragOverInfo}
-                  activeTaskId={activeTask?.id}
-                />
-              </div>
-            ))}
-
-            {/* Add List Button */}
-            <div className='flex-shrink-0 w-80'>
-              <button className='w-full h-12 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex items-center justify-center text-muted-foreground hover:text-primary transition-all group'>
-                <div className='flex items-center gap-2'>
-                  <Plus className='w-4 h-4' />
-                  <span className='font-medium text-sm'>Add another list</span>
+                <div key={column.id} className='flex-shrink-0'>
+                  <ColumnContainer
+                    column={column}
+                    tasks={column.cards}
+                    getColumnStyle={getColumnStyle}
+                    labelColors={labelColors}
+                    dragOverInfo={dragOverInfo}
+                    activeTaskId={activeTask?.id}
+                  />
                 </div>
-                  </button>
+              ))}
+
+              {/* Add List Button */}
+              <div className='flex-shrink-0 w-80'>
+                <button className='w-full h-12 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex items-center justify-center text-muted-foreground hover:text-primary transition-all group'>
+                  <div className='flex items-center gap-2'>
+                    <Plus className='w-4 h-4' />
+                    <span className='font-medium text-sm'>
+                      Add another list
+                    </span>
+                  </div>
+                </button>
               </div>
             </div>
 
-          <DragOverlay>
-            {activeTask && (
-                  <TaskCard
-                    task={activeTask}
-                    labelColors={labelColors}
-                    columnId={activeColumnId || ''}
-                    isDragTarget={false}
-                    isBeingDragged={false}
-                  />
-            )}
+            <DragOverlay>
+              {activeTask && (
+                <TaskCard
+                  task={activeTask}
+                  labelColors={labelColors}
+                  columnId={activeColumnId || ''}
+                  isDragTarget={false}
+                  isBeingDragged={false}
+                />
+              )}
             </DragOverlay>
           </DndContext>
+        </div>
       </main>
 
       {/* Description Modal */}
