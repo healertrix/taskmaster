@@ -592,6 +592,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     isCreating: isCreatingList,
     createList,
     updateListName,
+    archiveList,
   } = useLists(params.id);
 
   // Get navigation context from URL params
@@ -1059,6 +1060,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   dragOverInfo={dragOverInfo}
                   activeTaskId={activeTask?.id}
                   onUpdateListName={updateListName}
+                  onArchiveList={archiveList}
                 />
               </div>
             ))}

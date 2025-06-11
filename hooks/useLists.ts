@@ -165,6 +165,42 @@ export const useLists = (boardId: string) => {
     [fetchLists]
   );
 
+  const archiveList = useCallback(
+    async (listId: string) => {
+      try {
+        // Optimistically remove from UI (archive = hide from view)
+        const originalLists = lists;
+        setLists((prev) => prev.filter((list) => list.id !== listId));
+
+        const response = await fetch('/api/lists', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: listId,
+            is_archived: true,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to archive list');
+        }
+
+        return true;
+      } catch (err) {
+        console.error('Error archiving list:', err);
+        // Revert the optimistic update
+        setLists(lists);
+        setError(err instanceof Error ? err.message : 'Failed to archive list');
+        return false;
+      }
+    },
+    [lists]
+  );
+
   useEffect(() => {
     fetchLists();
   }, [fetchLists]);
@@ -177,6 +213,7 @@ export const useLists = (boardId: string) => {
     createList,
     updateListName,
     deleteList,
+    archiveList,
     refetch: fetchLists,
   };
 };

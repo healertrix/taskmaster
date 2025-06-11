@@ -273,3 +273,65 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = createClient();
+
+    // Get the current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { id, is_archived } = body;
+
+    // Validate required fields
+    if (!id) {
+      return NextResponse.json(
+        { error: 'List ID is required' },
+        { status: 400 }
+      );
+    }
+
+    if (typeof is_archived !== 'boolean') {
+      return NextResponse.json(
+        { error: 'Archive status must be a boolean' },
+        { status: 400 }
+      );
+    }
+
+    // Archive/unarchive the list
+    const { data: list, error: updateError } = await supabase
+      .from('lists')
+      .update({ is_archived })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('List archive error:', updateError);
+      return NextResponse.json(
+        {
+          error: `Failed to ${is_archived ? 'archive' : 'unarchive'} list: ${
+            updateError.message
+          }`,
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ list });
+  } catch (error) {
+    console.error('Unexpected error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

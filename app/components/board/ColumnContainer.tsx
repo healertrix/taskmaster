@@ -4,9 +4,10 @@ import React from 'react';
 import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, MoreHorizontal } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { TaskCard } from './TaskCard';
 import { ListNameEditor } from './ListNameEditor';
+import { ListActionsMenu } from './ListActionsMenu';
 
 // Define Task type matching page.tsx
 interface Task {
@@ -40,6 +41,7 @@ interface ColumnContainerProps {
   dragOverInfo: DragOverInfo; // Add the dragOverInfo
   activeTaskId: string | undefined; // The ID of the task being dragged
   onUpdateListName?: (listId: string, newName: string) => Promise<boolean>; // Add update function
+  onArchiveList?: (listId: string) => Promise<boolean>; // Add archive function
 }
 
 export function ColumnContainer({
@@ -50,6 +52,7 @@ export function ColumnContainer({
   dragOverInfo,
   activeTaskId,
   onUpdateListName,
+  onArchiveList,
 }: ColumnContainerProps) {
   // Use useDroppable for the column to accept tasks
   const { setNodeRef: setColumnRef } = useDroppable({
@@ -99,7 +102,7 @@ export function ColumnContainer({
       className='flex flex-col w-80 flex-shrink-0 mr-5 kanban-column rounded-xl overflow-hidden max-h-[calc(100vh-250px)]'
     >
       <div
-        className={`p-4 rounded-t-xl kanban-column-header flex justify-between items-center ${getColumnStyle(
+        className={`p-4 rounded-t-xl kanban-column-header flex justify-between items-center relative z-10 ${getColumnStyle(
           column.id
         )}`}
       >
@@ -118,12 +121,11 @@ export function ColumnContainer({
             {tasks.length}
           </span>
         </div>
-        <button
-          className='p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors'
-          aria-label='More column options'
-        >
-          <MoreHorizontal className='w-4 h-4' />
-        </button>
+        <ListActionsMenu
+          listId={column.id}
+          listName={column.title}
+          onArchiveList={onArchiveList || (() => Promise.resolve(false))}
+        />
       </div>
       {/* Make the content area scrollable */}
       <div
