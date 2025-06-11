@@ -447,8 +447,9 @@ export default function HomePage() {
                 <div className='flex items-center gap-2 text-blue-400 mb-2'>
                   <div className='w-2 h-2 bg-blue-400 rounded-full animate-pulse'></div>
                   <span className='text-sm font-medium'>
-                    Demo Mode - These are sample boards. Sign in to create real
-                    boards and use starring functionality.
+                    Demo Mode - These are sample boards (6 recent, 2 starred).
+                    Sign in to create real boards and use starring
+                    functionality.
                   </span>
                 </div>
                 <div className='text-xs text-blue-300'>
@@ -466,16 +467,28 @@ export default function HomePage() {
               <section className='mb-12'>
                 <div className='flex items-center justify-between mb-5'>
                   <h2 className='text-xl font-semibold text-foreground flex items-center gap-2'>
-                    <Star className='w-5 h-5 text-yellow-400' />
+                    <Star
+                      className='w-5 h-5 text-yellow-400'
+                      fill='currentColor'
+                    />
                     Starred Boards
                   </h2>
+                  {!boardsLoading && starredBoards.length > 6 && (
+                    <Link
+                      href='/starred'
+                      className='text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1'
+                    >
+                      View all starred
+                      <ChevronRight className='w-3 h-3' />
+                    </Link>
+                  )}
                 </div>
 
                 <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
                   {boardsLoading ? (
                     // Loading skeleton for starred boards
                     <>
-                      {[1, 2].map((i) => (
+                      {[1, 2, 3, 4, 5, 6].map((i) => (
                         <div
                           key={i}
                           className='h-32 rounded-xl bg-card/50 animate-pulse'
@@ -483,13 +496,15 @@ export default function HomePage() {
                       ))}
                     </>
                   ) : (
-                    starredBoards.map((board) => (
-                      <BoardCard
-                        key={board.id}
-                        board={board}
-                        onToggleStar={toggleBoardStar}
-                      />
-                    ))
+                    starredBoards
+                      .slice(0, 6)
+                      .map((board) => (
+                        <BoardCard
+                          key={board.id}
+                          board={board}
+                          onToggleStar={toggleBoardStar}
+                        />
+                      ))
                   )}
                 </div>
               </section>
@@ -501,27 +516,14 @@ export default function HomePage() {
                 <h2 className='text-xl font-semibold text-foreground flex items-center gap-2'>
                   <Clock className='w-5 h-5 text-secondary' />
                   Recent Boards
-                  <span className='text-sm text-muted-foreground font-normal ml-2'>
-                    (Last 3 accessed)
-                  </span>
                 </h2>
-
-                {!boardsLoading && recentBoards.length > 0 && (
-                  <Link
-                    href='/search'
-                    className='text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1'
-                  >
-                    View all boards
-                    <ChevronRight className='w-3 h-3' />
-                  </Link>
-                )}
               </div>
 
               <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
                 {boardsLoading ? (
                   // Loading skeleton
                   <>
-                    {[1, 2, 3].map((i) => (
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
                       <div
                         key={i}
                         className='h-32 rounded-xl bg-card/50 animate-pulse'
@@ -563,20 +565,33 @@ export default function HomePage() {
                 style={{ scrollMarginTop: '6rem' }}
               >
                 <div className='flex items-center justify-between mb-5'>
-                  <h2 className='text-xl font-semibold text-foreground flex items-center gap-2.5'>
+                  <Link
+                    href={`/boards/${workspace.id}`}
+                    className='flex items-center gap-2.5 text-xl font-semibold text-foreground hover:text-primary transition-colors group'
+                  >
                     <div
                       className={`w-6 h-6 ${
                         getColorDisplay(workspace.color).isCustom
                           ? ''
                           : getColorDisplay(workspace.color).className
-                      } rounded-lg text-white flex items-center justify-center text-xs font-bold shadow-md`}
+                      } rounded-lg text-white flex items-center justify-center text-xs font-bold shadow-md group-hover:scale-105 transition-transform`}
                       style={getColorDisplay(workspace.color).style}
                     >
                       {workspace.initial}
                     </div>
                     {workspace.name}
-                  </h2>
+                  </Link>
                   <div className='flex items-center gap-2'>
+                    {(workspaceBoards[workspace.id] || workspace.boards)
+                      .length > 6 && (
+                      <Link
+                        href={`/boards/${workspace.id}`}
+                        className='text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 mr-2'
+                      >
+                        View all boards
+                        <ChevronRight className='w-3 h-3' />
+                      </Link>
+                    )}
                     <Link
                       href={`/workspace/${workspace.id}/members`}
                       className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
@@ -593,27 +608,46 @@ export default function HomePage() {
                     >
                       <Settings className='w-4 h-4' />
                     </Link>
-                    <button
-                      className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
-                      aria-label='More workspace options'
-                    >
-                      <MoreHorizontal className='w-5 h-5' />
-                    </button>
                   </div>
                 </div>
 
                 <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
-                  {(workspaceBoards[workspace.id] || workspace.boards).map(
-                    (board) => {
-                      // Use boards with starred status from the hook, fallback to workspace.boards
-                      const boardForCard = workspaceBoards[workspace.id]
-                        ? board // Already has starred status from hook
-                        : {
-                            id: board.id,
-                            name: board.name,
-                            color: board.color,
-                            starred: false, // Fallback doesn't have starred status
-                          };
+                  {(() => {
+                    const allBoards =
+                      workspaceBoards[workspace.id] || workspace.boards;
+                    // If more than 6 boards, sort by latest (updated_at) and take first 5
+                    // Otherwise, show all boards
+                    const boardsToShow =
+                      allBoards.length > 6
+                        ? [...allBoards]
+                            .sort(
+                              (a, b) =>
+                                new Date(b.updated_at || '').getTime() -
+                                new Date(a.updated_at || '').getTime()
+                            )
+                            .slice(0, 5)
+                        : allBoards;
+
+                    return boardsToShow.map((board) => {
+                      // Always ensure we have starred status - prefer workspaceBoards data
+                      let boardForCard = board;
+
+                      // If we're using fallback data, try to find starred status
+                      if (
+                        !workspaceBoards[workspace.id] &&
+                        !board.hasOwnProperty('starred')
+                      ) {
+                        // Check if this board is in starred boards to get starred status
+                        const starredBoard = starredBoards.find(
+                          (sb) => sb.id === board.id
+                        );
+                        boardForCard = {
+                          id: board.id,
+                          name: board.name,
+                          color: board.color,
+                          starred: starredBoard ? true : false,
+                        };
+                      }
                       return (
                         <Link
                           key={board.id}
@@ -644,11 +678,12 @@ export default function HomePage() {
                                 onClick={async (e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  if (workspaceBoards[workspace.id]) {
-                                    await toggleWorkspaceBoardStar(board.id);
-                                  } else {
-                                    await toggleBoardStar(board.id);
-                                  }
+                                  // Use the main toggleBoardStar function to ensure all sections sync
+                                  await toggleBoardStar(board.id);
+                                  // Always refetch workspace boards to update local state
+                                  await fetchWorkspaceBoards([workspace.id]);
+                                  // Also refetch main board data to keep everything in sync
+                                  await refetchBoards();
                                 }}
                                 aria-label={
                                   boardForCard.starred
@@ -676,8 +711,8 @@ export default function HomePage() {
                           </div>
                         </Link>
                       );
-                    }
-                  )}
+                    });
+                  })()}
 
                   {/* Create New Board (in workspace) */}
                   <button

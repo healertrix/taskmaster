@@ -844,8 +844,8 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
       if (activeColumnId === overColumnId) {
         // Same column - reorder tasks
-        setColumns((prevColumns) => {
-          return prevColumns.map((column) => {
+      setColumns((prevColumns) => {
+        return prevColumns.map((column) => {
             if (column.id !== activeColumnId) return column;
 
             const oldIndex = column.cards.findIndex(
@@ -865,30 +865,30 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         // Different columns - move task
         setColumns((prevColumns) => {
           return prevColumns.map((column) => {
-            // Remove from source column
-            if (column.id === activeColumnId) {
-              return {
-                ...column,
-                cards: column.cards.filter((card) => card.id !== activeId),
-              };
-            }
+          // Remove from source column
+          if (column.id === activeColumnId) {
+            return {
+              ...column,
+              cards: column.cards.filter((card) => card.id !== activeId),
+            };
+          }
 
             // Add to target column at the position of the over task
-            if (column.id === overColumnId) {
+          if (column.id === overColumnId) {
               const newCards = [...column.cards];
               const insertIndex = newCards.findIndex(
-                (card) => card.id === overId
-              );
+              (card) => card.id === overId
+            );
               newCards.splice(insertIndex, 0, activeTask);
-              return {
-                ...column,
-                cards: newCards,
-              };
-            }
+            return {
+              ...column,
+              cards: newCards,
+            };
+          }
 
-            return column;
-          });
+          return column;
         });
+      });
       }
     }
   }
@@ -933,7 +933,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   className={`w-8 h-8 ${workspaceColorClass} rounded-lg text-white flex items-center justify-center text-sm font-bold shadow-md`}
                 >
                   {board.workspace.name.charAt(0).toUpperCase()}
-                </div>
+              </div>
                 <span className='text-sm text-muted-foreground'>
                   {board.workspace.name}
                 </span>
@@ -946,28 +946,28 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 boardName={board.name}
                 onSave={updateBoardName}
               />
-            </div>
           </div>
+        </div>
 
           {/* Right side - Board info and actions */}
           <div className='flex items-center gap-4'>
             {/* Info button */}
-            <button
+                <button
               onClick={() => setIsDescriptionModalOpen(true)}
               className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
               title='Board information'
             >
               <Info className='w-5 h-5' />
-            </button>
+                </button>
 
             {/* Last access time */}
             <div className='flex items-center gap-2 text-sm text-muted-foreground'>
               <Clock className='w-4 h-4' />
               <span>Last accessed {formatLastAccess(board.updated_at)}</span>
-            </div>
+                </div>
 
             {/* Star button */}
-            <button
+                  <button
               onClick={toggleStar}
               disabled={isStarring}
               className={`p-2 rounded-lg transition-all duration-200 ${
@@ -983,20 +983,20 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 }`}
                 fill={board.is_starred ? 'currentColor' : 'none'}
               />
-            </button>
-          </div>
-        </div>
+                  </button>
+                </div>
+              </div>
 
         {/* Kanban Board */}
-        <DndContext
-          sensors={sensors}
-          collisionDetection={collisionDetectionStrategy}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
+          <DndContext
+            sensors={sensors}
+            collisionDetection={collisionDetectionStrategy}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
           <div className='flex gap-6 overflow-x-auto pb-6'>
-            {columns.map((column) => (
+              {columns.map((column) => (
               <div key={column.id} className='flex-shrink-0'>
                 <ColumnContainer
                   column={column}
@@ -1016,22 +1016,22 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   <Plus className='w-4 h-4' />
                   <span className='font-medium text-sm'>Add another list</span>
                 </div>
-              </button>
+                  </button>
+              </div>
             </div>
-          </div>
 
           <DragOverlay>
             {activeTask && (
-              <TaskCard
-                task={activeTask}
-                labelColors={labelColors}
-                columnId={activeColumnId || ''}
-                isDragTarget={false}
-                isBeingDragged={false}
-              />
+                  <TaskCard
+                    task={activeTask}
+                    labelColors={labelColors}
+                    columnId={activeColumnId || ''}
+                    isDragTarget={false}
+                    isBeingDragged={false}
+                  />
             )}
-          </DragOverlay>
-        </DndContext>
+            </DragOverlay>
+          </DndContext>
       </main>
 
       {/* Description Modal */}

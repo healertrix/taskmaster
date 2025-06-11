@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/client';
 
 /**
  * Updates the user's recent boards list in their profile
- * Maintains the 3 most recently accessed boards
+ * Maintains the 6 most recently accessed boards
  * @param boardId - The ID of the board that was accessed
  */
 export async function trackBoardAccess(boardId: string): Promise<void> {
@@ -44,8 +44,8 @@ export async function trackBoardAccess(boardId: string): Promise<void> {
     // Add the new board to the front
     const updatedRecentBoards = [boardId, ...filteredBoards];
 
-    // Keep only the 3 most recent
-    const recentBoards = updatedRecentBoards.slice(0, 3);
+    // Keep only the 6 most recent
+    const recentBoards = updatedRecentBoards.slice(0, 6);
 
     // Update the user's profile with the new recent_boards array
     const { error: updateError } = await supabase
@@ -66,7 +66,7 @@ export async function trackBoardAccess(boardId: string): Promise<void> {
 
 /**
  * Gets the user's recent boards from their profile
- * @returns Array of recent board IDs (up to 3)
+ * @returns Array of recent board IDs (up to 6)
  */
 export async function getRecentBoardIds(): Promise<string[]> {
   try {

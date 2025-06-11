@@ -2,7 +2,7 @@
 
 ## Overview
 
-The "Recent Boards" feature shows the **last 3 accessed boards** for each user, rather than the last updated boards. This provides a more personalized experience based on user interaction.
+The "Recent Boards" feature shows the **last 6 accessed boards** for each user, rather than the last updated boards. This provides a more personalized experience based on user interaction.
 
 ## Current Implementation
 
@@ -12,25 +12,25 @@ Recent boards are stored directly in the user's profile using a new column:
 
 ```sql
 -- Add recent_boards column to profiles table
--- This will store an array of the 3 most recently accessed board IDs for each user
+-- This will store an array of the 6 most recently accessed board IDs for each user
 ALTER TABLE profiles 
 ADD COLUMN recent_boards UUID[] DEFAULT '{}';
 
 -- Add comment to document the column
-COMMENT ON COLUMN profiles.recent_boards IS 'Array of the 3 most recently accessed board IDs for this user, ordered by most recent first';
+COMMENT ON COLUMN profiles.recent_boards IS 'Array of the 6 most recently accessed board IDs for this user, ordered by most recent first';
 ```
 
 ### How It Works
 
 1. **Data Source**: Recent boards are stored in the `profiles.recent_boards` column as an array of board IDs
 2. **Ordering**: Array is maintained with most recent board first
-3. **Limit**: Shows only the last 3 accessed boards
+3. **Limit**: Shows only the last 6 accessed boards
 4. **Updates**: When a user accesses a board, the array is updated to move that board to the front
-5. **Automatic Cleanup**: Only the 3 most recent boards are kept in the array
+5. **Automatic Cleanup**: Only the 6 most recent boards are kept in the array
 
 ### Key Features
 
-- ✅ **Limited to 3 Boards**: Shows only last 3 accessed boards
+- ✅ **Limited to 6 Boards**: Shows only last 6 accessed boards
 - ✅ **User-Specific**: Each user sees their own recently accessed boards
 - ✅ **Real-time Updates**: Access tracking happens when users visit board pages
 - ✅ **Efficient Storage**: Uses a simple array in the profiles table (no separate table needed)
@@ -74,10 +74,10 @@ export default function BoardPage() {
 ### 3. Current Status
 
 **What's Working:**
-- ✅ Recent boards limited to 3 boards
-- ✅ Updated loading skeletons (3 cards)
-- ✅ Updated label to "(Last 3 accessed)"
-- ✅ Demo data shows 3 demo boards for new users
+- ✅ Recent boards limited to 6 boards
+- ✅ Updated loading skeletons (6 cards)
+- ✅ Updated label to "(Last 6 accessed)"
+- ✅ Demo data shows 6 demo boards for new users
 - ✅ Star functionality works on all recent boards
 
 **What Needs Setup:**
@@ -91,7 +91,7 @@ When a user accesses a board:
 1. The current `recent_boards` array is fetched from their profile
 2. If the board ID already exists in the array, it's removed
 3. The board ID is added to the front of the array
-4. The array is trimmed to keep only the first 3 elements
+4. The array is trimmed to keep only the first 6 elements
 5. The updated array is saved back to the user's profile
 
 Example:
@@ -100,6 +100,7 @@ Example:
 - Array becomes `['board-c', 'board-b', 'board-a']`
 - User accesses `board-a` again
 - Array becomes `['board-a', 'board-c', 'board-b']`
+- After accessing 6 different boards, only the most recent 6 are kept
 
 ## Future Enhancements
 

@@ -10,7 +10,7 @@ export interface Board {
   updated_at?: string;
 }
 
-// Demo boards for when user has no real data (limit to 3)
+// Demo boards for when user has no real data (limit to 6)
 const DEMO_BOARDS: Board[] = [
   {
     id: 'demo1',
@@ -28,6 +28,24 @@ const DEMO_BOARDS: Board[] = [
     id: 'demo3',
     name: 'Development Tasks',
     color: 'bg-green-600',
+    starred: false,
+  },
+  {
+    id: 'demo4',
+    name: 'Marketing Campaign',
+    color: 'bg-red-600',
+    starred: true,
+  },
+  {
+    id: 'demo5',
+    name: 'Bug Tracking',
+    color: 'bg-orange-600',
+    starred: false,
+  },
+  {
+    id: 'demo6',
+    name: 'Product Roadmap',
+    color: 'bg-indigo-600',
     starred: false,
   },
 ];
@@ -266,11 +284,14 @@ export const useBoardStars = () => {
           setStarredBoards((prev) =>
             prev.filter((board) => board.id !== boardId)
           );
-          setRecentBoards((prev) =>
-            prev.map((board) =>
-              board.id === boardId ? { ...board, starred: false } : board
-            )
-          );
+          // Only update recent boards if the board is actually in there
+          if (recentBoards.some((board) => board.id === boardId)) {
+            setRecentBoards((prev) =>
+              prev.map((board) =>
+                board.id === boardId ? { ...board, starred: false } : board
+              )
+            );
+          }
         } else {
           // Add star
           const { error: insertError } = await supabase
@@ -282,18 +303,33 @@ export const useBoardStars = () => {
 
           if (insertError) throw insertError;
 
-          // Update local state
-          const boardToStar = recentBoards.find(
-            (board) => board.id === boardId
-          );
+          // Update local state - first try to find in recent boards
+          let boardToStar = recentBoards.find((board) => board.id === boardId);
+
+          // If not in recent boards, fetch the board details from database
+          if (!boardToStar) {
+            const { data: boardData, error: boardError } = await supabase
+              .from('boards')
+              .select('id, name, color, workspace_id, updated_at')
+              .eq('id', boardId)
+              .single();
+
+            if (!boardError && boardData) {
+              boardToStar = boardData as Board;
+            }
+          }
+
           if (boardToStar) {
             const starredBoard = { ...boardToStar, starred: true };
             setStarredBoards((prev) => [...prev, starredBoard]);
-            setRecentBoards((prev) =>
-              prev.map((board) =>
-                board.id === boardId ? { ...board, starred: true } : board
-              )
-            );
+            // Only update recent boards if the board is actually in there
+            if (recentBoards.some((board) => board.id === boardId)) {
+              setRecentBoards((prev) =>
+                prev.map((board) =>
+                  board.id === boardId ? { ...board, starred: true } : board
+                )
+              );
+            }
           }
         }
       } catch (err) {
