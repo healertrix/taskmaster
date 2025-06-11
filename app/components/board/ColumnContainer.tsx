@@ -5,7 +5,8 @@ import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { Plus, MoreHorizontal } from 'lucide-react';
-import { TaskCard } from './TaskCard'; // We will create this next
+import { TaskCard } from './TaskCard';
+import { ListNameEditor } from './ListNameEditor';
 
 // Define Task type matching page.tsx
 interface Task {
@@ -38,6 +39,7 @@ interface ColumnContainerProps {
   labelColors: Record<string, string>; // Pass the color map
   dragOverInfo: DragOverInfo; // Add the dragOverInfo
   activeTaskId: string | undefined; // The ID of the task being dragged
+  onUpdateListName?: (listId: string, newName: string) => Promise<boolean>; // Add update function
 }
 
 export function ColumnContainer({
@@ -47,6 +49,7 @@ export function ColumnContainer({
   labelColors,
   dragOverInfo,
   activeTaskId,
+  onUpdateListName,
 }: ColumnContainerProps) {
   // Use useDroppable for the column to accept tasks
   const { setNodeRef: setColumnRef } = useDroppable({
@@ -100,12 +103,21 @@ export function ColumnContainer({
           column.id
         )}`}
       >
-        <h3 className='text-sm font-semibold text-foreground flex items-center'>
-          <span className='mr-2'>{column.title}</span>
-          <span className='text-xs text-white/80 bg-black/20 rounded-full px-1.5 py-0.5 backdrop-blur-sm'>
+        <div className='flex items-center gap-2 flex-1'>
+          {onUpdateListName ? (
+            <ListNameEditor
+              listName={column.title}
+              onSave={(newName) => onUpdateListName(column.id, newName)}
+            />
+          ) : (
+            <span className='text-sm font-semibold text-foreground'>
+              {column.title}
+            </span>
+          )}
+          <span className='text-xs text-white/80 bg-black/20 rounded-full px-1.5 py-0.5 backdrop-blur-sm flex-shrink-0'>
             {tasks.length}
           </span>
-        </h3>
+        </div>
         <button
           className='p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors'
           aria-label='More column options'

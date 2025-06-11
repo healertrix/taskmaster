@@ -22,6 +22,8 @@ import { DashboardHeader } from '../../components/dashboard/header';
 import { ColumnContainer } from '../../components/board/ColumnContainer';
 import { TaskCard } from '../../components/board/TaskCard';
 import { useBoard } from '@/hooks/useBoard';
+import { useLists } from '@/hooks/useLists';
+import { AddListForm } from '../../components/board/AddListForm';
 import {
   Star,
   User,
@@ -565,7 +567,7 @@ const getColumnStyle = (id: string) => {
 };
 
 export default function BoardPage({ params }: { params: { id: string } }) {
-  const [columns, setColumns] = useState<Column[]>(initialColumns);
+  const [columns, setColumns] = useState<Column[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
@@ -581,6 +583,16 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     updateBoardName,
     updateBoardDescription,
   } = useBoard(params.id);
+
+  // Use the lists hook to manage lists/columns
+  const {
+    lists,
+    loading: listsLoading,
+    error: listsError,
+    isCreating: isCreatingList,
+    createList,
+    updateListName,
+  } = useLists(params.id);
 
   // Get navigation context from URL params
   const searchParams = new URLSearchParams(
@@ -603,6 +615,36 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     }
     return 'Back to Home';
   };
+
+  // Convert lists to columns format for existing components
+  useEffect(() => {
+    if (lists) {
+      const convertedColumns: Column[] = lists.map((list) => ({
+        id: list.id,
+        title: list.name,
+        cards: list.cards.map((card) => ({
+          id: card.id,
+          title: card.title,
+          labels: [], // TODO: Add labels support when available
+          assignees: card.profiles
+            ? [
+                {
+                  initials: card.profiles.full_name
+                    .split(' ')
+                    .map((n) => n[0])
+                    .join('')
+                    .toUpperCase(),
+                  color: 'bg-blue-500',
+                },
+              ]
+            : [],
+          attachments: 0, // TODO: Add attachments support when available
+          comments: 0, // TODO: Add comments support when available
+        })),
+      }));
+      setColumns(convertedColumns);
+    }
+  }, [lists]);
 
   // Track board access when component mounts
   useEffect(() => {
@@ -658,15 +700,24 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     })
   );
 
+  // Handle creating a new list
+  const handleCreateList = async (name: string): Promise<boolean> => {
+    const newList = await createList(name);
+    return !!newList;
+  };
+
   // Show loading state
-  if (loading) {
+  if (loading || listsLoading) {
     return <BoardLoading />;
   }
 
   // Show error state
-  if (error || !board) {
+  if (error || listsError || !board) {
     return (
-      <BoardError error={error || 'Board not found'} backUrl={getBackUrl()} />
+      <BoardError
+        error={error || listsError || 'Board not found'}
+        backUrl={getBackUrl()}
+      />
     );
   }
 
@@ -844,8 +895,8 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
       if (activeColumnId === overColumnId) {
         // Same column - reorder tasks
-      setColumns((prevColumns) => {
-        return prevColumns.map((column) => {
+        setColumns((prevColumns) => {
+          return prevColumns.map((column) => {
             if (column.id !== activeColumnId) return column;
 
             const oldIndex = column.cards.findIndex(
@@ -865,30 +916,30 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         // Different columns - move task
         setColumns((prevColumns) => {
           return prevColumns.map((column) => {
-          // Remove from source column
-          if (column.id === activeColumnId) {
-            return {
-              ...column,
-              cards: column.cards.filter((card) => card.id !== activeId),
-            };
-          }
+            // Remove from source column
+            if (column.id === activeColumnId) {
+              return {
+                ...column,
+                cards: column.cards.filter((card) => card.id !== activeId),
+              };
+            }
 
             // Add to target column at the position of the over task
-          if (column.id === overColumnId) {
+            if (column.id === overColumnId) {
               const newCards = [...column.cards];
               const insertIndex = newCards.findIndex(
-              (card) => card.id === overId
-            );
+                (card) => card.id === overId
+              );
               newCards.splice(insertIndex, 0, activeTask);
-            return {
-              ...column,
-              cards: newCards,
-            };
-          }
+              return {
+                ...column,
+                cards: newCards,
+              };
+            }
 
-          return column;
+            return column;
+          });
         });
-      });
       }
     }
   }
@@ -1007,19 +1058,16 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   labelColors={labelColors}
                   dragOverInfo={dragOverInfo}
                   activeTaskId={activeTask?.id}
+                  onUpdateListName={updateListName}
                 />
               </div>
             ))}
 
-            {/* Add List Button */}
-            <div className='flex-shrink-0 w-80'>
-              <button className='w-full h-12 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex items-center justify-center text-muted-foreground hover:text-primary transition-all group'>
-                <div className='flex items-center gap-2'>
-                  <Plus className='w-4 h-4' />
-                  <span className='font-medium text-sm'>Add another list</span>
-                </div>
-              </button>
-            </div>
+            {/* Add List Form */}
+            <AddListForm
+              onCreateList={handleCreateList}
+              isCreating={isCreatingList}
+            />
           </div>
 
           <DragOverlay>
