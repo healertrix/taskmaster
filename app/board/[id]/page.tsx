@@ -781,6 +781,87 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     return success;
   };
 
+  // Task action handlers
+  const handleEditTask = (taskId: string) => {
+    console.log('Edit task:', taskId);
+    // TODO: Implement task editing modal
+    showSuccess('Task editing will be implemented soon');
+  };
+
+  const handleCopyTask = (taskId: string) => {
+    console.log('Copy task:', taskId);
+    // TODO: Implement task copying
+    showSuccess('Task copying will be implemented soon');
+  };
+
+  const handleArchiveTask = async (taskId: string): Promise<boolean> => {
+    console.log('Archive task:', taskId);
+    // TODO: Implement task archiving
+    showSuccess('Task archived successfully');
+    return true;
+  };
+
+  const handleDeleteTask = async (taskId: string): Promise<boolean> => {
+    console.log('Delete task:', taskId);
+    // TODO: Implement task deletion
+    showSuccess('Task deleted successfully');
+    return true;
+  };
+
+  const handleManageLabels = (taskId: string) => {
+    console.log('Manage labels for task:', taskId);
+    // TODO: Implement label management modal
+    showSuccess('Label management will be implemented soon');
+  };
+
+  const handleManageAssignees = (taskId: string) => {
+    console.log('Manage assignees for task:', taskId);
+    // TODO: Implement assignee management modal
+    showSuccess('Assignee management will be implemented soon');
+  };
+
+  const handleManageDueDate = (taskId: string) => {
+    console.log('Manage due date for task:', taskId);
+    // TODO: Implement due date management modal
+    showSuccess('Due date management will be implemented soon');
+  };
+
+  // Handle adding a new card to a column
+  const handleAddCard = async (
+    columnId: string,
+    cardTitle: string
+  ): Promise<boolean> => {
+    console.log('Add card to column:', columnId, 'with title:', cardTitle);
+
+    try {
+      // Create a new task with a unique ID
+      const newTask: Task = {
+        id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        title: cardTitle,
+        labels: [],
+        assignees: [],
+        attachments: 0,
+        comments: 0,
+      };
+
+      // Update the columns state to add the new task
+      setColumns((prevColumns) =>
+        prevColumns.map((column) =>
+          column.id === columnId
+            ? { ...column, cards: [...column.cards, newTask] }
+            : column
+        )
+      );
+
+      showSuccess(`Card "${cardTitle}" added successfully`);
+      return true;
+    } catch (error) {
+      console.error('Error adding card:', error);
+      showError('Failed to add card');
+      return false;
+    }
+  };
+
   // Show loading state
   if (loading || listsLoading) {
     return <BoardLoading />;
@@ -1136,6 +1217,14 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   onUpdateListName={updateListName}
                   onArchiveList={handleArchiveList}
                   onDeleteList={handleDeleteList}
+                  onAddCard={handleAddCard}
+                  onEditTask={handleEditTask}
+                  onCopyTask={handleCopyTask}
+                  onArchiveTask={handleArchiveTask}
+                  onDeleteTask={handleDeleteTask}
+                  onManageLabels={handleManageLabels}
+                  onManageAssignees={handleManageAssignees}
+                  onManageDueDate={handleManageDueDate}
                 />
               </div>
             ))}
@@ -1155,6 +1244,13 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 columnId={activeColumnId || ''}
                 isDragTarget={false}
                 isBeingDragged={false}
+                onEditTask={handleEditTask}
+                onCopyTask={handleCopyTask}
+                onArchiveTask={handleArchiveTask}
+                onDeleteTask={handleDeleteTask}
+                onManageLabels={handleManageLabels}
+                onManageAssignees={handleManageAssignees}
+                onManageDueDate={handleManageDueDate}
               />
             )}
           </DragOverlay>

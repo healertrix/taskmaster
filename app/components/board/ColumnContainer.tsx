@@ -8,6 +8,7 @@ import { Plus } from 'lucide-react';
 import { TaskCard } from './TaskCard';
 import { ListNameEditor } from './ListNameEditor';
 import { ListActionsMenu } from './ListActionsMenu';
+import { AddCardForm } from './AddCardForm';
 
 // Define Task type matching page.tsx
 interface Task {
@@ -35,14 +36,22 @@ interface DragOverInfo {
 
 interface ColumnContainerProps {
   column: Column;
-  tasks: Task[]; // Pass only the tasks for this column
-  getColumnStyle: (id: string) => string; // Pass the style helper
-  labelColors: Record<string, string>; // Pass the color map
-  dragOverInfo: DragOverInfo; // Add the dragOverInfo
-  activeTaskId: string | undefined; // The ID of the task being dragged
-  onUpdateListName?: (listId: string, newName: string) => Promise<boolean>; // Add update function
-  onArchiveList?: (listId: string) => Promise<boolean>; // Add archive function
-  onDeleteList?: (listId: string) => Promise<boolean>; // Add delete function
+  tasks: Task[];
+  getColumnStyle: (columnId: string) => string;
+  labelColors: Record<string, string>;
+  dragOverInfo: DragOverInfo;
+  activeTaskId?: string;
+  onUpdateListName?: (listId: string, newName: string) => Promise<boolean>;
+  onArchiveList?: (listId: string) => Promise<boolean>;
+  onDeleteList?: (listId: string) => Promise<boolean>;
+  onAddCard?: (columnId: string, cardTitle: string) => Promise<boolean>;
+  onEditTask?: (taskId: string) => void;
+  onCopyTask?: (taskId: string) => void;
+  onArchiveTask?: (taskId: string) => Promise<boolean>;
+  onDeleteTask?: (taskId: string) => Promise<boolean>;
+  onManageLabels?: (taskId: string) => void;
+  onManageAssignees?: (taskId: string) => void;
+  onManageDueDate?: (taskId: string) => void;
 }
 
 export function ColumnContainer({
@@ -55,6 +64,14 @@ export function ColumnContainer({
   onUpdateListName,
   onArchiveList,
   onDeleteList,
+  onAddCard,
+  onEditTask,
+  onCopyTask,
+  onArchiveTask,
+  onDeleteTask,
+  onManageLabels,
+  onManageAssignees,
+  onManageDueDate,
 }: ColumnContainerProps) {
   // Use useDroppable for the column to accept tasks
   const { setNodeRef: setColumnRef } = useDroppable({
@@ -101,7 +118,7 @@ export function ColumnContainer({
   return (
     <div
       ref={setColumnRef}
-      className='flex flex-col w-80 flex-shrink-0 mr-5 kanban-column rounded-xl overflow-hidden max-h-[calc(100vh-250px)]'
+      className='flex flex-col w-80 flex-shrink-0 mr-5 kanban-column rounded-xl overflow-hidden max-h-[calc(100vh-180px)]'
     >
       <div
         className={`p-4 rounded-t-xl kanban-column-header flex justify-between items-center relative z-10 ${getColumnStyle(
@@ -135,7 +152,7 @@ export function ColumnContainer({
         className={`flex-1 overflow-y-auto p-4 kanban-column-content rounded-b-xl ${getColumnStyle(
           column.id
         )}`}
-        style={{ maxHeight: 'calc(100vh - 350px)' }} // Increased height for bigger lists
+        style={{ maxHeight: 'calc(100vh - 280px)' }} // Increased height for bigger lists
       >
         <SortableContext items={taskIds}>
           <div className='space-y-2 transition-all duration-300 ease-in-out'>
@@ -157,6 +174,13 @@ export function ColumnContainer({
                   columnId={column.id}
                   isDragTarget={dragOverInfo.id === task.id}
                   isBeingDragged={task.id === activeTaskId}
+                  onEditTask={onEditTask}
+                  onCopyTask={onCopyTask}
+                  onArchiveTask={onArchiveTask}
+                  onDeleteTask={onDeleteTask}
+                  onManageLabels={onManageLabels}
+                  onManageAssignees={onManageAssignees}
+                  onManageDueDate={onManageDueDate}
                 />
                 {/* Show drop indicator after each task */}
                 {renderDropIndicator(index + 1)}
@@ -184,11 +208,11 @@ export function ColumnContainer({
           </div>
         </SortableContext>
       </div>
-      <div className='sticky bottom-0 p-2 bg-background/80 backdrop-blur-sm border-t border-white/5'>
-        <button className='text-white/70 hover:text-white bg-white/5 hover:bg-white/10 w-full text-sm justify-start px-3 py-2 flex items-center gap-2 rounded-lg border border-white/5 transition-all duration-200'>
-          <Plus className='w-4 h-4' />
-          Add a card
-        </button>
+      <div className='sticky bottom-0 p-2 bg-background/80 backdrop-blur-sm border-t border-border/20'>
+        <AddCardForm
+          columnId={column.id}
+          onAddCard={onAddCard || (() => Promise.resolve(false))}
+        />
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import {
   ArrowUp,
   Bug,
 } from 'lucide-react';
+import { TaskActionsMenu } from './TaskActionsMenu';
 
 // Define Task type matching page.tsx
 interface Task {
@@ -28,6 +29,13 @@ interface TaskCardProps {
   columnId: string; // Add columnId prop to identify container
   isDragTarget?: boolean; // Whether this task is currently being dragged over
   isBeingDragged?: boolean; // Whether this task is being dragged
+  onEditTask?: (taskId: string) => void;
+  onCopyTask?: (taskId: string) => void;
+  onArchiveTask?: (taskId: string) => Promise<boolean>;
+  onDeleteTask?: (taskId: string) => Promise<boolean>;
+  onManageLabels?: (taskId: string) => void;
+  onManageAssignees?: (taskId: string) => void;
+  onManageDueDate?: (taskId: string) => void;
 }
 
 export function TaskCard({
@@ -36,6 +44,13 @@ export function TaskCard({
   columnId,
   isDragTarget = false,
   isBeingDragged = false,
+  onEditTask,
+  onCopyTask,
+  onArchiveTask,
+  onDeleteTask,
+  onManageLabels,
+  onManageAssignees,
+  onManageDueDate,
 }: TaskCardProps) {
   const {
     attributes,
@@ -70,27 +85,56 @@ export function TaskCard({
     return labelColors[colorKey] || 'bg-muted text-muted-foreground'; // Default fallback
   };
 
+  // Check if any action handlers are provided to show the menu
+  const hasActions =
+    onEditTask ||
+    onCopyTask ||
+    onArchiveTask ||
+    onDeleteTask ||
+    onManageLabels ||
+    onManageAssignees ||
+    onManageDueDate;
+
   // Don't render card content in original position when dragging
   const cardContent = isDragging ? (
     // Just render an empty placeholder when dragging
-    <div className="w-full h-full border-dashed border-2 border-primary/30 rounded-lg bg-primary/5 min-h-[80px]" />
+    <div className='w-full h-full border-dashed border-2 border-primary/30 rounded-lg bg-primary/5 min-h-[80px]' />
   ) : (
     <>
-      {/* Labels */}
-      {task.labels && task.labels.length > 0 && (
-        <div className='flex flex-wrap gap-1.5 mb-2 overflow-hidden'>
-          {task.labels.map((label, index) => (
-            <span
-              key={index}
-              className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${getLabelClass(
-                label.color
-              )} whitespace-nowrap`}
-            >
-              {label.text}
-            </span>
-          ))}
+      {/* Header with Edit Button */}
+      <div className='flex justify-between items-start mb-2'>
+        <div className='flex-1'>
+          {/* Labels */}
+          {task.labels && task.labels.length > 0 && (
+            <div className='flex flex-wrap gap-1.5 mb-2 overflow-hidden'>
+              {task.labels.map((label, index) => (
+                <span
+                  key={index}
+                  className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${getLabelClass(
+                    label.color
+                  )} whitespace-nowrap`}
+                >
+                  {label.text}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Edit Button - Only show if there are actions */}
+        {hasActions && (
+          <TaskActionsMenu
+            task={task}
+            onEditTask={onEditTask}
+            onCopyTask={onCopyTask}
+            onArchiveTask={onArchiveTask}
+            onDeleteTask={onDeleteTask}
+            onManageLabels={onManageLabels}
+            onManageAssignees={onManageAssignees}
+            onManageDueDate={onManageDueDate}
+          />
+        )}
+      </div>
 
       {/* Title */}
       <p className='text-sm font-medium text-white mb-3 leading-snug break-words'>
@@ -135,7 +179,7 @@ export function TaskCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`p-3 rounded-lg backdrop-blur-sm border shadow-lg shadow-black/10 cursor-grab active:cursor-grabbing min-h-[80px] h-auto mb-6 last:mb-0
+      className={`group p-3 rounded-lg backdrop-blur-sm border shadow-lg shadow-black/10 cursor-grab active:cursor-grabbing min-h-[80px] h-auto mb-6 last:mb-0
         transition-all duration-300 ease-out transform
         ${!isDragging ? 'hover:-translate-y-1' : ''}
         ${
@@ -144,7 +188,11 @@ export function TaskCard({
             : 'border-white/10 hover:border-white/20 hover:bg-white/10'
         }
         ${isBeingDragged && !isDragging ? 'opacity-50' : ''}
-        ${isDragging ? 'border-dashed border-primary/30 bg-primary/5' : 'bg-white/5'}
+        ${
+          isDragging
+            ? 'border-dashed border-primary/30 bg-primary/5'
+            : 'bg-white/5'
+        }
       `}
     >
       {cardContent}
