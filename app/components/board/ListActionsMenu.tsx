@@ -147,7 +147,7 @@ export function ListActionsMenu({
     <>
       {/* Backdrop */}
       <div
-        className='fixed inset-0 z-[9990]'
+        className='fixed inset-0 z-[10000]'
         onClick={() => {
           setIsOpen(false);
           setShowDeleteConfirm(false);
@@ -157,7 +157,7 @@ export function ListActionsMenu({
       {/* Menu */}
       <div
         ref={menuRef}
-        className='fixed w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-[9999] py-2'
+        className='fixed w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-[10001] py-2'
         style={{
           top: `${menuPosition.top}px`,
           left: `${menuPosition.left}px`,

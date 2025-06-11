@@ -752,10 +752,10 @@ export default function WorkspaceMembersPage() {
       {/* Success Toast */}
       {showSuccessToast && (
         <div
-          className={`fixed top-20 right-6 z-[9999] transition-all duration-500 ${
+          className={`fixed bottom-6 right-6 z-[9999] transition-all duration-500 ${
             isSuccessToastFading
-              ? 'animate-out slide-out-to-top-2 fade-out opacity-0 scale-95'
-              : 'animate-in slide-in-from-top-2 fade-in opacity-100 scale-100'
+              ? 'animate-out slide-out-to-bottom-2 fade-out opacity-0 scale-95'
+              : 'animate-in slide-in-from-bottom-2 fade-in opacity-100 scale-100'
           }`}
         >
           <div className='bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 shadow-2xl max-w-sm backdrop-blur-sm'>
@@ -789,10 +789,10 @@ export default function WorkspaceMembersPage() {
       {/* Error Toast */}
       {showErrorToast && (
         <div
-          className={`fixed top-20 right-6 z-[9999] transition-all duration-500 ${
+          className={`fixed bottom-6 right-6 z-[9999] transition-all duration-500 ${
             isErrorToastFading
-              ? 'animate-out slide-out-to-top-2 fade-out opacity-0 scale-95'
-              : 'animate-in slide-in-from-top-2 fade-in opacity-100 scale-100'
+              ? 'animate-out slide-out-to-bottom-2 fade-out opacity-0 scale-95'
+              : 'animate-in slide-in-from-bottom-2 fade-in opacity-100 scale-100'
           }`}
         >
           <div className='bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 shadow-2xl max-w-sm backdrop-blur-sm'>
