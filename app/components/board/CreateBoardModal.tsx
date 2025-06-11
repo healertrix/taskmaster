@@ -78,6 +78,20 @@ export function CreateBoardModal({
     }
   }, [isOpen, workspaceId, userWorkspaces]);
 
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleCustomColorClick = () => {
@@ -346,32 +360,35 @@ export function CreateBoardModal({
           </div>
 
           {/* Form Actions */}
-          <div className='flex justify-end space-x-2 pt-2'>
-            <button
-              type='button'
-              onClick={onClose}
-              className='btn btn-ghost px-4 py-2'
-              disabled={isLoading}
-            >
-              Cancel
-            </button>
-            <button
-              type='submit'
-              className='btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center'
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className='w-4 h-4 mr-2 animate-spin' />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  Create Board
-                  <ArrowRight className='w-4 h-4 ml-2' />
-                </>
-              )}
-            </button>
+          <div className='flex justify-between items-center pt-2'>
+            <p className='text-xs text-muted-foreground'>Press Esc to cancel</p>
+            <div className='flex space-x-2'>
+              <button
+                type='button'
+                onClick={onClose}
+                className='btn btn-ghost px-4 py-2'
+                disabled={isLoading}
+              >
+                Cancel
+              </button>
+              <button
+                type='submit'
+                className='btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center'
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className='w-4 h-4 mr-2 animate-spin' />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    Create Board
+                    <ArrowRight className='w-4 h-4 ml-2' />
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>

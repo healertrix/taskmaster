@@ -25,6 +25,7 @@ export function CreateWorkspaceModal({
   onSuccess,
 }: CreateWorkspaceModalProps) {
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [selectedColor, setSelectedColor] = useState(workspaceColors[0].value);
   const [customColor, setCustomColor] = useState('#3B82F6'); // Default custom color (blue)
   const [isLoading, setIsLoading] = useState(false);
@@ -35,11 +36,26 @@ export function CreateWorkspaceModal({
   useEffect(() => {
     if (isOpen) {
       setName('');
+      setDescription('');
       setSelectedColor(workspaceColors[0].value);
       setCustomColor('#3B82F6');
       setError(null);
     }
   }, [isOpen]);
+
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -93,6 +109,7 @@ export function CreateWorkspaceModal({
         .from('workspaces')
         .insert({
           name: name.trim(),
+          description: description.trim() || null,
           color: colorValue,
           owner_id: user.id,
           visibility: 'private', // Default to private for now
@@ -179,7 +196,7 @@ export function CreateWorkspaceModal({
               htmlFor='workspace-name'
               className='block text-sm font-medium text-foreground mb-1'
             >
-              Workspace Name
+              Workspace Name *
             </label>
             <input
               id='workspace-name'
@@ -190,6 +207,25 @@ export function CreateWorkspaceModal({
               placeholder='My Workspace'
               disabled={isLoading}
               autoFocus
+            />
+          </div>
+
+          {/* Description */}
+          <div className='mb-4'>
+            <label
+              htmlFor='workspace-description'
+              className='block text-sm font-medium text-foreground mb-1'
+            >
+              Description
+            </label>
+            <textarea
+              id='workspace-description'
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className='w-full p-2 bg-input border border-border rounded-md text-foreground resize-none'
+              placeholder='What is this workspace about?'
+              rows={3}
+              disabled={isLoading}
             />
           </div>
 
@@ -265,29 +301,32 @@ export function CreateWorkspaceModal({
             )}
           </div>
 
-          <div className='flex justify-end space-x-2'>
-            <button
-              type='button'
-              onClick={onClose}
-              className='btn btn-ghost px-4 py-2'
-              disabled={isLoading}
-            >
-              Cancel
-            </button>
-            <button
-              type='submit'
-              className='btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center'
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className='w-4 h-4 mr-2 animate-spin' />
-                  Creating...
-                </>
-              ) : (
-                'Create Workspace'
-              )}
-            </button>
+          <div className='flex justify-between items-center'>
+            <p className='text-xs text-muted-foreground'>Press Esc to cancel</p>
+            <div className='flex space-x-2'>
+              <button
+                type='button'
+                onClick={onClose}
+                className='btn btn-ghost px-4 py-2'
+                disabled={isLoading}
+              >
+                Cancel
+              </button>
+              <button
+                type='submit'
+                className='btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center'
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className='w-4 h-4 mr-2 animate-spin' />
+                    Creating...
+                  </>
+                ) : (
+                  'Create Workspace'
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>
