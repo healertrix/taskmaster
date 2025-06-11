@@ -335,3 +335,80 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = createClient();
+
+    // Get the current user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const listId = searchParams.get('id');
+
+    // Validate required fields
+    if (!listId) {
+      return NextResponse.json(
+        { error: 'List ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Verify user has access to this list by checking board access
+    const { data: listData, error: listError } = await supabase
+      .from('lists')
+      .select('board_id, name')
+      .eq('id', listId)
+      .single();
+
+    if (listError || !listData) {
+      return NextResponse.json(
+        { error: 'List not found or access denied' },
+        { status: 403 }
+      );
+    }
+
+    // Verify user has access to the board
+    const { data: boardData, error: boardError } = await supabase
+      .from('boards')
+      .select('id, name')
+      .eq('id', listData.board_id)
+      .single();
+
+    if (boardError || !boardData) {
+      return NextResponse.json(
+        { error: 'Board not found or access denied' },
+        { status: 403 }
+      );
+    }
+
+    // Delete the list (this will cascade delete all cards due to foreign key constraints)
+    const { error: deleteError } = await supabase
+      .from('lists')
+      .delete()
+      .eq('id', listId);
+
+    if (deleteError) {
+      console.error('List delete error:', deleteError);
+      return NextResponse.json(
+        { error: `Failed to delete list: ${deleteError.message}` },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Unexpected error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

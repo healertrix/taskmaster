@@ -150,19 +150,29 @@ export const useLists = (boardId: string) => {
     async (listId: string) => {
       try {
         // Optimistically remove from UI
+        const originalLists = lists;
         setLists((prev) => prev.filter((list) => list.id !== listId));
 
-        // TODO: Implement delete API endpoint
-        // For now, just return true
+        const response = await fetch(`/api/lists?id=${listId}`, {
+          method: 'DELETE',
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to delete list');
+        }
+
         return true;
       } catch (err) {
         console.error('Error deleting list:', err);
         // Revert the optimistic update
-        fetchLists();
+        setLists(lists);
+        setError(err instanceof Error ? err.message : 'Failed to delete list');
         return false;
       }
     },
-    [fetchLists]
+    [lists]
   );
 
   const archiveList = useCallback(

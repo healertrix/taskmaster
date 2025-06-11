@@ -49,6 +49,8 @@ import {
   Loader2,
   Info,
   Save,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 
 // Define card/task type
@@ -572,6 +574,14 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
 
+  // Notification states
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showErrorToast, setShowErrorToast] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSuccessToastFading, setIsSuccessToastFading] = useState(false);
+  const [isErrorToastFading, setIsErrorToastFading] = useState(false);
+
   // Use the board hook to fetch real data
   const {
     board,
@@ -593,6 +603,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     createList,
     updateListName,
     archiveList,
+    deleteList,
   } = useLists(params.id);
 
   // Get navigation context from URL params
@@ -615,6 +626,39 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       return 'Back to Workspace';
     }
     return 'Back to Home';
+  };
+
+  // Notification helper functions
+  const showSuccess = (message: string) => {
+    setSuccessMessage(message);
+    setShowSuccessToast(true);
+    setIsSuccessToastFading(false);
+
+    // Start fade out animation after 3.5 seconds
+    setTimeout(() => {
+      setIsSuccessToastFading(true);
+      // Remove toast after fade animation completes
+      setTimeout(() => {
+        setShowSuccessToast(false);
+        setIsSuccessToastFading(false);
+      }, 500);
+    }, 3500);
+  };
+
+  const showError = (message: string) => {
+    setErrorMessage(message);
+    setShowErrorToast(true);
+    setIsErrorToastFading(false);
+
+    // Start fade out animation after 4.5 seconds
+    setTimeout(() => {
+      setIsErrorToastFading(true);
+      // Remove toast after fade animation completes
+      setTimeout(() => {
+        setShowErrorToast(false);
+        setIsErrorToastFading(false);
+      }, 500);
+    }, 4500);
   };
 
   // Convert lists to columns format for existing components
@@ -705,6 +749,36 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   const handleCreateList = async (name: string): Promise<boolean> => {
     const newList = await createList(name);
     return !!newList;
+  };
+
+  // Handle archiving a list with notifications
+  const handleArchiveList = async (listId: string): Promise<boolean> => {
+    // Find the list name
+    const list = lists.find((l) => l.id === listId);
+    const listName = list?.name || 'List';
+
+    const success = await archiveList(listId);
+    if (success) {
+      showSuccess(`List "${listName}" archived successfully`);
+    } else {
+      showError(`Failed to archive list "${listName}"`);
+    }
+    return success;
+  };
+
+  // Handle deleting a list with notifications
+  const handleDeleteList = async (listId: string): Promise<boolean> => {
+    // Find the list name
+    const list = lists.find((l) => l.id === listId);
+    const listName = list?.name || 'List';
+
+    const success = await deleteList(listId);
+    if (success) {
+      showSuccess(`List "${listName}" deleted successfully`);
+    } else {
+      showError(`Failed to delete list "${listName}"`);
+    }
+    return success;
   };
 
   // Show loading state
@@ -1060,7 +1134,8 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   dragOverInfo={dragOverInfo}
                   activeTaskId={activeTask?.id}
                   onUpdateListName={updateListName}
-                  onArchiveList={archiveList}
+                  onArchiveList={handleArchiveList}
+                  onDeleteList={handleDeleteList}
                 />
               </div>
             ))}
@@ -1094,6 +1169,80 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         description={board.description || ''}
         onSave={updateBoardDescription}
       />
+
+      {/* Success Toast */}
+      {showSuccessToast && (
+        <div
+          className={`fixed top-20 right-6 z-[9999] transition-all duration-500 ${
+            isSuccessToastFading
+              ? 'animate-out slide-out-to-top-2 fade-out opacity-0 scale-95'
+              : 'animate-in slide-in-from-top-2 fade-in opacity-100 scale-100'
+          }`}
+        >
+          <div className='bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 shadow-2xl max-w-sm backdrop-blur-sm'>
+            <div className='flex items-center gap-3'>
+              <div className='flex-shrink-0'>
+                <CheckCircle2 className='w-5 h-5 text-green-600 dark:text-green-400' />
+              </div>
+              <div className='flex-1'>
+                <p className='text-sm font-medium text-green-800 dark:text-green-200'>
+                  {successMessage}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsSuccessToastFading(true);
+                  setTimeout(() => {
+                    setShowSuccessToast(false);
+                    setIsSuccessToastFading(false);
+                  }, 300);
+                }}
+                className='flex-shrink-0 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 transition-colors'
+                aria-label='Close success notification'
+              >
+                <X className='w-4 h-4' />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Toast */}
+      {showErrorToast && (
+        <div
+          className={`fixed top-20 right-6 z-[9999] transition-all duration-500 ${
+            isErrorToastFading
+              ? 'animate-out slide-out-to-top-2 fade-out opacity-0 scale-95'
+              : 'animate-in slide-in-from-top-2 fade-in opacity-100 scale-100'
+          }`}
+        >
+          <div className='bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 shadow-2xl max-w-sm backdrop-blur-sm'>
+            <div className='flex items-center gap-3'>
+              <div className='flex-shrink-0'>
+                <AlertCircle className='w-5 h-5 text-red-600 dark:text-red-400' />
+              </div>
+              <div className='flex-1'>
+                <p className='text-sm font-medium text-red-800 dark:text-red-200'>
+                  {errorMessage}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsErrorToastFading(true);
+                  setTimeout(() => {
+                    setShowErrorToast(false);
+                    setIsErrorToastFading(false);
+                  }, 300);
+                }}
+                className='flex-shrink-0 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors'
+                aria-label='Close error notification'
+              >
+                <X className='w-4 h-4' />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

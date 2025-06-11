@@ -42,6 +42,7 @@ interface ColumnContainerProps {
   activeTaskId: string | undefined; // The ID of the task being dragged
   onUpdateListName?: (listId: string, newName: string) => Promise<boolean>; // Add update function
   onArchiveList?: (listId: string) => Promise<boolean>; // Add archive function
+  onDeleteList?: (listId: string) => Promise<boolean>; // Add delete function
 }
 
 export function ColumnContainer({
@@ -53,6 +54,7 @@ export function ColumnContainer({
   activeTaskId,
   onUpdateListName,
   onArchiveList,
+  onDeleteList,
 }: ColumnContainerProps) {
   // Use useDroppable for the column to accept tasks
   const { setNodeRef: setColumnRef } = useDroppable({
@@ -125,6 +127,7 @@ export function ColumnContainer({
           listId={column.id}
           listName={column.title}
           onArchiveList={onArchiveList || (() => Promise.resolve(false))}
+          onDeleteList={onDeleteList || (() => Promise.resolve(false))}
         />
       </div>
       {/* Make the content area scrollable */}
