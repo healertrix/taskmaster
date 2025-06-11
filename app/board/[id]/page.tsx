@@ -913,9 +913,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     <div className='min-h-screen dot-pattern-dark flex flex-col'>
       <DashboardHeader />
 
-      <main className='flex-1 flex flex-col container mx-auto max-w-full px-4 pt-24'>
-        {/* Board Header */}
-        <div className='flex items-center justify-between mb-8 group'>
+      {/* Board Header */}
+      <div className='container mx-auto max-w-full px-4 pt-24 pb-8'>
+        <div className='flex items-center justify-between group'>
           {/* Left side - Board info */}
           <div className='flex items-center gap-4'>
             <Link
@@ -986,57 +986,55 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Kanban Board */}
-        <div className='flex-1 overflow-x-auto'>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={collisionDetectionStrategy}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragEnd={handleDragEnd}
-          >
-            <div className='flex gap-6 h-full min-w-max'>
-              {columns.map((column) => (
-                <div key={column.id} className='flex-shrink-0'>
-                  <ColumnContainer
-                    column={column}
-                    tasks={column.cards}
-                    getColumnStyle={getColumnStyle}
-                    labelColors={labelColors}
-                    dragOverInfo={dragOverInfo}
-                    activeTaskId={activeTask?.id}
-                  />
-                </div>
-              ))}
-
-              {/* Add List Button */}
-              <div className='flex-shrink-0 w-80'>
-                <button className='w-full h-12 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex items-center justify-center text-muted-foreground hover:text-primary transition-all group'>
-                  <div className='flex items-center gap-2'>
-                    <Plus className='w-4 h-4' />
-                    <span className='font-medium text-sm'>
-                      Add another list
-                    </span>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            <DragOverlay>
-              {activeTask && (
-                <TaskCard
-                  task={activeTask}
+      {/* Kanban Board - Full width without padding */}
+      <div className='flex-1 overflow-x-auto'>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={collisionDetectionStrategy}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className='flex gap-6 h-full min-w-max px-4'>
+            {columns.map((column) => (
+              <div key={column.id} className='flex-shrink-0'>
+                <ColumnContainer
+                  column={column}
+                  tasks={column.cards}
+                  getColumnStyle={getColumnStyle}
                   labelColors={labelColors}
-                  columnId={activeColumnId || ''}
-                  isDragTarget={false}
-                  isBeingDragged={false}
+                  dragOverInfo={dragOverInfo}
+                  activeTaskId={activeTask?.id}
                 />
-              )}
-            </DragOverlay>
-          </DndContext>
-        </div>
-      </main>
+              </div>
+            ))}
+
+            {/* Add List Button */}
+            <div className='flex-shrink-0 w-80'>
+              <button className='w-full h-12 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex items-center justify-center text-muted-foreground hover:text-primary transition-all group'>
+                <div className='flex items-center gap-2'>
+                  <Plus className='w-4 h-4' />
+                  <span className='font-medium text-sm'>Add another list</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <DragOverlay>
+            {activeTask && (
+              <TaskCard
+                task={activeTask}
+                labelColors={labelColors}
+                columnId={activeColumnId || ''}
+                isDragTarget={false}
+                isBeingDragged={false}
+              />
+            )}
+          </DragOverlay>
+        </DndContext>
+      </div>
 
       {/* Description Modal */}
       <DescriptionModal
@@ -1046,32 +1044,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         description={board.description || ''}
         onSave={updateBoardDescription}
       />
-
-      {/* Debug Info - Remove after fixing */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className='fixed bottom-4 right-4 bg-black/80 text-white p-3 rounded-lg text-xs max-w-sm'>
-          <div className='font-bold mb-1'>Debug Info:</div>
-          <div>
-            Board Description:{' '}
-            {board.description === null
-              ? 'NULL'
-              : board.description === undefined
-              ? 'UNDEFINED'
-              : `"${board.description}"`}
-          </div>
-          <div>
-            Modal Description:{' '}
-            {(board.description || '') === ''
-              ? 'EMPTY STRING'
-              : `"${board.description || ''}"`}
-          </div>
-          <div className='mt-1 text-yellow-300'>
-            {!board.description
-              ? '⚠️ Run migration: ALTER TABLE boards ADD COLUMN description TEXT;'
-              : '✅ Description column exists'}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

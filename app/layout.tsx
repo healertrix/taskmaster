@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Providers } from './providers';
 import './globals.css';
 import RouteGuard from './components/auth/RouteGuard';
-import AuthDebugger from './components/auth/AuthDebugger';
 
 export const metadata: Metadata = {
   title: 'Taskmaster',
@@ -19,7 +18,6 @@ export default function RootLayout({
       <body className='font-sans antialiased'>
         <Providers>
           <RouteGuard>{children}</RouteGuard>
-          <AuthDebugger />
         </Providers>
       </body>
     </html>
