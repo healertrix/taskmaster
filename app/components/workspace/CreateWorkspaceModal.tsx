@@ -104,20 +104,32 @@ export function CreateWorkspaceModal({
         throw new Error(insertError.message);
       }
 
-      // Manually insert the workspace member record instead of relying on the trigger
+      // Ensure the workspace creator is added as an admin member
+      // The database trigger should handle this, but we'll add a fallback
       if (workspace) {
-        const { error: memberError } = await supabase
+        // First check if the member already exists (from the trigger)
+        const { data: existingMember } = await supabase
           .from('workspace_members')
-          .insert({
-            workspace_id: workspace.id,
-            profile_id: user.id,
-            role: 'admin',
-            invited_by: user.id,
-          });
+          .select('id')
+          .eq('workspace_id', workspace.id)
+          .eq('profile_id', user.id)
+          .single();
 
-        if (memberError) {
-          console.error('Error creating workspace member:', memberError);
-          // Continue anyway as the workspace was created successfully
+        if (!existingMember) {
+          // If trigger didn't work, manually insert the member
+          const { error: memberError } = await supabase
+            .from('workspace_members')
+            .insert({
+              workspace_id: workspace.id,
+              profile_id: user.id,
+              role: 'admin',
+              invited_by: user.id,
+            });
+
+          if (memberError) {
+            console.error('Error creating workspace member:', memberError);
+            throw new Error('Failed to add workspace member');
+          }
         }
       }
 

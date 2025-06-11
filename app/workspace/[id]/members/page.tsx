@@ -19,6 +19,7 @@ import {
   Check,
   CheckCircle2,
   AlertCircle,
+  Bug,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -71,6 +72,7 @@ export default function WorkspaceMembersPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
   const [isInviting, setIsInviting] = useState(false);
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
 
   // Notification states
   const [showSuccessToast, setShowSuccessToast] = useState(false);
@@ -134,54 +136,62 @@ export default function WorkspaceMembersPage() {
 
         setCurrentUserRole(userRole);
 
-        // Fetch all workspace members
+        // Fetch all workspace members (simplified query first)
         const { data: membersData, error: membersError } = await supabase
           .from('workspace_members')
-          .select(
-            `
-            *,
-            profile:profiles(*)
-          `
-          )
+          .select('*')
           .eq('workspace_id', workspaceId)
           .order('created_at', { ascending: true });
 
+        console.log('=== MEMBERS FETCH DEBUG ===');
+        console.log('Members query error:', membersError);
+        console.log('Members query data:', membersData);
+        console.log('Workspace owner_id:', workspaceData.owner_id);
+
         if (membersError) {
           console.error('Error fetching members:', membersError);
+          setMembers([]); // Set empty array on error
         } else {
           let allMembers = membersData || [];
+          console.log('Raw members from DB:', allMembers);
 
-          // If current user is the owner and not in members list, add them
-          const ownerInMembers = allMembers.some(
-            (m) => m.profile_id === workspaceData.owner_id
-          );
-          if (!ownerInMembers) {
-            // Fetch owner profile
-            const { data: ownerProfile } = await supabase
+          // Fetch all profiles for the members
+          if (allMembers.length > 0) {
+            const profileIds = allMembers.map((m) => m.profile_id);
+            const { data: profilesData, error: profilesError } = await supabase
               .from('profiles')
               .select('*')
-              .eq('id', workspaceData.owner_id)
-              .single();
+              .in('id', profileIds);
 
-            if (ownerProfile) {
-              allMembers.unshift({
-                id: 'owner',
-                workspace_id: workspaceId,
-                profile_id: workspaceData.owner_id,
-                role: 'owner',
-                created_at: workspaceData.created_at,
-                profile: ownerProfile,
+            console.log('Profiles fetch error:', profilesError);
+            console.log('Profiles data:', profilesData);
+
+            if (!profilesError && profilesData) {
+              // Attach profiles to members
+              allMembers = allMembers.map((member) => {
+                const profile = profilesData.find(
+                  (p) => p.id === member.profile_id
+                );
+                return {
+                  ...member,
+                  profile: profile || {
+                    id: member.profile_id,
+                    email: 'Unknown',
+                    full_name: 'Unknown User',
+                  },
+                };
               });
             }
-          } else {
-            // Update the owner's role in the members list
-            allMembers = allMembers.map((member) =>
-              member.profile_id === workspaceData.owner_id
-                ? { ...member, role: 'owner' }
-                : member
-            );
           }
 
+          // Update owner role to 'owner' instead of 'admin'
+          allMembers = allMembers.map((member) =>
+            member.profile_id === workspaceData.owner_id
+              ? { ...member, role: 'owner' }
+              : member
+          );
+
+          console.log('Final members list with profiles:', allMembers);
           setMembers(allMembers);
         }
 
@@ -247,6 +257,12 @@ export default function WorkspaceMembersPage() {
     }, 4500);
   };
 
+  // Define permission flags
+  const canInviteMembers =
+    currentUserRole === 'owner' || currentUserRole === 'admin';
+  const canManageMembers =
+    currentUserRole === 'owner' || currentUserRole === 'admin';
+
   // Beautiful loading component
   const LoadingSpinner = ({ size = 'md', className = '' }) => {
     const sizeClasses = {
@@ -311,11 +327,6 @@ export default function WorkspaceMembersPage() {
     </div>
   );
 
-  const canInviteMembers =
-    currentUserRole === 'owner' || currentUserRole === 'admin';
-  const canManageMembers =
-    currentUserRole === 'owner' || currentUserRole === 'admin';
-
   const handleInviteMember = async () => {
     if (!inviteEmail.trim()) return;
 
@@ -347,6 +358,33 @@ export default function WorkspaceMembersPage() {
       showError('Failed to send invitation');
     } finally {
       setIsInviting(false);
+    }
+  };
+
+  const handleDebugInfo = () => {
+    setShowDebugInfo(!showDebugInfo);
+
+    if (!showDebugInfo) {
+      console.log('=== WORKSPACE DEBUG INFO ===');
+      console.log('Workspace ID:', workspaceId);
+      console.log('Workspace Data:', workspace);
+      console.log('Current User ID:', currentUser);
+      console.log('Current User Role:', currentUserRole);
+      console.log('Members Count:', members.length);
+      console.log(
+        'Members:',
+        members.map((m) => ({
+          id: m.id,
+          profile_id: m.profile_id,
+          role: m.role,
+          email: m.profile.email,
+          name: m.profile.full_name,
+        }))
+      );
+      console.log('Invitations:', invitations);
+      console.log('Can Invite Members:', canInviteMembers);
+      console.log('Can Manage Members:', canManageMembers);
+      console.log('=== END DEBUG INFO ===');
     }
   };
 
@@ -426,15 +464,29 @@ export default function WorkspaceMembersPage() {
             </div>
           </div>
 
-          {canInviteMembers && (
+          <div className='flex items-center gap-3'>
+            {/* Debug Button */}
             <button
-              onClick={() => setShowInviteModal(true)}
-              className='btn btn-primary flex items-center gap-2'
+              onClick={handleDebugInfo}
+              className={`btn ${
+                showDebugInfo ? 'btn-secondary' : 'btn-ghost'
+              } flex items-center gap-2`}
+              title='Debug workspace members info'
             >
-              <UserPlus className='w-4 h-4' />
-              Invite Members
+              <Bug className='w-4 h-4' />
+              Debug
             </button>
-          )}
+
+            {canInviteMembers && (
+              <button
+                onClick={() => setShowInviteModal(true)}
+                className='btn btn-primary flex items-center gap-2'
+              >
+                <UserPlus className='w-4 h-4' />
+                Invite Members
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Navigation Tabs */}
@@ -453,6 +505,76 @@ export default function WorkspaceMembersPage() {
         </div>
 
         <div className='space-y-6'>
+          {/* Debug Info Panel */}
+          {showDebugInfo && (
+            <div className='card p-6 bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800'>
+              <h2 className='text-lg font-semibold mb-4 text-yellow-800 dark:text-yellow-200 flex items-center gap-2'>
+                <Bug className='w-5 h-5' />
+                Debug Information
+              </h2>
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-4 text-sm'>
+                <div>
+                  <strong>Workspace:</strong>
+                  <pre className='bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded mt-1 text-xs overflow-auto'>
+                    {JSON.stringify(
+                      {
+                        id: workspace?.id,
+                        name: workspace?.name,
+                        owner_id: workspace?.owner_id,
+                        color: workspace?.color,
+                      },
+                      null,
+                      2
+                    )}
+                  </pre>
+                </div>
+                <div>
+                  <strong>Current User:</strong>
+                  <pre className='bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded mt-1 text-xs overflow-auto'>
+                    {JSON.stringify(
+                      {
+                        user_id: currentUser,
+                        role: currentUserRole,
+                        can_invite: canInviteMembers,
+                        can_manage: canManageMembers,
+                      },
+                      null,
+                      2
+                    )}
+                  </pre>
+                </div>
+                <div className='md:col-span-2'>
+                  <strong>Members ({members.length}):</strong>
+                  <pre className='bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded mt-1 text-xs overflow-auto max-h-40'>
+                    {JSON.stringify(
+                      members.map((m) => ({
+                        id: m.id,
+                        profile_id: m.profile_id,
+                        role: m.role,
+                        email: m.profile.email,
+                        name: m.profile.full_name,
+                        created_at: m.created_at,
+                      })),
+                      null,
+                      2
+                    )}
+                  </pre>
+                </div>
+                {invitations.length > 0 && (
+                  <div className='md:col-span-2'>
+                    <strong>Invitations ({invitations.length}):</strong>
+                    <pre className='bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded mt-1 text-xs overflow-auto max-h-32'>
+                      {JSON.stringify(invitations, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+              <p className='text-xs text-yellow-700 dark:text-yellow-300 mt-4'>
+                💡 Check the browser console for detailed logs
+              </p>
+            </div>
+          )}
+
           {/* Members List */}
           <div className='card p-6'>
             <h2 className='text-lg font-semibold mb-4'>

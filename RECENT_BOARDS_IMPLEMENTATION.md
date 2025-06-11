@@ -34,7 +34,7 @@ COMMENT ON COLUMN profiles.recent_boards IS 'Array of the 6 most recently access
 - ✅ **User-Specific**: Each user sees their own recently accessed boards
 - ✅ **Real-time Updates**: Access tracking happens when users visit board pages
 - ✅ **Efficient Storage**: Uses a simple array in the profiles table (no separate table needed)
-- ✅ **Graceful Fallback**: Shows demo boards for new users
+- ✅ **Graceful Fallback**: Shows empty state for new users
 
 ## Setup Instructions
 
@@ -77,7 +77,7 @@ export default function BoardPage() {
 - ✅ Recent boards limited to 6 boards
 - ✅ Updated loading skeletons (6 cards)
 - ✅ Updated label to "(Last 6 accessed)"
-- ✅ Demo data shows 6 demo boards for new users
+- ✅ Empty state shown for new users
 - ✅ Star functionality works on all recent boards
 
 **What Needs Setup:**
@@ -115,9 +115,9 @@ Potential improvements that could be added:
 
 To test the feature:
 
-1. **Before Setup**: Will show demo boards for new users
+1. **Before Setup**: Will show empty state for new users
 2. **After Setup**: Visit some board pages, then check the Recent Boards section
-3. **Demo Mode**: Uses demo boards when user has no recent boards data
+3. **Empty State**: Shows empty state when user has no recent boards data
 
 ## Files Modified
 

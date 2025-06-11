@@ -63,6 +63,41 @@ export async function POST(request: Request) {
 
     console.log('✅ Workspace created:', workspace.id);
 
+    // Ensure the workspace creator is added as an admin member
+    // Check if the database trigger worked
+    const { data: memberCheck } = await supabase
+      .from('workspace_members')
+      .select('id, role')
+      .eq('workspace_id', workspace.id)
+      .eq('profile_id', user.id)
+      .single();
+
+    if (!memberCheck) {
+      console.log(
+        '⚠️ Database trigger failed, manually adding workspace member'
+      );
+      const { error: memberError } = await supabase
+        .from('workspace_members')
+        .insert({
+          workspace_id: workspace.id,
+          profile_id: user.id,
+          role: 'admin',
+          invited_by: user.id,
+        });
+
+      if (memberError) {
+        console.error('❌ Failed to add workspace member:', memberError);
+        // Don't fail the whole request, but log the issue
+      } else {
+        console.log('✅ Workspace member added manually');
+      }
+    } else {
+      console.log(
+        '✅ Workspace member exists via trigger, role:',
+        memberCheck.role
+      );
+    }
+
     return NextResponse.json({
       success: true,
       workspace,

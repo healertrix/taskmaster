@@ -12,13 +12,11 @@ import {
   Filter,
   Grid3x3,
   Loader2,
-  SparkleIcon,
 } from 'lucide-react';
 
 export default function StarredBoardsPage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const { starredBoards, loading, error, useDemoData, toggleBoardStar } =
-    useBoardStars();
+  const { starredBoards, loading, error, toggleBoardStar } = useBoardStars();
 
   // Filter starred boards based on search query
   const filteredStarredBoards = starredBoards.filter((board) =>
@@ -150,22 +148,6 @@ export default function StarredBoardsPage() {
             </div>
           )}
         </div>
-
-        {/* Demo Data Banner */}
-        {useDemoData && (
-          <div className='mb-8 p-4 bg-yellow-400/10 border border-yellow-400/20 rounded-lg'>
-            <div className='flex items-center gap-2 text-yellow-600 dark:text-yellow-400'>
-              <SparkleIcon className='w-5 h-5' />
-              <div>
-                <p className='font-medium'>Demo Mode</p>
-                <p className='text-sm opacity-90'>
-                  You're viewing demo starred boards. Sign in to see your actual
-                  starred boards.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Content */}
         {starredBoards.length === 0 ? (

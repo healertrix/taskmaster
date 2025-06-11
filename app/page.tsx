@@ -24,39 +24,13 @@ import { createClient } from '@/utils/supabase/client';
 import { useBoardStars } from '@/hooks/useBoardStars';
 import { useWorkspaceBoardsForHome } from '@/hooks/useWorkspaceBoardsForHome';
 
-const workspaces = [
-  {
-    id: 'ws1',
-    name: 'Taskmaster',
-    initial: 'T',
-    color: 'bg-blue-600',
-    boards: [
-      { id: 'demo1', name: 'Project Planning', color: 'bg-blue-600' },
-      { id: 'demo2', name: 'Website Redesign', color: 'bg-purple-600' },
-      { id: 'demo3', name: 'Marketing Campaign', color: 'bg-green-600' },
-    ],
-    members: [],
-  },
-  {
-    id: 'ws2',
-    name: 'Personal Projects',
-    initial: 'P',
-    color: 'bg-green-600',
-    boards: [
-      { id: 'demo4', name: 'Mobile App Dev', color: 'bg-red-600' },
-      { id: 'demo1', name: 'Task Manager', color: 'bg-indigo-600' },
-    ],
-    members: [],
-  },
-];
+const initialWorkspaces: any[] = [];
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<{
     [key: string]: boolean;
-  }>({
-    ws1: true, // Set the first workspace to be expanded by default
-  });
+  }>({});
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
   const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] =
     useState(false);
@@ -66,7 +40,7 @@ export default function HomePage() {
     workspaceName?: string;
     workspaceColor?: string;
   } | null>(null);
-  const [userWorkspaces, setUserWorkspaces] = useState(workspaces);
+  const [userWorkspaces, setUserWorkspaces] = useState(initialWorkspaces);
   const [isLoading, setIsLoading] = useState(true);
 
   // Use the custom hook for board stars
@@ -75,7 +49,6 @@ export default function HomePage() {
     recentBoards,
     loading: boardsLoading,
     error: boardsError,
-    useDemoData,
     toggleBoardStar,
     refetch: refetchBoards,
   } = useBoardStars();
@@ -441,27 +414,6 @@ export default function HomePage() {
 
           {/* Main Content */}
           <div className='flex-1'>
-            {/* Demo Data Banner */}
-            {useDemoData && (
-              <div className='mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl'>
-                <div className='flex items-center gap-2 text-blue-400 mb-2'>
-                  <div className='w-2 h-2 bg-blue-400 rounded-full animate-pulse'></div>
-                  <span className='text-sm font-medium'>
-                    Demo Mode - These are sample boards (6 recent, 2 starred).
-                    Sign in to create real boards and use starring
-                    functionality.
-                  </span>
-                </div>
-                <div className='text-xs text-blue-300'>
-                  📋 To enable recent boards tracking: Run{' '}
-                  <code className='bg-blue-600/20 px-1 rounded'>
-                    add_recent_boards_column.sql
-                  </code>{' '}
-                  in your database
-                </div>
-              </div>
-            )}
-
             {/* Starred Boards Section */}
             {(boardsLoading || starredBoards.length > 0) && (
               <section className='mb-12'>
