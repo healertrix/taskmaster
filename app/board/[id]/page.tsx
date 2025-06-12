@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   DndContext,
   DragEndEvent,
@@ -51,6 +52,8 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
+  Trash2,
+  LayoutGrid,
 } from 'lucide-react';
 
 // Define card/task type
@@ -569,10 +572,21 @@ const getColumnStyle = (id: string) => {
 };
 
 export default function BoardPage({ params }: { params: { id: string } }) {
+  const router = useRouter();
+  const settingsDropdownRef = useRef<HTMLDivElement>(null);
+
   const [columns, setColumns] = useState<Column[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
+
+  // Board settings and deletion states
+  const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
+  const [showBoardDeletionModal, setShowBoardDeletionModal] = useState(false);
+  const [deletionConfirmName, setDeletionConfirmName] = useState('');
+  const [isDeletingBoard, setIsDeletingBoard] = useState(false);
+  const [deletionStats, setDeletionStats] = useState<any>(null);
+  const [showDeletionDetails, setShowDeletionDetails] = useState(false);
 
   // Notification states
   const [showSuccessToast, setShowSuccessToast] = useState(false);
@@ -714,13 +728,74 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       if (e.key === 'Escape' && isDescriptionModalOpen) {
         setIsDescriptionModalOpen(false);
       }
+      if (e.key === 'Escape' && showSettingsDropdown) {
+        setShowSettingsDropdown(false);
+      }
     };
 
-    if (isDescriptionModalOpen) {
+    if (isDescriptionModalOpen || showSettingsDropdown) {
       document.addEventListener('keydown', handleEscape);
       return () => document.removeEventListener('keydown', handleEscape);
     }
-  }, [isDescriptionModalOpen]);
+  }, [isDescriptionModalOpen, showSettingsDropdown]);
+
+  // Close settings dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        settingsDropdownRef.current &&
+        !settingsDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowSettingsDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Board deletion function
+  const deleteBoard = async () => {
+    if (!board || deletionConfirmName !== board.name) {
+      showError('Please type the board name exactly to confirm deletion');
+      return;
+    }
+
+    setIsDeletingBoard(true);
+
+    try {
+      const response = await fetch(`/api/boards/${params.id}/delete`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          boardName: board.name,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete board');
+      }
+
+      setDeletionStats(data.deletionStats);
+      showSuccess('Board deleted successfully');
+
+      // Redirect to the previous page after a short delay
+      setTimeout(() => {
+        router.push(getBackUrl());
+      }, 2000);
+    } catch (error) {
+      console.error('Error deleting board:', error);
+      showError(
+        error instanceof Error ? error.message : 'Failed to delete board'
+      );
+    } finally {
+      setIsDeletingBoard(false);
+    }
+  };
 
   const [dragOverInfo, setDragOverInfo] = useState<{
     id: UniqueIdentifier | null;
@@ -1217,6 +1292,43 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 fill={board.is_starred ? 'currentColor' : 'none'}
               />
             </button>
+
+            {/* Board Settings Dropdown */}
+            <div className='relative' ref={settingsDropdownRef}>
+              <button
+                onClick={() => setShowSettingsDropdown(!showSettingsDropdown)}
+                className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+                title='Board settings'
+              >
+                <Settings className='w-5 h-5' />
+              </button>
+
+              {/* Settings Dropdown Menu */}
+              {showSettingsDropdown && (
+                <div className='absolute top-full right-0 mt-2 w-64 bg-card border border-border rounded-lg shadow-xl z-50 overflow-hidden'>
+                  {/* Delete Board Option */}
+                  <div className='p-2 border-b border-border'>
+                    <button
+                      onClick={() => {
+                        setDeletionConfirmName('');
+                        setShowDeletionDetails(false);
+                        setShowBoardDeletionModal(true);
+                        setShowSettingsDropdown(false);
+                      }}
+                      className='w-full flex items-center gap-3 px-3 py-2 text-left text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors'
+                    >
+                      <Trash2 className='w-4 h-4' />
+                      <div>
+                        <div className='font-medium'>Delete board</div>
+                        <div className='text-sm text-muted-foreground'>
+                          Permanently delete this board and all its content
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -1291,6 +1403,140 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         description={board.description || ''}
         onSave={updateBoardDescription}
       />
+
+      {/* Board Deletion Confirmation Modal */}
+      {showBoardDeletionModal && board && (
+        <div className='fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6'>
+          <div className='bg-card rounded-lg shadow-xl max-w-lg w-full p-6 border border-red-200 dark:border-red-800'>
+            <div className='flex items-center gap-3 mb-6'>
+              <div className='w-12 h-12 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center'>
+                <Trash2 className='w-6 h-6 text-red-600 dark:text-red-400' />
+              </div>
+              <div>
+                <h3 className='text-xl font-bold text-foreground'>
+                  Delete Board
+                </h3>
+                <p className='text-sm text-muted-foreground'>
+                  This action cannot be undone
+                </p>
+              </div>
+            </div>
+
+            <div className='space-y-6'>
+              {/* Consequences */}
+              <div className='p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg'>
+                <h4 className='font-semibold text-red-800 dark:text-red-200 mb-3 flex items-center gap-2'>
+                  <AlertCircle className='w-4 h-4' />
+                  What will be deleted:
+                </h4>
+                <ul className='text-sm text-red-700 dark:text-red-300 space-y-2'>
+                  <li className='flex items-center gap-2'>
+                    <Trash2 className='w-3 h-3' />
+                    The board "{board.name}" and all its settings
+                  </li>
+                  <li className='flex items-center gap-2'>
+                    <LayoutGrid className='w-3 h-3' />
+                    All lists and cards in this board
+                  </li>
+                  <li className='flex items-center gap-2'>
+                    <Users className='w-3 h-3' />
+                    All member access and permissions
+                  </li>
+                  <li className='flex items-center gap-2'>
+                    <MessageSquare className='w-3 h-3' />
+                    All comments, attachments, and activity history
+                  </li>
+                </ul>
+              </div>
+
+              {/* Confirmation Input */}
+              <div>
+                <label className='block text-sm font-medium text-foreground mb-2'>
+                  Type the board name{' '}
+                  <span className='font-bold text-red-600'>"{board.name}"</span>{' '}
+                  to confirm:
+                </label>
+                <input
+                  type='text'
+                  value={deletionConfirmName}
+                  onChange={(e) => setDeletionConfirmName(e.target.value)}
+                  placeholder={board.name}
+                  className='w-full p-3 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent'
+                  disabled={isDeletingBoard}
+                  autoFocus
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className='flex gap-3'>
+                <button
+                  onClick={() => {
+                    setShowBoardDeletionModal(false);
+                    setDeletionConfirmName('');
+                    setShowDeletionDetails(false);
+                  }}
+                  className='flex-1 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+                  disabled={isDeletingBoard}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={deleteBoard}
+                  disabled={
+                    isDeletingBoard || deletionConfirmName !== board.name
+                  }
+                  className='flex-1 px-4 py-2.5 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-600/50 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center gap-2'
+                >
+                  {isDeletingBoard ? (
+                    <>
+                      <Loader2 className='w-4 h-4 animate-spin' />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className='w-4 h-4' />
+                      Delete board permanently
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Progress indicator */}
+              {isDeletingBoard && (
+                <div className='p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg'>
+                  <div className='flex items-center gap-2 text-yellow-800 dark:text-yellow-200'>
+                    <Loader2 className='w-4 h-4 animate-spin' />
+                    <span className='text-sm font-medium'>
+                      Deleting board and all related data...
+                    </span>
+                  </div>
+                  <p className='text-xs text-yellow-700 dark:text-yellow-300 mt-1'>
+                    This may take a few moments. Please do not close this
+                    window.
+                  </p>
+                </div>
+              )}
+
+              {/* Deletion stats (if available) */}
+              {deletionStats && (
+                <div className='p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg'>
+                  <h5 className='font-medium text-green-800 dark:text-green-200 mb-2'>
+                    Deletion completed:
+                  </h5>
+                  <div className='grid grid-cols-2 gap-2 text-xs text-green-700 dark:text-green-300'>
+                    <div>Board: {deletionStats.board}</div>
+                    <div>Members: {deletionStats.members}</div>
+                    <div>Lists: {deletionStats.lists}</div>
+                    <div>Stars: {deletionStats.stars}</div>
+                    <div>Cards: {deletionStats.cards}</div>
+                    <div>Activities: {deletionStats.activities}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Success Toast */}
       {showSuccessToast && (
