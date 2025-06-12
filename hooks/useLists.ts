@@ -151,6 +151,40 @@ export const useLists = (boardId: string) => {
     [boardId]
   );
 
+  const deleteCard = useCallback(
+    async (cardId: string) => {
+      try {
+        // Optimistically remove from UI
+        const originalLists = lists;
+        setLists((prev) =>
+          prev.map((list) => ({
+            ...list,
+            cards: list.cards.filter((card) => card.id !== cardId),
+          }))
+        );
+
+        const response = await fetch(`/api/cards/${cardId}`, {
+          method: 'DELETE',
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to delete card');
+        }
+
+        return true;
+      } catch (err) {
+        console.error('Error deleting card:', err);
+        // Revert the optimistic update
+        setLists(originalLists);
+        setError(err instanceof Error ? err.message : 'Failed to delete card');
+        return false;
+      }
+    },
+    [lists]
+  );
+
   const updateListName = useCallback(
     async (listId: string, newName: string) => {
       if (!newName.trim()) return false;
@@ -271,6 +305,7 @@ export const useLists = (boardId: string) => {
     isCreating,
     createList,
     createCard,
+    deleteCard,
     updateListName,
     deleteList,
     archiveList,

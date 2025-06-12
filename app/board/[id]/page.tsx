@@ -616,6 +616,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     isCreating: isCreatingList,
     createList,
     createCard,
+    deleteCard,
     updateListName,
     archiveList,
     deleteList,
@@ -878,10 +879,23 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   };
 
   const handleDeleteTask = async (taskId: string): Promise<boolean> => {
-    console.log('Delete task:', taskId);
-    // TODO: Implement task deletion
-    showSuccess('Task deleted successfully');
-    return true;
+    // Find the task to get its title for the notification
+    let taskTitle = 'Task';
+    for (const list of lists) {
+      const task = list.cards.find((card) => card.id === taskId);
+      if (task) {
+        taskTitle = task.title;
+        break;
+      }
+    }
+
+    const success = await deleteCard(taskId);
+    if (success) {
+      showSuccess(`Card "${taskTitle}" deleted successfully`);
+    } else {
+      showError(`Failed to delete card "${taskTitle}"`);
+    }
+    return success;
   };
 
   const handleManageLabels = (taskId: string) => {
