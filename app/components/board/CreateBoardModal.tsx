@@ -71,6 +71,7 @@ export function CreateBoardModal({
   );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showWorkspaceDetails, setShowWorkspaceDetails] = useState(false);
   const colorPickerRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -92,6 +93,7 @@ export function CreateBoardModal({
       setDescription('');
       setSelectedColor(boardColors[0].value);
       setCustomColor('#3B82F6');
+      setShowWorkspaceDetails(false); // Reset details visibility
 
       // Set default workspace
       if (workspaceId) {
@@ -354,88 +356,117 @@ export function CreateBoardModal({
                 loading={workspacesLoading}
               />
 
-              {/* Workspace details for selected workspace */}
+              {/* Workspace details toggle and section */}
               {selectedWorkspaceId && !workspacesLoading && (
-                <div className='mt-2 p-3 bg-background/80 border border-border rounded-md'>
-                  {(() => {
-                    const selectedWorkspace = availableWorkspaces.find(
-                      (w) => w.id === selectedWorkspaceId
-                    );
-                    if (!selectedWorkspace) return null;
+                <div className='mt-2'>
+                  {/* Toggle button */}
+                  <button
+                    type='button'
+                    onClick={() =>
+                      setShowWorkspaceDetails(!showWorkspaceDetails)
+                    }
+                    className='flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors'
+                  >
+                    <Info className='w-3 h-3' />
+                    <span>
+                      {showWorkspaceDetails
+                        ? 'Hide details'
+                        : 'Show workspace details'}
+                    </span>
+                    <ChevronDown
+                      className={`w-3 h-3 transition-transform ${
+                        showWorkspaceDetails ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
 
-                    const colorStyle = getColorDisplay(selectedWorkspace.color);
+                  {/* Workspace details - only show when expanded */}
+                  {showWorkspaceDetails && (
+                    <div className='mt-2 p-3 bg-background/80 border border-border rounded-md'>
+                      {(() => {
+                        const selectedWorkspace = availableWorkspaces.find(
+                          (w) => w.id === selectedWorkspaceId
+                        );
+                        if (!selectedWorkspace) return null;
 
-                    return (
-                      <div className='space-y-2'>
-                        <div className='flex items-center gap-2'>
-                          <div
-                            className={`w-4 h-4 rounded-full ${
-                              colorStyle.className || ''
-                            }`}
-                            style={
-                              colorStyle.backgroundColor
-                                ? {
-                                    backgroundColor: colorStyle.backgroundColor,
-                                  }
-                                : {}
-                            }
-                          />
-                          <span className='text-sm font-medium text-foreground'>
-                            {selectedWorkspace.name}
-                          </span>
-                          <div className='flex items-center gap-1 ml-auto'>
-                            {getRoleIcon(selectedWorkspace)}
-                            <span className='text-xs text-muted-foreground'>
-                              {getRoleText(selectedWorkspace)}
-                            </span>
-                          </div>
-                        </div>
+                        const colorStyle = getColorDisplay(
+                          selectedWorkspace.color
+                        );
 
-                        {/* Show board creation permissions */}
-                        <div className='text-xs text-muted-foreground bg-background/60 border border-border/50 rounded p-2'>
-                          <div className='font-medium mb-1 text-foreground'>
-                            Board Creation Permissions:
-                          </div>
-                          <div className='space-y-1'>
+                        return (
+                          <div className='space-y-2'>
                             <div className='flex items-center gap-2'>
                               <div
-                                className={`w-2 h-2 rounded-full ${
-                                  selectedWorkspace.boardCreationInfo
-                                    .canCreateWorkspaceVisible
-                                    ? 'bg-green-500'
-                                    : 'bg-red-500'
+                                className={`w-4 h-4 rounded-full ${
+                                  colorStyle.className || ''
                                 }`}
+                                style={
+                                  colorStyle.backgroundColor
+                                    ? {
+                                        backgroundColor:
+                                          colorStyle.backgroundColor,
+                                      }
+                                    : {}
+                                }
                               />
-                              <span>
-                                Workspace boards:{' '}
-                                {selectedWorkspace.boardCreationInfo
-                                  .canCreateWorkspaceVisible
-                                  ? 'Allowed'
-                                  : 'Not allowed'}
+                              <span className='text-sm font-medium text-foreground'>
+                                {selectedWorkspace.name}
                               </span>
+                              <div className='flex items-center gap-1 ml-auto'>
+                                {getRoleIcon(selectedWorkspace)}
+                                <span className='text-xs text-muted-foreground'>
+                                  {getRoleText(selectedWorkspace)}
+                                </span>
+                              </div>
                             </div>
-                            <div className='flex items-center gap-2'>
-                              <div
-                                className={`w-2 h-2 rounded-full ${
-                                  selectedWorkspace.boardCreationInfo
-                                    .canCreatePrivate
-                                    ? 'bg-green-500'
-                                    : 'bg-red-500'
-                                }`}
-                              />
-                              <span>
-                                Private boards:{' '}
-                                {selectedWorkspace.boardCreationInfo
-                                  .canCreatePrivate
-                                  ? 'Allowed'
-                                  : 'Not allowed'}
-                              </span>
+
+                            {/* Show board creation permissions */}
+                            <div className='text-xs text-muted-foreground bg-background/60 border border-border/50 rounded p-2'>
+                              <div className='font-medium mb-1 text-foreground'>
+                                Board Creation Permissions:
+                              </div>
+                              <div className='space-y-1'>
+                                <div className='flex items-center gap-2'>
+                                  <div
+                                    className={`w-2 h-2 rounded-full ${
+                                      selectedWorkspace.boardCreationInfo
+                                        .canCreateWorkspaceVisible
+                                        ? 'bg-green-500'
+                                        : 'bg-red-500'
+                                    }`}
+                                  />
+                                  <span>
+                                    Workspace boards:{' '}
+                                    {selectedWorkspace.boardCreationInfo
+                                      .canCreateWorkspaceVisible
+                                      ? 'Allowed'
+                                      : 'Not allowed'}
+                                  </span>
+                                </div>
+                                <div className='flex items-center gap-2'>
+                                  <div
+                                    className={`w-2 h-2 rounded-full ${
+                                      selectedWorkspace.boardCreationInfo
+                                        .canCreatePrivate
+                                        ? 'bg-green-500'
+                                        : 'bg-red-500'
+                                    }`}
+                                  />
+                                  <span>
+                                    Private boards:{' '}
+                                    {selectedWorkspace.boardCreationInfo
+                                      .canCreatePrivate
+                                      ? 'Allowed'
+                                      : 'Not allowed'}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
