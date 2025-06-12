@@ -1163,9 +1163,13 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 >
                   {board.workspace.name.charAt(0).toUpperCase()}
                 </div>
-                <span className='text-sm text-muted-foreground'>
+                <Link
+                  href={`/boards/${board.workspace.id}`}
+                  className='text-sm text-muted-foreground hover:text-primary transition-colors cursor-pointer'
+                  title={`Go to ${board.workspace.name} workspace`}
+                >
                   {board.workspace.name}
-                </span>
+                </Link>
               </div>
 
               <span className='text-muted-foreground'>/</span>

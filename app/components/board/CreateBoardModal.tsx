@@ -66,9 +66,10 @@ export function CreateBoardModal({
   // Determine if we're creating from workspace page
   const isFromWorkspacePage = !!workspaceId;
 
-  // Reset form values when modal opens
+  // Reset form values when modal opens (only when modal actually opens)
   useEffect(() => {
     if (isOpen) {
+      // Form reset on modal open
       setName('');
       setDescription('');
       setSelectedColor(boardColors[0].value);
@@ -76,21 +77,48 @@ export function CreateBoardModal({
       setSelectedWorkspaceId(workspaceId || userWorkspaces[0]?.id || '');
       setError(null);
     }
-  }, [isOpen, workspaceId, userWorkspaces]);
+  }, [isOpen]); // Removed userWorkspaces and workspaceId from dependencies to prevent unnecessary resets
 
-  // Handle Escape key to close modal
+  // Update workspace ID when workspaceId prop changes (but don't reset entire form)
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+    if (isOpen && workspaceId) {
+      setSelectedWorkspaceId(workspaceId);
+    }
+  }, [workspaceId, isOpen]);
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyboard = (e: KeyboardEvent) => {
+      if (!isOpen) return;
+
+      // ESC to close modal
+      if (e.key === 'Escape') {
         onClose();
+      }
+
+      // Ctrl+Enter to save/submit form
+      if (e.key === 'Enter' && e.ctrlKey) {
+        e.preventDefault();
+        if (name.trim() && selectedWorkspaceId) {
+          // Create a synthetic form event to trigger handleSubmit
+          const syntheticEvent = new Event('submit', {
+            bubbles: true,
+            cancelable: true,
+          });
+          Object.defineProperty(syntheticEvent, 'preventDefault', {
+            value: () => e.preventDefault(),
+            writable: false,
+          });
+          handleSubmit(syntheticEvent as any);
+        }
       }
     };
 
     if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      return () => document.removeEventListener('keydown', handleEscape);
+      document.addEventListener('keydown', handleKeyboard);
+      return () => document.removeEventListener('keydown', handleKeyboard);
     }
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, name, selectedWorkspaceId]);
 
   if (!isOpen) return null;
 
@@ -204,10 +232,16 @@ export function CreateBoardModal({
               type='text'
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className='w-full p-2 bg-input border border-border rounded-md text-foreground'
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault(); // Prevent form submission on Enter
+                }
+              }}
+              className='w-full p-3 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent'
               placeholder='My Board'
               disabled={isLoading}
               autoFocus
+              style={{ backgroundColor: 'var(--background)' }}
             />
           </div>
 
@@ -223,10 +257,16 @@ export function CreateBoardModal({
               id='board-description'
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className='w-full p-2 bg-input border border-border rounded-md text-foreground resize-none'
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault(); // Prevent form submission on Enter (allow Shift+Enter for new lines)
+                }
+              }}
+              className='w-full p-3 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none'
               placeholder='What is this board about?'
               rows={3}
               disabled={isLoading}
+              style={{ backgroundColor: 'var(--background)' }}
             />
           </div>
 
@@ -243,8 +283,9 @@ export function CreateBoardModal({
                 id='board-workspace'
                 value={selectedWorkspaceId}
                 onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-                className='w-full p-2 bg-input border border-border rounded-md text-foreground'
+                className='w-full p-3 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent'
                 disabled={isLoading}
+                style={{ backgroundColor: 'var(--background)' }}
               >
                 <option value=''>Select a workspace</option>
                 {userWorkspaces.map((workspace) => (
@@ -361,7 +402,9 @@ export function CreateBoardModal({
 
           {/* Form Actions */}
           <div className='flex justify-between items-center pt-2'>
-            <p className='text-xs text-muted-foreground'>Press Esc to cancel</p>
+            <p className='text-xs text-muted-foreground'>
+              Press Esc to cancel • Ctrl+Enter to save
+            </p>
             <div className='flex space-x-2'>
               <button
                 type='button'

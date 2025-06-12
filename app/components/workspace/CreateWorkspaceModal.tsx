@@ -43,19 +43,39 @@ export function CreateWorkspaceModal({
     }
   }, [isOpen]);
 
-  // Handle Escape key to close modal
+  // Handle keyboard shortcuts
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+    const handleKeyboard = (e: KeyboardEvent) => {
+      if (!isOpen) return;
+
+      // ESC to close modal
+      if (e.key === 'Escape') {
         onClose();
+      }
+
+      // Ctrl+Enter to save/submit form
+      if (e.key === 'Enter' && e.ctrlKey) {
+        e.preventDefault();
+        if (name.trim()) {
+          // Create a synthetic form event to trigger handleSubmit
+          const syntheticEvent = new Event('submit', {
+            bubbles: true,
+            cancelable: true,
+          });
+          Object.defineProperty(syntheticEvent, 'preventDefault', {
+            value: () => e.preventDefault(),
+            writable: false,
+          });
+          handleSubmit(syntheticEvent as any);
+        }
       }
     };
 
     if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      return () => document.removeEventListener('keydown', handleEscape);
+      document.addEventListener('keydown', handleKeyboard);
+      return () => document.removeEventListener('keydown', handleKeyboard);
     }
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, name]);
 
   if (!isOpen) return null;
 
@@ -203,10 +223,16 @@ export function CreateWorkspaceModal({
               type='text'
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className='w-full p-2 bg-input border border-border rounded-md text-foreground'
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.ctrlKey) {
+                  e.preventDefault(); // Prevent form submission on Enter
+                }
+              }}
+              className='w-full p-3 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent'
               placeholder='My Workspace'
               disabled={isLoading}
               autoFocus
+              style={{ backgroundColor: 'var(--background)' }}
             />
           </div>
 
@@ -222,10 +248,16 @@ export function CreateWorkspaceModal({
               id='workspace-description'
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className='w-full p-2 bg-input border border-border rounded-md text-foreground resize-none'
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+                  e.preventDefault(); // Prevent form submission on Enter (allow Shift+Enter for new lines)
+                }
+              }}
+              className='w-full p-3 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none'
               placeholder='What is this workspace about?'
               rows={3}
               disabled={isLoading}
+              style={{ backgroundColor: 'var(--background)' }}
             />
           </div>
 
@@ -302,7 +334,9 @@ export function CreateWorkspaceModal({
           </div>
 
           <div className='flex justify-between items-center'>
-            <p className='text-xs text-muted-foreground'>Press Esc to cancel</p>
+            <p className='text-xs text-muted-foreground'>
+              Press Esc to cancel • Ctrl+Enter to save
+            </p>
             <div className='flex space-x-2'>
               <button
                 type='button'
