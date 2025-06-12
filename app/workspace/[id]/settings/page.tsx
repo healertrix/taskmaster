@@ -14,16 +14,17 @@ import {
   Trash2,
   Share2,
   AlertCircle,
-  Info,
   Crown,
   Shield,
   User,
   ChevronRight,
+  ChevronDown,
   X,
   Loader2,
   Palette,
   Check,
   CheckCircle2,
+  FileText,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -90,12 +91,20 @@ export default function WorkspaceSettingsPage() {
   const [showDeletionModal, setShowDeletionModal] = useState(false);
   const [showSharingModal, setShowSharingModal] = useState(false);
   const [showWorkspaceEditModal, setShowWorkspaceEditModal] = useState(false);
+  const [showWorkspaceDeletionModal, setShowWorkspaceDeletionModal] =
+    useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Board restriction modal states
   const [currentBoardType, setCurrentBoardType] = useState<
     'public_boards' | 'workspace_visible_boards' | 'private_boards' | null
   >(null);
+
+  // Workspace deletion states
+  const [deletionConfirmName, setDeletionConfirmName] = useState('');
+  const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
+  const [deletionStats, setDeletionStats] = useState<any>(null);
+  const [showDeletionDetails, setShowDeletionDetails] = useState(false);
 
   // Notification states
   const [showSuccessToast, setShowSuccessToast] = useState(false);
@@ -112,6 +121,24 @@ export default function WorkspaceSettingsPage() {
   const [customColor, setCustomColor] = useState('#3B82F6');
   const [editField, setEditField] = useState<'name' | 'color' | null>(null);
   const colorPickerRef = useRef<HTMLInputElement>(null);
+
+  // Handle escape key for delete modal
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (showWorkspaceDeletionModal && !isDeletingWorkspace) {
+          setShowWorkspaceDeletionModal(false);
+          setDeletionConfirmName('');
+          setShowDeletionDetails(false);
+        }
+      }
+    };
+
+    if (showWorkspaceDeletionModal) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [showWorkspaceDeletionModal, isDeletingWorkspace]);
 
   // Notification helper functions
   const showSuccess = (message: string) => {
@@ -575,6 +602,49 @@ export default function WorkspaceSettingsPage() {
       </main>
     </div>
   );
+
+  // Add new function for workspace deletion
+  const deleteWorkspace = async () => {
+    if (!workspace || deletionConfirmName !== workspace.name) {
+      showError('Please type the workspace name exactly to confirm deletion');
+      return;
+    }
+
+    setIsDeletingWorkspace(true);
+
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}/delete`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          workspaceName: workspace.name,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete workspace');
+      }
+
+      setDeletionStats(data.deletionStats);
+      showSuccess('Workspace deleted successfully');
+
+      // Redirect to home page after a short delay
+      setTimeout(() => {
+        router.push('/');
+      }, 2000);
+    } catch (error) {
+      console.error('Error deleting workspace:', error);
+      showError(
+        error instanceof Error ? error.message : 'Failed to delete workspace'
+      );
+    } finally {
+      setIsDeletingWorkspace(false);
+    }
+  };
 
   if (isLoading) {
     return <PageLoadingSkeleton />;
@@ -1195,6 +1265,81 @@ export default function WorkspaceSettingsPage() {
               )}
             </button>
           </div>
+
+          {/* Danger Zone - Workspace Deletion */}
+          {userRole === 'owner' && (
+            <div className='card p-6 border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10'>
+              <h2 className='text-lg font-semibold mb-6 text-red-700 dark:text-red-400'>
+                Danger Zone
+              </h2>
+
+              <div className='flex items-start gap-3'>
+                <AlertCircle className='w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0' />
+                <div className='flex-1'>
+                  <div className='flex items-center gap-2 mb-2'>
+                    <h3 className='font-medium text-red-800 dark:text-red-200'>
+                      Delete this workspace
+                    </h3>
+                    <button
+                      onClick={() =>
+                        setShowDeletionDetails(!showDeletionDetails)
+                      }
+                      className='p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-all duration-200'
+                      title={
+                        showDeletionDetails
+                          ? 'Hide details'
+                          : 'Show what will be deleted'
+                      }
+                    >
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          showDeletionDetails ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  <p className='text-sm text-red-700 dark:text-red-300 mb-4'>
+                    Once you delete a workspace, there is no going back. This
+                    action cannot be undone.
+                  </p>
+
+                  {showDeletionDetails && (
+                    <div className='mb-4 animate-in slide-in-from-top-1 fade-in duration-200'>
+                      <ul className='text-sm text-red-700 dark:text-red-300 space-y-1 pl-4 border-l-2 border-red-300 dark:border-red-700'>
+                        <li>
+                          • All boards in this workspace will be permanently
+                          deleted
+                        </li>
+                        <li>
+                          • All lists, cards, and comments will be lost forever
+                        </li>
+                        <li>• All workspace members will lose access</li>
+                        <li>
+                          • All workspace settings and permissions will be
+                          removed
+                        </li>
+                        <li>
+                          • All activity history will be permanently deleted
+                        </li>
+                      </ul>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setDeletionConfirmName('');
+                      setShowDeletionDetails(false);
+                      setShowWorkspaceDeletionModal(true);
+                    }}
+                    className='px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2'
+                  >
+                    <Trash2 className='w-4 h-4' />
+                    Delete workspace
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
@@ -1650,6 +1795,145 @@ export default function WorkspaceSettingsPage() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Workspace Deletion Confirmation Modal */}
+      {showWorkspaceDeletionModal && workspace && (
+        <div className='fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6'>
+          <div className='bg-card rounded-lg shadow-xl max-w-lg w-full p-6 border border-red-200 dark:border-red-800'>
+            <div className='flex items-center gap-3 mb-6'>
+              <div className='w-12 h-12 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center'>
+                <Trash2 className='w-6 h-6 text-red-600 dark:text-red-400' />
+              </div>
+              <div>
+                <h3 className='text-xl font-bold text-foreground'>
+                  Delete Workspace
+                </h3>
+                <p className='text-sm text-muted-foreground'>
+                  This action cannot be undone
+                </p>
+              </div>
+            </div>
+
+            <div className='space-y-6'>
+              {/* Consequences */}
+              <div className='p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg'>
+                <h4 className='font-semibold text-red-800 dark:text-red-200 mb-3 flex items-center gap-2'>
+                  <AlertCircle className='w-4 h-4' />
+                  What will be deleted:
+                </h4>
+                <ul className='text-sm text-red-700 dark:text-red-300 space-y-2'>
+                  <li className='flex items-center gap-2'>
+                    <Trash2 className='w-3 h-3' />
+                    The workspace "{workspace.name}" and all its settings
+                  </li>
+                  <li className='flex items-center gap-2'>
+                    <LayoutGrid className='w-3 h-3' />
+                    All boards, lists, and cards in this workspace
+                  </li>
+                  <li className='flex items-center gap-2'>
+                    <Users className='w-3 h-3' />
+                    All member access and permissions
+                  </li>
+                  <li className='flex items-center gap-2'>
+                    <FileText className='w-3 h-3' />
+                    All comments, attachments, and activity history
+                  </li>
+                </ul>
+              </div>
+
+              {/* Confirmation Input */}
+              <div>
+                <label className='block text-sm font-medium text-foreground mb-2'>
+                  Type the workspace name{' '}
+                  <span className='font-bold text-red-600'>
+                    "{workspace.name}"
+                  </span>{' '}
+                  to confirm:
+                </label>
+                <input
+                  type='text'
+                  value={deletionConfirmName}
+                  onChange={(e) => setDeletionConfirmName(e.target.value)}
+                  placeholder={workspace.name}
+                  className='w-full p-3 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent'
+                  disabled={isDeletingWorkspace}
+                  autoFocus
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className='flex gap-3'>
+                <button
+                  onClick={() => {
+                    setShowWorkspaceDeletionModal(false);
+                    setDeletionConfirmName('');
+                    setShowDeletionDetails(false);
+                  }}
+                  className='flex-1 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+                  disabled={isDeletingWorkspace}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={deleteWorkspace}
+                  disabled={
+                    isDeletingWorkspace ||
+                    deletionConfirmName !== workspace.name
+                  }
+                  className='flex-1 px-4 py-2.5 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-600/50 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center gap-2'
+                >
+                  {isDeletingWorkspace ? (
+                    <>
+                      <Loader2 className='w-4 h-4 animate-spin' />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className='w-4 h-4' />
+                      Delete workspace permanently
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Progress indicator */}
+              {isDeletingWorkspace && (
+                <div className='p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg'>
+                  <div className='flex items-center gap-2 text-yellow-800 dark:text-yellow-200'>
+                    <Loader2 className='w-4 h-4 animate-spin' />
+                    <span className='text-sm font-medium'>
+                      Deleting workspace and all related data...
+                    </span>
+                  </div>
+                  <p className='text-xs text-yellow-700 dark:text-yellow-300 mt-1'>
+                    This may take a few moments. Please do not close this
+                    window.
+                  </p>
+                </div>
+              )}
+
+              {/* Deletion stats (if available) */}
+              {deletionStats && (
+                <div className='p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg'>
+                  <h5 className='font-medium text-green-800 dark:text-green-200 mb-2'>
+                    Deletion completed:
+                  </h5>
+                  <div className='grid grid-cols-2 gap-2 text-xs text-green-700 dark:text-green-300'>
+                    <div>Workspace: {deletionStats.workspace}</div>
+                    <div>Members: {deletionStats.members}</div>
+                    <div>Boards: {deletionStats.boards}</div>
+                    <div>Settings: {deletionStats.settings}</div>
+                    <div>Lists: {deletionStats.lists}</div>
+                    <div>Invitations: {deletionStats.invitations}</div>
+                    <div>Cards: {deletionStats.cards}</div>
+                    <div>Activities: {deletionStats.activities}</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
