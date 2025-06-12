@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Loader2, Plus, Palette } from 'lucide-react';
+import { X, Loader2, Plus, Palette, Info } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 
 // Reduced list of predefined workspace colors - just 5 basic colors
@@ -333,29 +333,59 @@ export function CreateWorkspaceModal({
             )}
           </div>
 
-          <div className='flex justify-between items-center'>
-            <p className='text-xs text-muted-foreground'>
-              Press Esc to cancel • Ctrl+Enter to save
-            </p>
-            <div className='flex space-x-2'>
+          {/* Form Actions */}
+          <div className='flex justify-between items-center pt-2'>
+            <div className='relative group'>
+              <button
+                type='button'
+                className='w-6 h-6 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-all duration-200'
+                aria-label='Keyboard shortcuts'
+              >
+                <Info className='w-3.5 h-3.5' />
+              </button>
+              {/* Tooltip */}
+              <div className='absolute bottom-full left-0 mb-2 hidden group-hover:block z-10'>
+                <div className='bg-popover text-popover-foreground text-xs rounded-lg shadow-lg p-2 border border-border whitespace-nowrap'>
+                  <div className='space-y-1'>
+                    <div>
+                      <kbd className='px-1 py-0.5 bg-muted border border-border rounded text-[10px]'>
+                        Esc
+                      </kbd>{' '}
+                      Cancel
+                    </div>
+                    <div>
+                      <kbd className='px-1 py-0.5 bg-muted border border-border rounded text-[10px]'>
+                        Ctrl
+                      </kbd>
+                      +
+                      <kbd className='px-1 py-0.5 bg-muted border border-border rounded text-[10px]'>
+                        Enter
+                      </kbd>{' '}
+                      Save
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className='flex space-x-3'>
               <button
                 type='button'
                 onClick={onClose}
-                className='btn btn-ghost px-4 py-2'
+                className='px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background'
                 disabled={isLoading}
               >
                 Cancel
               </button>
               <button
                 type='submit'
-                className='btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center'
-                disabled={isLoading}
+                className='px-6 py-2.5 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-sm hover:shadow-md'
+                disabled={isLoading || !name.trim()}
               >
                 {isLoading ? (
-                  <>
-                    <Loader2 className='w-4 h-4 mr-2 animate-spin' />
-                    Creating...
-                  </>
+                  <div className='flex items-center gap-2'>
+                    <Loader2 className='w-4 h-4 animate-spin' />
+                    <span>Creating...</span>
+                  </div>
                 ) : (
                   'Create Workspace'
                 )}
