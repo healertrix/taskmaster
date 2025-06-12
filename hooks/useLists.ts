@@ -102,6 +102,55 @@ export const useLists = (boardId: string) => {
     [boardId]
   );
 
+  const createCard = useCallback(
+    async (listId: string, title: string) => {
+      if (!boardId || !listId || !title.trim()) return null;
+
+      try {
+        setError(null);
+
+        const response = await fetch('/api/cards', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: title.trim(),
+            list_id: listId,
+            board_id: boardId,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to create card');
+        }
+
+        // Add the new card to the appropriate list
+        const newCard = {
+          ...data.card,
+          profiles: data.card.profiles || null,
+        };
+
+        setLists((prev) =>
+          prev.map((list) =>
+            list.id === listId
+              ? { ...list, cards: [...list.cards, newCard] }
+              : list
+          )
+        );
+
+        return newCard;
+      } catch (err) {
+        console.error('Error creating card:', err);
+        setError(err instanceof Error ? err.message : 'Failed to create card');
+        return null;
+      }
+    },
+    [boardId]
+  );
+
   const updateListName = useCallback(
     async (listId: string, newName: string) => {
       if (!newName.trim()) return false;
@@ -221,6 +270,7 @@ export const useLists = (boardId: string) => {
     error,
     isCreating,
     createList,
+    createCard,
     updateListName,
     deleteList,
     archiveList,

@@ -601,6 +601,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     error: listsError,
     isCreating: isCreatingList,
     createList,
+    createCard,
     updateListName,
     archiveList,
     deleteList,
@@ -831,17 +832,38 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     columnId: string,
     cardTitle: string
   ): Promise<boolean> => {
-    console.log('Add card to column:', columnId, 'with title:', cardTitle);
+    if (!cardTitle.trim()) return false;
 
     try {
-      // Create a new task with a unique ID
+      console.log('Creating card in list:', columnId, 'with title:', cardTitle);
+
+      // Use the hook's createCard function to save to database
+      const newCard = await createCard(columnId, cardTitle.trim());
+
+      if (!newCard) {
+        showError('Failed to create card');
+        return false;
+      }
+
+      // Convert the database card to the UI Task format and update columns state
       const newTask: Task = {
-        id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        title: cardTitle,
-        labels: [],
-        assignees: [],
-        attachments: 0,
-        comments: 0,
+        id: newCard.id,
+        title: newCard.title,
+        labels: [], // TODO: Add labels support when available
+        assignees: newCard.profiles
+          ? [
+              {
+                initials: newCard.profiles.full_name
+                  .split(' ')
+                  .map((n) => n[0])
+                  .join('')
+                  .toUpperCase(),
+                color: 'bg-blue-500',
+              },
+            ]
+          : [],
+        attachments: 0, // TODO: Add attachments support when available
+        comments: 0, // TODO: Add comments support when available
       };
 
       // Update the columns state to add the new task
