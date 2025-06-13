@@ -215,6 +215,8 @@ export function CardModal({
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [shouldCloseAfterSubmit, setShouldCloseAfterSubmit] = useState(false);
   const [savingCommentId, setSavingCommentId] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'comments' | 'activities'>(
     'comments'
   );
@@ -545,15 +547,19 @@ export function CardModal({
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (!confirm('Delete this comment?')) {
-      return;
-    }
+    setCommentToDelete(commentId);
+    setShowDeleteModal(true);
+  };
 
-    setDeletingCommentId(commentId);
+  const confirmDeleteComment = async () => {
+    if (!commentToDelete) return;
+
+    setDeletingCommentId(commentToDelete);
+    setShowDeleteModal(false);
 
     try {
       const response = await fetch(
-        `/api/cards/${card?.id}/comments/${commentId}`,
+        `/api/cards/${card?.id}/comments/${commentToDelete}`,
         {
           method: 'DELETE',
         }
@@ -561,7 +567,7 @@ export function CardModal({
 
       if (response.ok) {
         setComments((prev) =>
-          prev.filter((comment) => comment.id !== commentId)
+          prev.filter((comment) => comment.id !== commentToDelete)
         );
         // Refresh activities to reflect the deletion
         fetchActivities();
@@ -574,7 +580,13 @@ export function CardModal({
       alert('Failed to delete comment. Please try again.');
     } finally {
       setDeletingCommentId(null);
+      setCommentToDelete(null);
     }
+  };
+
+  const cancelDeleteComment = () => {
+    setShowDeleteModal(false);
+    setCommentToDelete(null);
   };
 
   const getActivityIcon = (actionType: string) => {
@@ -1228,6 +1240,60 @@ export function CardModal({
                 >
                   Delete
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Comment Confirmation Modal */}
+        {showDeleteModal && (
+          <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4'>
+            <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full'>
+              <div className='p-6'>
+                <div className='flex items-center gap-3 mb-4'>
+                  <div className='w-10 h-10 bg-red-100 rounded-full flex items-center justify-center'>
+                    <Trash2 className='w-5 h-5 text-red-600' />
+                  </div>
+                  <div>
+                    <h3 className='text-lg font-semibold text-foreground'>
+                      Delete Comment
+                    </h3>
+                    <p className='text-sm text-muted-foreground'>
+                      This action cannot be undone
+                    </p>
+                  </div>
+                </div>
+
+                <p className='text-sm text-foreground mb-6'>
+                  Are you sure you want to delete this comment? This will
+                  permanently remove the comment from the card.
+                </p>
+
+                <div className='flex gap-3 justify-end'>
+                  <button
+                    onClick={cancelDeleteComment}
+                    className='px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors'
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDeleteComment}
+                    disabled={deletingCommentId !== null}
+                    className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
+                  >
+                    {deletingCommentId ? (
+                      <>
+                        <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className='w-4 h-4' />
+                        Delete Comment
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
