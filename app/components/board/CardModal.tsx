@@ -39,6 +39,7 @@ import {
   SortDesc,
   Filter,
   Settings,
+  Check,
 } from 'lucide-react';
 
 interface Card {
@@ -251,6 +252,14 @@ export function CardModal({
   // Actions dropdown state
   const [isActionsDropdownOpen, setIsActionsDropdownOpen] = useState(false);
   const [isAddToCardDropdownOpen, setIsAddToCardDropdownOpen] = useState(false);
+
+  // Date picker state
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedStartDate, setSelectedStartDate] = useState(
+    card.start_date || ''
+  );
+  const [selectedDueDate, setSelectedDueDate] = useState(card.due_date || '');
+  const [isSavingDates, setIsSavingDates] = useState(false);
 
   // Reset form when card changes
   useEffect(() => {
@@ -731,6 +740,47 @@ export function CardModal({
     setCommentSortOrder('newest');
   };
 
+  // Date handling functions
+  const handleSaveDates = async () => {
+    if (!onUpdateCard) return;
+
+    setIsSavingDates(true);
+    try {
+      const updates = {
+        start_date: selectedStartDate || null,
+        due_date: selectedDueDate || null,
+      };
+
+      const success = await onUpdateCard(card.id, updates);
+      if (success) {
+        setShowDatePicker(false);
+        setIsAddToCardDropdownOpen(false);
+      } else {
+        alert('Failed to update dates. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error updating dates:', error);
+      alert('Failed to update dates. Please try again.');
+    } finally {
+      setIsSavingDates(false);
+    }
+  };
+
+  const handleClearDates = async () => {
+    setSelectedStartDate('');
+    setSelectedDueDate('');
+    await handleSaveDates();
+  };
+
+  const formatDateForInput = (dateString: string) => {
+    if (!dateString) return '';
+    return new Date(dateString).toISOString().split('T')[0];
+  };
+
+  const getTodayDate = () => {
+    return new Date().toISOString().split('T')[0];
+  };
+
   const getActivityIcon = (actionType: string) => {
     switch (actionType) {
       case 'comment_added':
@@ -879,31 +929,90 @@ export function CardModal({
 
             {/* Additional Card Information */}
             <div className='mt-8'>
-              {/* Due Date (if exists) */}
-              {card.due_date && (
+              {/* Card Dates Section */}
+              {(card.start_date || card.due_date) && (
                 <div className='mb-6'>
-                  <div className='flex items-center gap-2 mb-3'>
-                    <Clock className='w-5 h-5 text-muted-foreground' />
+                  <div className='flex items-center gap-2 mb-4'>
+                    <Calendar className='w-5 h-5 text-muted-foreground' />
                     <h3 className='text-base font-medium text-foreground'>
-                      Due Date
+                      Timeline
                     </h3>
                   </div>
-                  <div
-                    className={`px-4 py-3 rounded-lg text-sm border ${
-                      card.due_status === 'complete'
-                        ? 'bg-green-50 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800'
-                        : card.due_status === 'overdue'
-                        ? 'bg-red-50 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800'
-                        : 'bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800'
-                    }`}
-                  >
-                    <div className='flex items-center gap-2'>
-                      <Clock className='w-4 h-4' />
-                      {formatDate(card.due_date)}
-                    </div>
-                    {card.due_status && (
-                      <div className='text-xs mt-1 capitalize'>
-                        {card.due_status.replace('_', ' ')}
+
+                  <div className='space-y-3'>
+                    {/* Start Date */}
+                    {card.start_date && (
+                      <div className='flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl dark:bg-green-900/20 dark:border-green-800'>
+                        <div className='w-8 h-8 bg-green-100 text-green-600 rounded-lg flex items-center justify-center dark:bg-green-900/40 dark:text-green-400'>
+                          <Calendar className='w-4 h-4' />
+                        </div>
+                        <div className='flex-1'>
+                          <div className='text-sm font-medium text-green-800 dark:text-green-200'>
+                            Start Date
+                          </div>
+                          <div className='text-sm text-green-600 dark:text-green-400 font-mono'>
+                            {formatDate(card.start_date)}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Due Date */}
+                    {card.due_date && (
+                      <div
+                        className={`flex items-center gap-3 p-3 rounded-xl border ${
+                          card.due_status === 'complete'
+                            ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800'
+                            : card.due_status === 'overdue'
+                            ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
+                            : 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800'
+                        }`}
+                      >
+                        <div
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                            card.due_status === 'complete'
+                              ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400'
+                              : card.due_status === 'overdue'
+                              ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400'
+                              : 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400'
+                          }`}
+                        >
+                          <Clock className='w-4 h-4' />
+                        </div>
+                        <div className='flex-1'>
+                          <div
+                            className={`text-sm font-medium ${
+                              card.due_status === 'complete'
+                                ? 'text-emerald-800 dark:text-emerald-200'
+                                : card.due_status === 'overdue'
+                                ? 'text-red-800 dark:text-red-200'
+                                : 'text-amber-800 dark:text-amber-200'
+                            }`}
+                          >
+                            Due Date
+                            {card.due_status && (
+                              <span className='ml-2 text-xs px-2 py-0.5 rounded-full bg-white/50 dark:bg-black/20 capitalize'>
+                                {card.due_status.replace('_', ' ')}
+                              </span>
+                            )}
+                          </div>
+                          <div
+                            className={`text-sm font-mono ${
+                              card.due_status === 'complete'
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : card.due_status === 'overdue'
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-amber-600 dark:text-amber-400'
+                            }`}
+                          >
+                            {formatDate(card.due_date)}
+                          </div>
+                        </div>
+                        {card.due_status === 'complete' && (
+                          <div className='w-6 h-6 bg-emerald-500 text-white rounded-full flex items-center justify-center'>
+                            <Check className='w-3 h-3' />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -970,7 +1079,13 @@ export function CardModal({
                             <CheckSquare className='w-4 h-4 text-muted-foreground' />
                             Checklist
                           </button>
-                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                          <button
+                            onClick={() => {
+                              setShowDatePicker(true);
+                              setIsAddToCardDropdownOpen(false);
+                            }}
+                            className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'
+                          >
                             <Calendar className='w-4 h-4 text-muted-foreground' />
                             Dates
                           </button>
@@ -1075,6 +1190,249 @@ export function CardModal({
                 )}
               </div>
             </div>
+
+            {/* Date Picker Modal */}
+            {showDatePicker && (
+              <>
+                {/* Backdrop */}
+                <div
+                  className='fixed inset-0 z-30'
+                  onClick={() => setShowDatePicker(false)}
+                />
+
+                {/* Beautiful Date Picker Modal */}
+                <div className='fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40 w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'>
+                  {/* Gradient Header */}
+                  <div className='bg-gradient-to-r from-primary to-primary/80 px-6 py-4'>
+                    <div className='flex items-center justify-between text-white'>
+                      <div className='flex items-center gap-3'>
+                        <div className='w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center'>
+                          <Calendar className='w-5 h-5' />
+                        </div>
+                        <div>
+                          <h3 className='text-xl font-semibold'>
+                            Set Card Dates
+                          </h3>
+                          <p className='text-white/80 text-sm'>
+                            Schedule your card timeline
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowDatePicker(false)}
+                        className='p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200'
+                        title='Close date picker'
+                        aria-label='Close date picker'
+                      >
+                        <X className='w-5 h-5' />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className='p-6 space-y-6'>
+                    {/* Date Inputs */}
+                    <div className='space-y-5'>
+                      {/* Start Date */}
+                      <div className='group'>
+                        <label className='flex items-center gap-2 text-sm font-semibold text-foreground mb-3'>
+                          <div className='w-6 h-6 bg-green-100 text-green-600 rounded-lg flex items-center justify-center dark:bg-green-900/30 dark:text-green-400'>
+                            <Calendar className='w-3 h-3' />
+                          </div>
+                          Start Date
+                          <span className='text-xs text-muted-foreground font-normal'>
+                            (Optional)
+                          </span>
+                        </label>
+                        <div className='relative'>
+                          <input
+                            type='date'
+                            value={formatDateForInput(selectedStartDate)}
+                            onChange={(e) =>
+                              setSelectedStartDate(e.target.value)
+                            }
+                            className='w-full px-4 py-3 border-2 border-border rounded-xl text-sm bg-background focus:outline-none focus:ring-4 focus:ring-green-500/10 focus:border-green-500 transition-all duration-200 hover:border-green-300'
+                            disabled={isSavingDates}
+                            aria-label='Select start date'
+                            title='Select start date'
+                          />
+                          {selectedStartDate && (
+                            <button
+                              onClick={() => setSelectedStartDate('')}
+                              className='absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors'
+                              title='Clear start date'
+                            >
+                              <X className='w-4 h-4' />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Due Date */}
+                      <div className='group'>
+                        <label className='flex items-center gap-2 text-sm font-semibold text-foreground mb-3'>
+                          <div className='w-6 h-6 bg-red-100 text-red-600 rounded-lg flex items-center justify-center dark:bg-red-900/30 dark:text-red-400'>
+                            <Clock className='w-3 h-3' />
+                          </div>
+                          Due Date
+                          <span className='text-xs text-red-500 font-normal'>
+                            *Required
+                          </span>
+                        </label>
+                        <div className='relative'>
+                          <input
+                            type='date'
+                            value={formatDateForInput(selectedDueDate)}
+                            onChange={(e) => setSelectedDueDate(e.target.value)}
+                            min={selectedStartDate || getTodayDate()}
+                            className='w-full px-4 py-3 border-2 border-border rounded-xl text-sm bg-background focus:outline-none focus:ring-4 focus:ring-red-500/10 focus:border-red-500 transition-all duration-200 hover:border-red-300'
+                            disabled={isSavingDates}
+                            aria-label='Select due date'
+                            title='Select due date'
+                          />
+                          {selectedDueDate && (
+                            <button
+                              onClick={() => setSelectedDueDate('')}
+                              className='absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors'
+                              title='Clear due date'
+                            >
+                              <X className='w-4 h-4' />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Quick Date Options */}
+                      <div className='bg-muted/30 rounded-xl p-4 border border-border/50'>
+                        <p className='text-sm font-medium text-foreground mb-3'>
+                          Quick options:
+                        </p>
+                        <div className='grid grid-cols-2 gap-2'>
+                          <button
+                            onClick={() => setSelectedDueDate(getTodayDate())}
+                            className='px-3 py-2 bg-background hover:bg-muted border border-border rounded-lg text-xs font-medium transition-colors'
+                            disabled={isSavingDates}
+                          >
+                            Today
+                          </button>
+                          <button
+                            onClick={() => {
+                              const tomorrow = new Date();
+                              tomorrow.setDate(tomorrow.getDate() + 1);
+                              setSelectedDueDate(
+                                tomorrow.toISOString().split('T')[0]
+                              );
+                            }}
+                            className='px-3 py-2 bg-background hover:bg-muted border border-border rounded-lg text-xs font-medium transition-colors'
+                            disabled={isSavingDates}
+                          >
+                            Tomorrow
+                          </button>
+                          <button
+                            onClick={() => {
+                              const nextWeek = new Date();
+                              nextWeek.setDate(nextWeek.getDate() + 7);
+                              setSelectedDueDate(
+                                nextWeek.toISOString().split('T')[0]
+                              );
+                            }}
+                            className='px-3 py-2 bg-background hover:bg-muted border border-border rounded-lg text-xs font-medium transition-colors'
+                            disabled={isSavingDates}
+                          >
+                            Next Week
+                          </button>
+                          <button
+                            onClick={() => {
+                              const nextMonth = new Date();
+                              nextMonth.setMonth(nextMonth.getMonth() + 1);
+                              setSelectedDueDate(
+                                nextMonth.toISOString().split('T')[0]
+                              );
+                            }}
+                            className='px-3 py-2 bg-background hover:bg-muted border border-border rounded-lg text-xs font-medium transition-colors'
+                            disabled={isSavingDates}
+                          >
+                            Next Month
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Current dates display */}
+                      {(card.start_date || card.due_date) && (
+                        <div className='bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800'>
+                          <div className='flex items-center gap-2 mb-3'>
+                            <div className='w-6 h-6 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center dark:bg-blue-900/30 dark:text-blue-400'>
+                              <Calendar className='w-3 h-3' />
+                            </div>
+                            <p className='text-sm font-medium text-blue-800 dark:text-blue-200'>
+                              Current dates
+                            </p>
+                          </div>
+                          <div className='space-y-2'>
+                            {card.start_date && (
+                              <div className='flex items-center justify-between p-2 bg-white/50 dark:bg-white/5 rounded-lg'>
+                                <span className='text-sm text-foreground font-medium'>
+                                  Start Date
+                                </span>
+                                <span className='text-sm text-blue-600 dark:text-blue-400 font-mono'>
+                                  {formatDate(card.start_date)}
+                                </span>
+                              </div>
+                            )}
+                            {card.due_date && (
+                              <div className='flex items-center justify-between p-2 bg-white/50 dark:bg-white/5 rounded-lg'>
+                                <span className='text-sm text-foreground font-medium'>
+                                  Due Date
+                                </span>
+                                <span className='text-sm text-blue-600 dark:text-blue-400 font-mono'>
+                                  {formatDate(card.due_date)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className='flex gap-3 justify-end'>
+                      {(card.start_date || card.due_date) && (
+                        <button
+                          onClick={handleClearDates}
+                          disabled={isSavingDates}
+                          className='px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-md transition-colors disabled:opacity-50'
+                        >
+                          Clear Dates
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowDatePicker(false)}
+                        disabled={isSavingDates}
+                        className='px-4 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-medium rounded-md transition-colors disabled:opacity-50'
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSaveDates}
+                        disabled={isSavingDates || !selectedDueDate}
+                        className='flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                      >
+                        {isSavingDates ? (
+                          <>
+                            <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className='w-4 h-4' />
+                            Save Dates
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Tab Design */}
             <div className='flex gap-1 mb-6 p-1 bg-muted rounded-lg'>

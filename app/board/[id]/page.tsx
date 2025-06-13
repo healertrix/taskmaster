@@ -65,6 +65,9 @@ interface Task {
   assignees?: { initials: string; color: string }[];
   attachments?: number;
   comments?: number;
+  start_date?: string;
+  due_date?: string;
+  due_status?: 'due_soon' | 'overdue' | 'complete' | null;
 }
 
 // Define column type
@@ -718,6 +721,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             : [],
           attachments: 0, // TODO: Add attachments support when available
           comments: 0, // TODO: Add comments support when available
+          start_date: card.start_date,
+          due_date: card.due_date,
+          due_status: card.due_status,
         })),
       }));
       setColumns(convertedColumns);
@@ -1033,6 +1039,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           : [],
         attachments: 0, // TODO: Add attachments support when available
         comments: 0, // TODO: Add comments support when available
+        start_date: newCard.start_date,
+        due_date: newCard.due_date,
+        due_status: newCard.due_status,
       };
 
       // Update the columns state to add the new task

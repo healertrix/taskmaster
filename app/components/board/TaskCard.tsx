@@ -14,6 +14,9 @@ interface Task {
   assignees?: { initials: string; color: string }[];
   attachments?: number;
   comments?: number;
+  start_date?: string;
+  due_date?: string;
+  due_status?: 'due_soon' | 'overdue' | 'complete' | null;
 }
 
 interface TaskCardProps {
@@ -47,6 +50,26 @@ export function TaskCard({
   onManageDueDate,
   onOpenCard,
 }: TaskCardProps) {
+  // Format date for display
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const today = new Date();
+    const diffTime = date.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Tomorrow';
+    if (diffDays === -1) return 'Yesterday';
+    if (diffDays > 1 && diffDays <= 7) return `${diffDays} days`;
+    if (diffDays < -1 && diffDays >= -7)
+      return `${Math.abs(diffDays)} days ago`;
+
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+  };
   const {
     attributes,
     listeners,
@@ -137,6 +160,61 @@ export function TaskCard({
       <p className='text-sm font-medium text-foreground mb-3 leading-snug break-words'>
         {task.title}
       </p>
+
+      {/* Dates Section */}
+      {(task.start_date || task.due_date) && (
+        <div className='mb-3 space-y-1.5'>
+          {/* Start Date */}
+          {task.start_date && (
+            <div className='flex items-center gap-1.5 text-xs'>
+              <div className='w-3 h-3 bg-green-100 text-green-600 rounded flex items-center justify-center dark:bg-green-900/40 dark:text-green-400'>
+                <div className='w-1.5 h-1.5 bg-current rounded-full'></div>
+              </div>
+              <span className='text-green-700 dark:text-green-400 font-medium'>
+                Start: {formatDate(task.start_date)}
+              </span>
+            </div>
+          )}
+
+          {/* Due Date */}
+          {task.due_date && (
+            <div
+              className={`flex items-center gap-1.5 text-xs ${
+                task.due_status === 'complete'
+                  ? 'text-emerald-700 dark:text-emerald-400'
+                  : task.due_status === 'overdue'
+                  ? 'text-red-700 dark:text-red-400'
+                  : 'text-amber-700 dark:text-amber-400'
+              }`}
+            >
+              <div
+                className={`w-3 h-3 rounded flex items-center justify-center ${
+                  task.due_status === 'complete'
+                    ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400'
+                    : task.due_status === 'overdue'
+                    ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400'
+                    : 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400'
+                }`}
+              >
+                <Clock className='w-2 h-2' />
+              </div>
+              <span className='font-medium'>
+                Due: {formatDate(task.due_date)}
+                {task.due_status && task.due_status !== 'complete' && (
+                  <span className='ml-1 capitalize'>
+                    ({task.due_status.replace('_', ' ')})
+                  </span>
+                )}
+              </span>
+              {task.due_status === 'complete' && (
+                <div className='w-3 h-3 bg-emerald-500 text-white rounded-full flex items-center justify-center ml-auto'>
+                  <CheckSquare className='w-2 h-2' />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Footer: Assignees & Stats */}
       <div className='flex justify-between items-center mt-auto'>
