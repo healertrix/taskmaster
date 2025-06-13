@@ -38,6 +38,7 @@ import {
   SortAsc,
   SortDesc,
   Filter,
+  Settings,
 } from 'lucide-react';
 
 interface Card {
@@ -218,8 +219,8 @@ export function CardModal({
   const [comments, setComments] = useState<Comment[]>([]);
   const [activities, setActivities] = useState<ActivityData[]>([]);
   const [newComment, setNewComment] = useState('');
-  const [isLoadingComments, setIsLoadingComments] = useState(false);
-  const [isLoadingActivities, setIsLoadingActivities] = useState(false);
+  const [isLoadingComments, setIsLoadingComments] = useState(true);
+  const [isLoadingActivities, setIsLoadingActivities] = useState(true);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [shouldCloseAfterSubmit, setShouldCloseAfterSubmit] = useState(false);
   const [savingCommentId, setSavingCommentId] = useState<string | null>(null);
@@ -244,6 +245,10 @@ export function CardModal({
   );
   const [commentSearchQuery, setCommentSearchQuery] = useState('');
   const [showCommentFilters, setShowCommentFilters] = useState(false);
+
+  // Actions dropdown state
+  const [isActionsDropdownOpen, setIsActionsDropdownOpen] = useState(false);
+  const [isAddToCardDropdownOpen, setIsAddToCardDropdownOpen] = useState(false);
 
   // Reset form when card changes
   useEffect(() => {
@@ -598,7 +603,7 @@ export function CardModal({
   const handleSaveEditComment = async (commentId: string) => {
     if (!editingCommentContent.trim()) return;
 
-    setSavingCommentId(commentId);
+    setEditingSavingCommentId(commentId);
 
     try {
       const response = await fetch(
@@ -635,7 +640,7 @@ export function CardModal({
       console.error('Error updating comment:', error);
       alert('Failed to update comment. Please try again.');
     } finally {
-      setSavingCommentId(null);
+      setEditingSavingCommentId(null);
     }
   };
 
@@ -760,7 +765,7 @@ export function CardModal({
 
   return (
     <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'>
-      <div className='bg-card rounded-xl shadow-2xl w-full max-w-4xl h-[85vh] border border-border overflow-hidden flex flex-col'>
+      <div className='bg-card rounded-xl shadow-2xl w-full max-w-7xl h-[90vh] border border-border overflow-hidden flex flex-col'>
         {/* Header */}
         <div className='flex items-start gap-4 p-6 border-b border-border bg-muted/30 flex-shrink-0'>
           <div className='flex-1'>
@@ -808,8 +813,8 @@ export function CardModal({
         </div>
 
         <div className='flex gap-6 p-6 flex-1 overflow-hidden'>
-          {/* Main Content - Scrollable */}
-          <div className='flex-1 space-y-6 overflow-y-auto pr-2'>
+          {/* Left Side - Main Content */}
+          <div className='flex-1 space-y-6 overflow-y-auto pr-4'>
             {/* Description */}
             <div>
               <div className='flex items-center gap-2 mb-3'>
@@ -870,746 +875,730 @@ export function CardModal({
               )}
             </div>
 
-            {/* Updated Comments and Activity section */}
+            {/* Additional Card Information */}
             <div className='mt-8'>
-              {/* Improved Tab Design */}
-              <div className='flex gap-1 mb-6 p-1 bg-muted rounded-lg'>
-                <button
-                  onClick={() => setActiveTab('comments')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
-                    activeTab === 'comments'
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-                  }`}
-                >
-                  <MessageSquare className='w-4 h-4' />
-                  Comments
-                  <span className='bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-semibold'>
-                    {comments.length}
-                  </span>
-                </button>
-                <button
-                  onClick={() => setActiveTab('activities')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
-                    activeTab === 'activities'
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-                  }`}
-                >
-                  <Activity className='w-4 h-4' />
-                  Activity
-                  <span className='bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-semibold'>
-                    {activities.length}
-                  </span>
-                </button>
-              </div>
-
-              {activeTab === 'comments' && (
-                <div className='space-y-6'>
-                  {/* Enhanced Add comment form */}
-                  <div className='bg-muted/30 rounded-xl p-4 border border-border/50'>
-                    <div className='flex gap-3'>
-                      <div className='flex-shrink-0'>
-                        <CurrentUserAvatar user={currentUser} size={32} />
+              {/* Due Date (if exists) */}
+              {card.due_date && (
+                <div className='mb-6'>
+                  <div className='flex items-center gap-2 mb-3'>
+                    <Clock className='w-5 h-5 text-muted-foreground' />
+                    <h3 className='text-base font-medium text-foreground'>
+                      Due Date
+                    </h3>
+                  </div>
+                  <div
+                    className={`px-4 py-3 rounded-lg text-sm border ${
+                      card.due_status === 'complete'
+                        ? 'bg-green-50 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800'
+                        : card.due_status === 'overdue'
+                        ? 'bg-red-50 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800'
+                        : 'bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800'
+                    }`}
+                  >
+                    <div className='flex items-center gap-2'>
+                      <Clock className='w-4 h-4' />
+                      {formatDate(card.due_date)}
+                    </div>
+                    {card.due_status && (
+                      <div className='text-xs mt-1 capitalize'>
+                        {card.due_status.replace('_', ' ')}
                       </div>
-                      <div className='flex-1'>
-                        <form
-                          onSubmit={handleSubmitComment}
-                          className='space-y-3'
-                        >
-                          <div className='relative'>
-                            <textarea
-                              value={newComment}
-                              onChange={(e) => setNewComment(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (
-                                  e.key === 'Enter' &&
-                                  e.ctrlKey &&
-                                  newComment.trim() &&
-                                  !isSubmittingComment
-                                ) {
-                                  e.preventDefault();
-                                  setShouldCloseAfterSubmit(true);
-                                  handleSubmitComment(e);
-                                }
-                              }}
-                              placeholder='Write a comment...'
-                              className='w-full p-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 text-sm bg-background placeholder-muted-foreground min-h-[80px]'
-                              disabled={isSubmittingComment}
-                            />
-                            {newComment.trim() && (
-                              <div className='absolute bottom-3 right-3 text-xs text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded'>
-                                {newComment.length}/1000
-                              </div>
-                            )}
-                          </div>
-                          <div className='flex justify-between items-center'>
-                            <div className='text-xs text-muted-foreground'>
-                              Press{' '}
-                              <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
-                                Ctrl
-                              </kbd>{' '}
-                              +{' '}
-                              <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
-                                Enter
-                              </kbd>{' '}
-                              to submit
-                            </div>
-                            <div className='flex gap-2'>
-                              {newComment.trim() && (
-                                <button
-                                  type='button'
-                                  onClick={() => setNewComment('')}
-                                  className='px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors'
-                                >
-                                  Cancel
-                                </button>
-                              )}
-                              <button
-                                type='submit'
-                                disabled={
-                                  !newComment.trim() || isSubmittingComment
-                                }
-                                className='flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow disabled:hover:shadow-sm'
-                              >
-                                {isSubmittingComment ? (
-                                  <>
-                                    <div className='w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin' />
-                                    Posting...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Send className='w-3 h-3' />
-                                    Comment
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        </form>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Created info */}
+              <div className='text-sm text-muted-foreground space-y-2 pt-4 border-t border-border'>
+                <div className='flex items-center gap-2'>
+                  <CalendarIcon className='w-4 h-4' />
+                  <span>Created {formatDate(card.created_at)}</span>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <Edit className='w-4 h-4' />
+                  <span>Updated {formatDate(card.updated_at)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Side - Comments and Activities */}
+          <div className='w-96 space-y-6 flex-shrink-0 overflow-y-auto pr-2 border-l border-border pl-6'>
+            {/* Action Buttons */}
+            <div className='flex gap-2 mb-6'>
+              {/* Add to Card Dropdown */}
+              <div className='relative flex-1'>
+                <button
+                  onClick={() =>
+                    setIsAddToCardDropdownOpen(!isAddToCardDropdownOpen)
+                  }
+                  className='w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all duration-200 shadow-sm hover:shadow-md font-medium text-sm'
+                  title='Add to card'
+                >
+                  <Plus className='w-4 h-4' />
+                  Add to card
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      isAddToCardDropdownOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                {isAddToCardDropdownOpen && (
+                  <>
+                    {/* Backdrop */}
+                    <div
+                      className='fixed inset-0 z-10'
+                      onClick={() => setIsAddToCardDropdownOpen(false)}
+                    />
+
+                    {/* Dropdown Menu */}
+                    <div className='absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-xl z-20 py-2'>
+                      <div className='px-3 py-2'>
+                        <div className='space-y-1'>
+                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                            <User className='w-4 h-4 text-muted-foreground' />
+                            Members
+                          </button>
+                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                            <Tag className='w-4 h-4 text-muted-foreground' />
+                            Labels
+                          </button>
+                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                            <CheckSquare className='w-4 h-4 text-muted-foreground' />
+                            Checklist
+                          </button>
+                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                            <Calendar className='w-4 h-4 text-muted-foreground' />
+                            Dates
+                          </button>
+                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                            <Paperclip className='w-4 h-4 text-muted-foreground' />
+                            Attachment
+                          </button>
+                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                            <MapPin className='w-4 h-4 text-muted-foreground' />
+                            Location
+                          </button>
+                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                            <Vote className='w-4 h-4 text-muted-foreground' />
+                            Voting
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </>
+                )}
+              </div>
 
-                  {/* Comment Filters and Search */}
-                  {comments.length > 0 && (
-                    <div className='bg-background rounded-lg border border-border p-4 space-y-3'>
-                      <div className='flex items-center justify-between'>
-                        <div className='flex items-center gap-2'>
-                          <Filter className='w-4 h-4 text-muted-foreground' />
-                          <span className='text-sm font-medium text-foreground'>
-                            Filter & Search Comments
-                          </span>
-                          <span className='text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded'>
-                            {filteredAndSortedComments.length} of{' '}
-                            {comments.length}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() =>
-                            setShowCommentFilters(!showCommentFilters)
-                          }
-                          className='text-xs text-primary hover:text-primary/80 transition-colors'
-                        >
-                          {showCommentFilters ? 'Hide filters' : 'Show filters'}
-                        </button>
-                      </div>
+              {/* Actions Dropdown */}
+              <div className='relative flex-1'>
+                <button
+                  onClick={() =>
+                    setIsActionsDropdownOpen(!isActionsDropdownOpen)
+                  }
+                  className='w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/90 transition-all duration-200 shadow-sm hover:shadow-md font-medium text-sm'
+                  title='Card actions'
+                >
+                  <Settings className='w-4 h-4' />
+                  Actions
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      isActionsDropdownOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
 
-                      {showCommentFilters && (
-                        <div className='space-y-3 pt-2 border-t border-border/50'>
-                          {/* Search Input */}
-                          <div className='relative'>
-                            <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground' />
-                            <input
-                              type='text'
-                              placeholder='Search comments by content or author...'
-                              value={commentSearchQuery}
-                              onChange={(e) =>
-                                handleCommentSearch(e.target.value)
-                              }
-                              className='w-full pl-10 pr-4 py-2 border border-border rounded-md text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all'
-                            />
-                            {commentSearchQuery && (
-                              <button
-                                onClick={() => handleCommentSearch('')}
-                                className='absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors'
-                                title='Clear search'
-                              >
-                                <X className='w-4 h-4' />
-                              </button>
-                            )}
-                          </div>
+                {isActionsDropdownOpen && (
+                  <>
+                    {/* Backdrop */}
+                    <div
+                      className='fixed inset-0 z-10'
+                      onClick={() => setIsActionsDropdownOpen(false)}
+                    />
 
-                          {/* Sort Options */}
-                          <div className='flex items-center gap-3'>
-                            <span className='text-xs font-medium text-muted-foreground'>
-                              Sort by:
-                            </span>
-                            <div className='flex gap-1'>
-                              <button
-                                onClick={() => setCommentSortOrder('newest')}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-all ${
-                                  commentSortOrder === 'newest'
-                                    ? 'bg-primary text-primary-foreground shadow-sm'
-                                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                                }`}
-                              >
-                                <SortDesc className='w-3 h-3' />
-                                Newest first
-                              </button>
-                              <button
-                                onClick={() => setCommentSortOrder('oldest')}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-all ${
-                                  commentSortOrder === 'oldest'
-                                    ? 'bg-primary text-primary-foreground shadow-sm'
-                                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                                }`}
-                              >
-                                <SortAsc className='w-3 h-3' />
-                                Oldest first
-                              </button>
-                            </div>
-                          </div>
+                    {/* Dropdown Menu */}
+                    <div className='absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-xl z-20 py-2'>
+                      <div className='px-3 py-2'>
+                        <div className='space-y-1'>
+                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                            <Move className='w-4 h-4 text-muted-foreground' />
+                            Move
+                          </button>
+                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                            <Copy className='w-4 h-4 text-muted-foreground' />
+                            Copy
+                          </button>
+                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                            <Share2 className='w-4 h-4 text-muted-foreground' />
+                            Share
+                          </button>
+                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                            <Eye className='w-4 h-4 text-muted-foreground' />
+                            Watch
+                          </button>
 
-                          {/* Clear Filters */}
-                          {(commentSearchQuery ||
-                            commentSortOrder !== 'newest') && (
-                            <div className='flex justify-end'>
-                              <button
-                                onClick={clearCommentFilters}
-                                className='text-xs text-muted-foreground hover:text-foreground transition-colors'
-                              >
-                                Clear all filters
-                              </button>
+                          {(onArchiveCard || onDeleteCard) && (
+                            <div className='border-t border-border my-2 pt-2'>
+                              {onArchiveCard && (
+                                <button
+                                  onClick={() => {
+                                    setIsActionsDropdownOpen(false);
+                                    onArchiveCard(card.id);
+                                  }}
+                                  className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'
+                                >
+                                  <Archive className='w-4 h-4 text-muted-foreground' />
+                                  Archive
+                                </button>
+                              )}
+                              {onDeleteCard && (
+                                <button
+                                  onClick={() => {
+                                    setIsActionsDropdownOpen(false);
+                                    setShowDeleteConfirm(true);
+                                  }}
+                                  className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors'
+                                >
+                                  <Trash2 className='w-4 h-4' />
+                                  Delete
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
-                      )}
+                      </div>
                     </div>
-                  )}
+                  </>
+                )}
+              </div>
+            </div>
 
-                  {/* Enhanced Comments list */}
+            {/* Tab Design */}
+            <div className='flex gap-1 mb-6 p-1 bg-muted rounded-lg'>
+              <button
+                onClick={() => setActiveTab('comments')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                  activeTab === 'comments'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                }`}
+              >
+                <MessageSquare className='w-4 h-4' />
+                Comments
+                <span className='bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-semibold'>
+                  {comments.length}
+                </span>
+              </button>
+              <button
+                onClick={() => setActiveTab('activities')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                  activeTab === 'activities'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                }`}
+              >
+                <Activity className='w-4 h-4' />
+                Activity
+                <span className='bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-semibold'>
+                  {activities.length}
+                </span>
+              </button>
+            </div>
+
+            {activeTab === 'comments' && (
+              <div className='space-y-6'>
+                {/* Enhanced Add comment form */}
+                <div className='bg-muted/30 rounded-xl p-4 border border-border/50'>
+                  <div className='flex gap-3'>
+                    <div className='flex-shrink-0'>
+                      <CurrentUserAvatar user={currentUser} size={32} />
+                    </div>
+                    <div className='flex-1'>
+                      <form
+                        onSubmit={handleSubmitComment}
+                        className='space-y-3'
+                      >
+                        <div className='relative'>
+                          <textarea
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (
+                                e.key === 'Enter' &&
+                                e.ctrlKey &&
+                                newComment.trim() &&
+                                !isSubmittingComment
+                              ) {
+                                e.preventDefault();
+                                setShouldCloseAfterSubmit(true);
+                                handleSubmitComment(e);
+                              }
+                            }}
+                            placeholder='Write a comment...'
+                            className='w-full p-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 text-sm bg-background placeholder-muted-foreground min-h-[80px]'
+                            disabled={isSubmittingComment}
+                          />
+                          {newComment.trim() && (
+                            <div className='absolute bottom-3 right-3 text-xs text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded'>
+                              {newComment.length}/1000
+                            </div>
+                          )}
+                        </div>
+                        <div className='flex justify-between items-center'>
+                          <div className='text-xs text-muted-foreground'>
+                            Press{' '}
+                            <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                              Ctrl
+                            </kbd>{' '}
+                            +{' '}
+                            <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                              Enter
+                            </kbd>{' '}
+                            to submit
+                          </div>
+                          <div className='flex gap-2'>
+                            {newComment.trim() && (
+                              <button
+                                type='button'
+                                onClick={() => setNewComment('')}
+                                className='px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors'
+                              >
+                                Cancel
+                              </button>
+                            )}
+                            <button
+                              type='submit'
+                              disabled={
+                                !newComment.trim() || isSubmittingComment
+                              }
+                              className='flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow disabled:hover:shadow-sm'
+                            >
+                              {isSubmittingComment ? (
+                                <>
+                                  <div className='w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin' />
+                                  Posting...
+                                </>
+                              ) : (
+                                <>
+                                  <Send className='w-3 h-3' />
+                                  Comment
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Comment Filters and Search */}
+                {comments.length > 0 && (
+                  <div className='bg-background rounded-lg border border-border p-4 space-y-3'>
+                    <div className='flex items-center justify-between'>
+                      <div className='flex items-center gap-2'>
+                        <Filter className='w-4 h-4 text-muted-foreground' />
+                        <span className='text-sm font-medium text-foreground'>
+                          Filter & Search Comments
+                        </span>
+                        <span className='text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded'>
+                          {filteredAndSortedComments.length} of{' '}
+                          {comments.length}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() =>
+                          setShowCommentFilters(!showCommentFilters)
+                        }
+                        className='text-xs text-primary hover:text-primary/80 transition-colors'
+                      >
+                        {showCommentFilters ? 'Hide filters' : 'Show filters'}
+                      </button>
+                    </div>
+
+                    {showCommentFilters && (
+                      <div className='space-y-3 pt-2 border-t border-border/50'>
+                        {/* Search Input */}
+                        <div className='relative'>
+                          <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground' />
+                          <input
+                            type='text'
+                            placeholder='Search comments by content or author...'
+                            value={commentSearchQuery}
+                            onChange={(e) =>
+                              handleCommentSearch(e.target.value)
+                            }
+                            className='w-full pl-10 pr-4 py-2 border border-border rounded-md text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all'
+                          />
+                          {commentSearchQuery && (
+                            <button
+                              onClick={() => handleCommentSearch('')}
+                              className='absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors'
+                              title='Clear search'
+                            >
+                              <X className='w-4 h-4' />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Sort Options */}
+                        <div className='flex items-center gap-3'>
+                          <span className='text-xs font-medium text-muted-foreground'>
+                            Sort by:
+                          </span>
+                          <div className='flex gap-1'>
+                            <button
+                              onClick={() => setCommentSortOrder('newest')}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-all ${
+                                commentSortOrder === 'newest'
+                                  ? 'bg-primary text-primary-foreground shadow-sm'
+                                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                              }`}
+                            >
+                              <SortDesc className='w-3 h-3' />
+                              Newest first
+                            </button>
+                            <button
+                              onClick={() => setCommentSortOrder('oldest')}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-all ${
+                                commentSortOrder === 'oldest'
+                                  ? 'bg-primary text-primary-foreground shadow-sm'
+                                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                              }`}
+                            >
+                              <SortAsc className='w-3 h-3' />
+                              Oldest first
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Clear Filters */}
+                        {(commentSearchQuery ||
+                          commentSortOrder !== 'newest') && (
+                          <div className='flex justify-end'>
+                            <button
+                              onClick={clearCommentFilters}
+                              className='text-xs text-muted-foreground hover:text-foreground transition-colors'
+                            >
+                              Clear all filters
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Comments List */}
+                <div className='space-y-4'>
                   {isLoadingComments ? (
                     <div className='flex justify-center py-8'>
                       <div className='w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin' />
                     </div>
                   ) : filteredAndSortedComments.length > 0 ? (
-                    <div className='space-y-4'>
-                      {filteredAndSortedComments.map((comment) => (
-                        <div key={comment.id} className='group'>
-                          <div className='flex gap-3'>
-                            <div className='flex-shrink-0'>
-                              <UserAvatar
-                                profile={comment.profiles}
-                                size={32}
-                              />
+                    filteredAndSortedComments.map((comment) => (
+                      <div
+                        key={comment.id}
+                        className='bg-background rounded-xl border border-border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden'
+                      >
+                        <div className='p-4'>
+                          <div className='flex justify-between items-start mb-2'>
+                            <div className='flex items-center gap-2'>
+                              <span className='font-medium text-sm text-foreground'>
+                                {comment.profiles.full_name || 'Unknown User'}
+                              </span>
+                              <span className='text-xs text-muted-foreground'>
+                                {formatTimestamp(comment.created_at)}
+                                {comment.is_edited && ' (edited)'}
+                              </span>
                             </div>
-                            <div className='flex-1 min-w-0'>
-                              <div className='bg-background rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow duration-200'>
-                                <div className='p-4'>
-                                  <div className='flex justify-between items-start mb-2'>
-                                    <div className='flex items-center gap-2'>
-                                      <span className='font-medium text-sm text-foreground'>
-                                        {comment.profiles.full_name ||
-                                          'Unknown User'}
-                                      </span>
-                                      <span className='text-xs text-muted-foreground'>
-                                        {formatTimestamp(comment.created_at)}
-                                        {comment.is_edited && ' (edited)'}
-                                      </span>
-                                    </div>
 
-                                    {/* Comment Actions */}
-                                    <div className='opacity-0 group-hover:opacity-100 transition-opacity duration-200'>
-                                      <div className='flex items-center gap-1'>
-                                        <button
-                                          onClick={() =>
-                                            handleDeleteComment(comment.id)
-                                          }
-                                          disabled={
-                                            deletingCommentId === comment.id
-                                          }
-                                          className='p-1 text-muted-foreground hover:text-red-500 transition-colors rounded disabled:opacity-50'
-                                          title='Delete comment'
-                                        >
-                                          {deletingCommentId === comment.id ? (
-                                            <div className='w-3 h-3 border border-gray-300 border-t-gray-600 rounded-full animate-spin' />
-                                          ) : (
-                                            <Trash2 className='w-3 h-3' />
-                                          )}
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Comment Content */}
-                                  {editingCommentId === comment.id ? (
-                                    <div className='space-y-3'>
-                                      <div className='relative'>
-                                        <textarea
-                                          value={editingCommentContent}
-                                          onChange={(e) =>
-                                            setEditingCommentContent(
-                                              e.target.value
-                                            )
-                                          }
-                                          onKeyDown={(e) => {
-                                            if (
-                                              e.key === 'Enter' &&
-                                              e.ctrlKey &&
-                                              editingCommentContent.trim()
-                                            ) {
-                                              e.preventDefault();
-                                              handleSaveEditComment(comment.id);
-                                            }
-                                            if (e.key === 'Escape') {
-                                              e.preventDefault();
-                                              e.stopPropagation();
-                                              setEditingCommentId(null);
-                                              setEditingCommentContent('');
-                                            }
-                                          }}
-                                          className='w-full p-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 text-sm bg-background placeholder-muted-foreground min-h-[80px]'
-                                          placeholder='Edit your comment...'
-                                          aria-label='Edit comment'
-                                          autoFocus
-                                        />
-                                        {editingCommentContent.trim() && (
-                                          <div className='absolute bottom-3 right-3 text-xs text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded'>
-                                            {editingCommentContent.length}/1000
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className='flex justify-between items-center'>
-                                        <div className='text-xs text-muted-foreground'>
-                                          Press{' '}
-                                          <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
-                                            Ctrl
-                                          </kbd>{' '}
-                                          +{' '}
-                                          <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
-                                            Enter
-                                          </kbd>{' '}
-                                          to save or{' '}
-                                          <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
-                                            Esc
-                                          </kbd>{' '}
-                                          to cancel
-                                        </div>
-                                        <div className='flex gap-2'>
-                                          <button
-                                            onClick={() => {
-                                              setEditingCommentId(null);
-                                              setEditingCommentContent('');
-                                            }}
-                                            className='px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors'
-                                          >
-                                            Cancel
-                                          </button>
-                                          <button
-                                            onClick={() =>
-                                              handleSaveEditComment(comment.id)
-                                            }
-                                            disabled={
-                                              !editingCommentContent.trim() ||
-                                              savingCommentId === comment.id
-                                            }
-                                            className='flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow disabled:hover:shadow-sm'
-                                          >
-                                            {savingCommentId === comment.id ? (
-                                              <>
-                                                <div className='w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin' />
-                                                Saving...
-                                              </>
-                                            ) : (
-                                              <>
-                                                <Save className='w-3 h-3' />
-                                                Save
-                                              </>
-                                            )}
-                                          </button>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <p
-                                      className='text-sm text-foreground whitespace-pre-wrap leading-relaxed cursor-pointer hover:bg-muted/40 rounded p-1 -m-1 transition-colors'
-                                      onClick={() => handleEditComment(comment)}
-                                      title='Click to edit'
-                                    >
-                                      {comment.content}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className='text-center py-12'>
-                      <div className='w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4'>
-                        {comments.length === 0 ? (
-                          <MessageSquare className='w-8 h-8 text-muted-foreground' />
-                        ) : (
-                          <Search className='w-8 h-8 text-muted-foreground' />
-                        )}
-                      </div>
-                      <h3 className='font-medium text-foreground mb-1'>
-                        {comments.length === 0
-                          ? 'No comments yet'
-                          : 'No matching comments'}
-                      </h3>
-                      <p className='text-sm text-muted-foreground'>
-                        {comments.length === 0
-                          ? 'Be the first to add a comment!'
-                          : 'Try adjusting your search or filter criteria.'}
-                      </p>
-                      {comments.length > 0 &&
-                        (commentSearchQuery ||
-                          commentSortOrder !== 'newest') && (
-                          <button
-                            onClick={clearCommentFilters}
-                            className='mt-3 text-sm text-primary hover:text-primary/80 transition-colors'
-                          >
-                            Clear filters
-                          </button>
-                        )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeTab === 'activities' && (
-                <div className='space-y-4'>
-                  {isLoadingActivities ? (
-                    <div className='flex justify-center py-8'>
-                      <div className='w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin' />
-                    </div>
-                  ) : activities.length > 0 ? (
-                    <div className='space-y-1'>
-                      {/* Activity Summary */}
-                      <div className='flex items-center justify-between mb-4 p-3 bg-muted/30 rounded-lg border border-border/50'>
-                        <div className='flex items-center gap-2'>
-                          <div className='w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center'>
-                            <Activity className='w-4 h-4 text-primary' />
-                          </div>
-                          <div>
-                            <h4 className='text-sm font-medium text-foreground'>
-                              {activities.length}{' '}
-                              {activities.length === 1
-                                ? 'activity'
-                                : 'activities'}
-                            </h4>
-                            <p className='text-xs text-muted-foreground'>
-                              Latest:{' '}
-                              {activities[0] &&
-                                formatTimestamp(activities[0].created_at)}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() =>
-                            setShowAllActivities(!showAllActivities)
-                          }
-                          className='text-xs text-primary hover:text-primary/80 transition-colors'
-                        >
-                          {showAllActivities ? 'Show less' : 'Show all'}
-                        </button>
-                      </div>
-
-                      {/* Timeline */}
-                      <div className='relative'>
-                        {/* Timeline line */}
-                        <div className='absolute left-6 top-0 bottom-0 w-px bg-border' />
-
-                        <div className='space-y-4'>
-                          {(showAllActivities
-                            ? activities
-                            : activities.slice(0, 5)
-                          ).map((activity, index) => {
-                            const isExpanded = expandedActivities.has(
-                              activity.id
-                            );
-                            const detailedInfo =
-                              getDetailedActivityInfo(activity);
-                            const hasDetails =
-                              detailedInfo || activity.comments;
-
-                            return (
-                              <div
-                                key={activity.id}
-                                className='relative flex gap-4 group'
+                            {/* Comment Actions */}
+                            <div className='flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
+                              <button
+                                onClick={() => handleEditComment(comment)}
+                                className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors'
+                                title='Edit comment'
                               >
-                                {/* Timeline dot */}
-                                <div className='relative z-10 flex-shrink-0'>
-                                  <div className='w-12 h-12 rounded-full border-2 border-background bg-card shadow-sm flex items-center justify-center'>
-                                    <UserAvatar
-                                      profile={activity.profiles}
-                                      size={24}
-                                    />
-                                  </div>
-                                  <div
-                                    className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-2 border-background flex items-center justify-center ${getActivityTypeColor(
-                                      activity.action_type
-                                    )}`}
-                                  >
-                                    {getActivityIcon(activity.action_type)}
-                                  </div>
-                                </div>
-
-                                {/* Content */}
-                                <div className='flex-1 min-w-0 pb-4'>
-                                  <div className='bg-card rounded-xl border border-border shadow-sm hover:shadow-md transition-all duration-200'>
-                                    <div
-                                      className={`p-4 ${
-                                        hasDetails ? 'cursor-pointer' : ''
-                                      }`}
-                                      onClick={() =>
-                                        hasDetails &&
-                                        toggleActivityExpansion(activity.id)
-                                      }
-                                    >
-                                      <div className='flex items-start justify-between'>
-                                        <div className='flex-1'>
-                                          <div className='flex items-center gap-2 mb-1'>
-                                            <p className='text-sm font-medium text-foreground'>
-                                              {formatActivityMessage(activity)}
-                                            </p>
-                                            {hasDetails && (
-                                              <button className='text-muted-foreground hover:text-foreground transition-colors'>
-                                                {isExpanded ? (
-                                                  <ChevronDown className='w-4 h-4' />
-                                                ) : (
-                                                  <ChevronRight className='w-4 h-4' />
-                                                )}
-                                              </button>
-                                            )}
-                                          </div>
-
-                                          {/* Quick preview of details */}
-                                          {!isExpanded && detailedInfo && (
-                                            <p className='text-xs text-muted-foreground truncate'>
-                                              {detailedInfo}
-                                            </p>
-                                          )}
-                                        </div>
-
-                                        <div className='flex items-center gap-2 ml-2'>
-                                          <span className='text-xs text-muted-foreground whitespace-nowrap'>
-                                            {formatTimestamp(
-                                              activity.created_at
-                                            )}
-                                          </span>
-                                        </div>
-                                      </div>
-
-                                      {/* Expanded details */}
-                                      {isExpanded && (
-                                        <div className='mt-3 pt-3 border-t border-border/50 space-y-2'>
-                                          {detailedInfo && (
-                                            <div className='flex items-center gap-2 p-2 bg-muted/30 rounded-md'>
-                                              <AlertCircle className='w-4 h-4 text-muted-foreground flex-shrink-0' />
-                                              <span className='text-sm text-foreground'>
-                                                {detailedInfo}
-                                              </span>
-                                            </div>
-                                          )}
-
-                                          {activity.comments && (
-                                            <div className='p-3 bg-muted/20 rounded-md border border-border/30'>
-                                              <div className='flex items-center gap-2 mb-2'>
-                                                <MessageSquare className='w-4 h-4 text-muted-foreground' />
-                                                <span className='text-xs font-medium text-muted-foreground'>
-                                                  Comment
-                                                </span>
-                                              </div>
-                                              <p className='text-sm text-foreground italic'>
-                                                "{activity.comments.content}"
-                                              </p>
-                                            </div>
-                                          )}
-
-                                          <div className='flex items-center gap-4 text-xs text-muted-foreground pt-2'>
-                                            <div className='flex items-center gap-1'>
-                                              <CalendarIcon className='w-3 h-3' />
-                                              {formatDate(activity.created_at)}
-                                            </div>
-                                            <div className='flex items-center gap-1'>
-                                              <User className='w-3 h-3' />
-                                              {activity.profiles.full_name ||
-                                                'Unknown User'}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Show more activities button */}
-                        {!showAllActivities && activities.length > 5 && (
-                          <div className='relative flex gap-4 mt-4'>
-                            <div className='w-12 flex-shrink-0' />
-                            <button
-                              onClick={() => setShowAllActivities(true)}
-                              className='flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors'
-                            >
-                              <ChevronDown className='w-4 h-4' />
-                              Show {activities.length - 5} more activities
-                            </button>
+                                <Edit className='w-3 h-3' />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteComment(comment.id)}
+                                className='p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors'
+                                title='Delete comment'
+                              >
+                                <Trash2 className='w-3 h-3' />
+                              </button>
+                            </div>
                           </div>
-                        )}
+
+                          {/* Comment Content */}
+                          {editingCommentId === comment.id ? (
+                            <div className='space-y-3'>
+                              <textarea
+                                value={editingCommentContent}
+                                onChange={(e) =>
+                                  setEditingCommentContent(e.target.value)
+                                }
+                                className='w-full p-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm bg-background min-h-[80px]'
+                                disabled={editingSavingCommentId === comment.id}
+                                aria-label='Edit comment'
+                                placeholder='Edit your comment...'
+                              />
+                              <div className='flex gap-2'>
+                                <button
+                                  onClick={() =>
+                                    handleSaveEditComment(comment.id)
+                                  }
+                                  disabled={
+                                    !editingCommentContent.trim() ||
+                                    editingSavingCommentId === comment.id
+                                  }
+                                  className='flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow disabled:hover:shadow-sm'
+                                >
+                                  {editingSavingCommentId === comment.id ? (
+                                    <>
+                                      <div className='w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin' />
+                                      Saving...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Save className='w-3 h-3' />
+                                      Save
+                                    </>
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingCommentId(null);
+                                    setEditingCommentContent('');
+                                  }}
+                                  disabled={
+                                    editingSavingCommentId === comment.id
+                                  }
+                                  className='px-4 py-1.5 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm rounded-md transition-colors disabled:opacity-50'
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className='group'>
+                              <p className='text-sm text-foreground whitespace-pre-wrap leading-relaxed'>
+                                {comment.content}
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    ))
                   ) : (
-                    <div className='text-center py-12'>
-                      <div className='w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4'>
-                        <Activity className='w-8 h-8 text-muted-foreground' />
-                      </div>
-                      <h3 className='font-medium text-foreground mb-1'>
-                        No activity yet
-                      </h3>
+                    <div className='text-center py-8'>
+                      <MessageSquare className='w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50' />
                       <p className='text-sm text-muted-foreground'>
-                        Activity will appear here as actions are taken on this
-                        card.
+                        {commentSearchQuery
+                          ? 'No comments match your search.'
+                          : 'No comments yet. Be the first to add one!'}
                       </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Sidebar */}
-          <div className='w-64 space-y-6 flex-shrink-0 overflow-y-auto max-h-[70vh] pr-1'>
-            {/* Add to card */}
-            <div>
-              <h4 className='text-sm font-medium text-foreground mb-3'>
-                Add to card
-              </h4>
-              <div className='space-y-2'>
-                <button className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'>
-                  <User className='w-4 h-4' />
-                  Members
-                </button>
-                <button className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'>
-                  <Tag className='w-4 h-4' />
-                  Labels
-                </button>
-                <button className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'>
-                  <CheckSquare className='w-4 h-4' />
-                  Checklist
-                </button>
-                <button className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'>
-                  <Calendar className='w-4 h-4' />
-                  Dates
-                </button>
-                <button className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'>
-                  <Paperclip className='w-4 h-4' />
-                  Attachment
-                </button>
-                <button className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'>
-                  <MapPin className='w-4 h-4' />
-                  Location
-                </button>
-                <button className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'>
-                  <Vote className='w-4 h-4' />
-                  Voting
-                </button>
-              </div>
-            </div>
-
-            <div className='border-t border-border my-2'></div>
-
-            {/* Actions */}
-            <div>
-              <h4 className='text-sm font-medium text-foreground mb-3'>
-                Actions
-              </h4>
-              <div className='space-y-2'>
-                <button className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'>
-                  <Move className='w-4 h-4' />
-                  Move
-                </button>
-                <button className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'>
-                  <Copy className='w-4 h-4' />
-                  Copy
-                </button>
-                <button className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'>
-                  <Share2 className='w-4 h-4' />
-                  Share
-                </button>
-                <button className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'>
-                  <Eye className='w-4 h-4' />
-                  Watch
-                </button>
-                <button className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'>
-                  <MoreHorizontal className='w-4 h-4' />
-                  More actions
-                </button>
-                {(onArchiveCard || onDeleteCard) && (
-                  <div className='border-t border-border my-2'></div>
-                )}
-                {onArchiveCard && (
-                  <button
-                    onClick={() => onArchiveCard(card.id)}
-                    className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'
-                  >
-                    <Archive className='w-4 h-4' />
-                    Archive
-                  </button>
-                )}
-                {onDeleteCard && (
-                  <button
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className='w-full flex items-center gap-3 px-3 py-2.5 bg-destructive hover:bg-destructive/90 text-destructive-foreground text-sm rounded-md transition-colors'
-                  >
-                    <Trash2 className='w-4 h-4' />
-                    Delete
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Due Date (if exists) */}
-            {card.due_date && (
-              <div>
-                <h4 className='text-sm font-medium text-foreground mb-3'>
-                  Due Date
-                </h4>
-                <div
-                  className={`px-3 py-2 rounded-md text-sm ${
-                    card.due_status === 'complete'
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                      : card.due_status === 'overdue'
-                      ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                  }`}
-                >
-                  <div className='flex items-center gap-2'>
-                    <Clock className='w-4 h-4' />
-                    {formatDate(card.due_date)}
-                  </div>
-                  {card.due_status && (
-                    <div className='text-xs mt-1 capitalize'>
-                      {card.due_status.replace('_', ' ')}
                     </div>
                   )}
                 </div>
               </div>
             )}
 
-            {/* Created info */}
-            <div className='text-xs text-muted-foreground space-y-1 pt-4 border-t border-border'>
-              <div>Created {formatDate(card.created_at)}</div>
-              <div>Updated {formatDate(card.updated_at)}</div>
-            </div>
+            {activeTab === 'activities' && (
+              <div className='space-y-4'>
+                {isLoadingActivities ? (
+                  <div className='flex justify-center py-8'>
+                    <div className='w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin' />
+                  </div>
+                ) : activities.length > 0 ? (
+                  <div className='space-y-1'>
+                    {/* Activity Summary */}
+                    <div className='flex items-center justify-between mb-4 p-3 bg-muted/30 rounded-lg border border-border/50'>
+                      <div className='flex items-center gap-2'>
+                        <div className='w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center'>
+                          <Activity className='w-4 h-4 text-primary' />
+                        </div>
+                        <div>
+                          <h4 className='text-sm font-medium text-foreground'>
+                            {activities.length}{' '}
+                            {activities.length === 1
+                              ? 'activity'
+                              : 'activities'}
+                          </h4>
+                          <p className='text-xs text-muted-foreground'>
+                            Latest:{' '}
+                            {activities[0] &&
+                              formatTimestamp(activities[0].created_at)}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowAllActivities(!showAllActivities)}
+                        className='text-xs text-primary hover:text-primary/80 transition-colors'
+                      >
+                        {showAllActivities ? 'Show less' : 'Show all'}
+                      </button>
+                    </div>
+
+                    {/* Timeline */}
+                    <div className='relative'>
+                      {/* Timeline line */}
+                      <div className='absolute left-6 top-0 bottom-0 w-px bg-border' />
+
+                      <div className='space-y-4'>
+                        {(showAllActivities
+                          ? activities
+                          : activities.slice(0, 5)
+                        ).map((activity) => {
+                          const isExpanded = expandedActivities.has(
+                            activity.id
+                          );
+                          const detailedInfo =
+                            getDetailedActivityInfo(activity);
+                          const hasDetails = detailedInfo || activity.comments;
+
+                          return (
+                            <div
+                              key={activity.id}
+                              className='relative flex gap-4 group'
+                            >
+                              {/* Timeline dot */}
+                              <div className='relative z-10 flex-shrink-0'>
+                                <div className='w-12 h-12 rounded-full border-2 border-background bg-card shadow-sm flex items-center justify-center'>
+                                  <UserAvatar
+                                    profile={activity.profiles}
+                                    size={24}
+                                  />
+                                </div>
+                                <div
+                                  className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-2 border-background flex items-center justify-center ${getActivityTypeColor(
+                                    activity.action_type
+                                  )}`}
+                                >
+                                  {getActivityIcon(activity.action_type)}
+                                </div>
+                              </div>
+
+                              {/* Content */}
+                              <div className='flex-1 min-w-0'>
+                                <div className='bg-card rounded-xl border border-border shadow-sm hover:shadow-md transition-all duration-200'>
+                                  <div
+                                    className={`p-4 ${
+                                      hasDetails ? 'cursor-pointer' : ''
+                                    }`}
+                                    onClick={() =>
+                                      hasDetails &&
+                                      toggleActivityExpansion(activity.id)
+                                    }
+                                  >
+                                    <div className='flex items-start justify-between'>
+                                      <div className='flex-1 min-w-0'>
+                                        <div className='flex items-center gap-2 mb-1'>
+                                          <p className='text-sm font-medium text-foreground'>
+                                            {formatActivityMessage(activity)}
+                                          </p>
+                                          {hasDetails && (
+                                            <button className='text-muted-foreground hover:text-foreground transition-colors'>
+                                              {isExpanded ? (
+                                                <ChevronDown className='w-4 h-4' />
+                                              ) : (
+                                                <ChevronRight className='w-4 h-4' />
+                                              )}
+                                            </button>
+                                          )}
+                                        </div>
+
+                                        {/* Quick preview of details */}
+                                        {!isExpanded && detailedInfo && (
+                                          <p className='text-xs text-muted-foreground truncate'>
+                                            {detailedInfo}
+                                          </p>
+                                        )}
+                                      </div>
+
+                                      <div className='flex items-center gap-2 ml-2'>
+                                        <span className='text-xs text-muted-foreground whitespace-nowrap'>
+                                          {formatTimestamp(activity.created_at)}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Expanded details */}
+                                    {isExpanded && (
+                                      <div className='mt-3 pt-3 border-t border-border/50 space-y-2'>
+                                        {detailedInfo && (
+                                          <div className='flex items-center gap-2 p-2 bg-muted/30 rounded-md'>
+                                            <AlertCircle className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+                                            <span className='text-sm text-foreground'>
+                                              {detailedInfo}
+                                            </span>
+                                          </div>
+                                        )}
+
+                                        {activity.comments && (
+                                          <div className='p-3 bg-muted/20 rounded-md border border-border/30'>
+                                            <div className='flex items-center gap-2 mb-2'>
+                                              <MessageSquare className='w-4 h-4 text-muted-foreground' />
+                                              <span className='text-xs font-medium text-muted-foreground'>
+                                                Comment
+                                              </span>
+                                            </div>
+                                            <p className='text-sm text-foreground italic'>
+                                              "{activity.comments.content}"
+                                            </p>
+                                          </div>
+                                        )}
+
+                                        <div className='flex items-center gap-4 text-xs text-muted-foreground'>
+                                          <div className='flex items-center gap-1'>
+                                            <CalendarIcon className='w-3 h-3' />
+                                            {formatDate(activity.created_at)}
+                                          </div>
+                                          <div className='flex items-center gap-1'>
+                                            <User className='w-3 h-3' />
+                                            {activity.profiles.full_name ||
+                                              'Unknown User'}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Show more activities button */}
+                      {!showAllActivities && activities.length > 5 && (
+                        <div className='relative flex gap-4 mt-4'>
+                          <div className='w-12 flex-shrink-0' />
+                          <button
+                            onClick={() => setShowAllActivities(true)}
+                            className='flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors'
+                          >
+                            <ChevronDown className='w-4 h-4' />
+                            Show {activities.length - 5} more activities
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className='text-center py-8'>
+                    <Activity className='w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50' />
+                    <p className='text-sm text-muted-foreground'>
+                      Activity will appear here as actions are taken on this
+                      card.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
         {/* Delete Confirmation Modal */}
