@@ -623,8 +623,10 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     createCard,
     deleteCard,
     updateListName,
+    updateCard,
     archiveList,
     deleteList,
+    refetch,
   } = useLists(params.id);
 
   // Get navigation context from URL params
@@ -639,7 +641,17 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     if (fromContext === 'workspace' && workspaceId) {
       return `/boards/${workspaceId}`;
     }
-    return '/'; // Default to home page
+
+    // Check if we came from the home page by looking at the referrer
+    if (typeof window !== 'undefined') {
+      const referrer = document.referrer;
+      if (referrer && (referrer.endsWith('/') || referrer.endsWith('/home'))) {
+        return '/';
+      }
+    }
+
+    // Default to home page if no specific context is found
+    return '/';
   };
 
   const getBackLabel = () => {
@@ -951,8 +963,27 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         throw new Error(data.error || 'Failed to update card');
       }
 
-      // The card is updated on the server, we can close the modal
-      // The useLists hook will handle the state update automatically
+      // Update the local state with the updated card data
+      setColumns((prevColumns) =>
+        prevColumns.map((column) => ({
+          ...column,
+          cards: column.cards.map((card) =>
+            card.id === cardId
+              ? {
+                  ...card,
+                  title: data.card.title,
+                  description: data.card.description,
+                }
+              : card
+          ),
+        }))
+      );
+
+      // Update the card in lists state for CardModal
+      updateCard(cardId, {
+        title: data.card.title,
+        description: data.card.description,
+      });
 
       showSuccess('Card updated successfully');
       return true;

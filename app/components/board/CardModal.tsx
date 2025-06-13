@@ -72,12 +72,52 @@ export function CardModal({
   const [description, setDescription] = useState(card.description || '');
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Reset form when card changes
   useEffect(() => {
     setTitle(card.title);
     setDescription(card.description || '');
   }, [card]);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (isEditingTitle) {
+          setTitle(card.title);
+          setIsEditingTitle(false);
+        } else if (isEditingDescription) {
+          setDescription(card.description || '');
+          setIsEditingDescription(false);
+        } else if (showDeleteConfirm) {
+          setShowDeleteConfirm(false);
+        } else {
+          onClose();
+        }
+      }
+      if (e.key === 'Enter' && e.ctrlKey) {
+        if (isEditingTitle) {
+          handleSaveTitle();
+          onClose();
+        } else if (isEditingDescription) {
+          handleSaveDescription();
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    isOpen,
+    isEditingTitle,
+    isEditingDescription,
+    showDeleteConfirm,
+    title,
+    description,
+  ]);
 
   // Handle save title
   const handleSaveTitle = async () => {
@@ -321,7 +361,7 @@ export function CardModal({
           </div>
 
           {/* Sidebar */}
-          <div className='w-64 space-y-4 flex-shrink-0'>
+          <div className='w-64 space-y-6 flex-shrink-0 overflow-y-auto max-h-[70vh] pr-1'>
             {/* Add to card */}
             <div>
               <h4 className='text-sm font-medium text-foreground mb-3'>
@@ -359,6 +399,8 @@ export function CardModal({
               </div>
             </div>
 
+            <div className='border-t border-border my-2'></div>
+
             {/* Actions */}
             <div>
               <h4 className='text-sm font-medium text-foreground mb-3'>
@@ -381,6 +423,13 @@ export function CardModal({
                   <Eye className='w-4 h-4' />
                   Watch
                 </button>
+                <button className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'>
+                  <MoreHorizontal className='w-4 h-4' />
+                  More actions
+                </button>
+                {(onArchiveCard || onDeleteCard) && (
+                  <div className='border-t border-border my-2'></div>
+                )}
                 {onArchiveCard && (
                   <button
                     onClick={() => onArchiveCard(card.id)}
@@ -392,17 +441,13 @@ export function CardModal({
                 )}
                 {onDeleteCard && (
                   <button
-                    onClick={() => onDeleteCard(card.id)}
+                    onClick={() => setShowDeleteConfirm(true)}
                     className='w-full flex items-center gap-3 px-3 py-2.5 bg-destructive hover:bg-destructive/90 text-destructive-foreground text-sm rounded-md transition-colors'
                   >
                     <Trash2 className='w-4 h-4' />
                     Delete
                   </button>
                 )}
-                <button className='w-full flex items-center gap-3 px-3 py-2.5 bg-muted hover:bg-muted/80 text-foreground text-sm rounded-md transition-colors'>
-                  <MoreHorizontal className='w-4 h-4' />
-                  More actions
-                </button>
               </div>
             </div>
 
@@ -441,6 +486,38 @@ export function CardModal({
             </div>
           </div>
         </div>
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className='fixed inset-0 bg-black/60 z-50 flex items-center justify-center'>
+            <div className='bg-card rounded-lg shadow-xl p-6 w-full max-w-sm border border-border flex flex-col items-center'>
+              <Trash2 className='w-10 h-10 text-destructive mb-4' />
+              <h3 className='text-lg font-semibold mb-2 text-center'>
+                Delete this card?
+              </h3>
+              <p className='text-sm text-muted-foreground mb-4 text-center'>
+                This action cannot be undone. Are you sure you want to delete
+                this card?
+              </p>
+              <div className='flex gap-3 mt-2'>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className='px-4 py-2 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors text-sm font-medium'
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    onDeleteCard && onDeleteCard(card.id);
+                  }}
+                  className='px-4 py-2 rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors text-sm font-medium'
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

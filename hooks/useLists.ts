@@ -229,6 +229,17 @@ export const useLists = (boardId: string) => {
     [lists]
   );
 
+  const updateCard = useCallback((cardId: string, updates: Partial<Card>) => {
+    setLists((prev) =>
+      prev.map((list) => ({
+        ...list,
+        cards: list.cards.map((card) =>
+          card.id === cardId ? { ...card, ...updates } : card
+        ),
+      }))
+    );
+  }, []);
+
   const deleteList = useCallback(
     async (listId: string) => {
       try {
@@ -307,6 +318,7 @@ export const useLists = (boardId: string) => {
     createCard,
     deleteCard,
     updateListName,
+    updateCard,
     deleteList,
     archiveList,
     refetch: fetchLists,
