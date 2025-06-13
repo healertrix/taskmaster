@@ -223,7 +223,9 @@ export function CardModal({
   const [isLoadingActivities, setIsLoadingActivities] = useState(true);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [shouldCloseAfterSubmit, setShouldCloseAfterSubmit] = useState(false);
-  const [savingCommentId, setSavingCommentId] = useState<string | null>(null);
+  const [editingSavingCommentId, setEditingSavingCommentId] = useState<
+    string | null
+  >(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'comments' | 'activities'>(
@@ -1110,86 +1112,76 @@ export function CardModal({
               <div className='space-y-6'>
                 {/* Enhanced Add comment form */}
                 <div className='bg-muted/30 rounded-xl p-4 border border-border/50'>
-                  <div className='flex gap-3'>
-                    <div className='flex-shrink-0'>
-                      <CurrentUserAvatar user={currentUser} size={32} />
-                    </div>
-                    <div className='flex-1'>
-                      <form
-                        onSubmit={handleSubmitComment}
-                        className='space-y-3'
-                      >
-                        <div className='relative'>
-                          <textarea
-                            value={newComment}
-                            onChange={(e) => setNewComment(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (
-                                e.key === 'Enter' &&
-                                e.ctrlKey &&
-                                newComment.trim() &&
-                                !isSubmittingComment
-                              ) {
-                                e.preventDefault();
-                                setShouldCloseAfterSubmit(true);
-                                handleSubmitComment(e);
-                              }
-                            }}
-                            placeholder='Write a comment...'
-                            className='w-full p-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 text-sm bg-background placeholder-muted-foreground min-h-[80px]'
-                            disabled={isSubmittingComment}
-                          />
+                  <div className='w-full'>
+                    <form onSubmit={handleSubmitComment} className='space-y-3'>
+                      <div className='relative'>
+                        <textarea
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (
+                              e.key === 'Enter' &&
+                              e.ctrlKey &&
+                              newComment.trim() &&
+                              !isSubmittingComment
+                            ) {
+                              e.preventDefault();
+                              setShouldCloseAfterSubmit(true);
+                              handleSubmitComment(e);
+                            }
+                          }}
+                          placeholder='Write a comment...'
+                          className='w-full p-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 text-sm bg-background placeholder-muted-foreground min-h-[80px]'
+                          disabled={isSubmittingComment}
+                        />
+                        {newComment.trim() && (
+                          <div className='absolute bottom-3 right-3 text-xs text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded'>
+                            {newComment.length}/1000
+                          </div>
+                        )}
+                      </div>
+                      <div className='flex justify-between items-center'>
+                        <div className='text-xs text-muted-foreground'>
+                          Press{' '}
+                          <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                            Ctrl
+                          </kbd>{' '}
+                          +{' '}
+                          <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                            Enter
+                          </kbd>{' '}
+                          to submit
+                        </div>
+                        <div className='flex gap-2'>
                           {newComment.trim() && (
-                            <div className='absolute bottom-3 right-3 text-xs text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded'>
-                              {newComment.length}/1000
-                            </div>
-                          )}
-                        </div>
-                        <div className='flex justify-between items-center'>
-                          <div className='text-xs text-muted-foreground'>
-                            Press{' '}
-                            <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
-                              Ctrl
-                            </kbd>{' '}
-                            +{' '}
-                            <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
-                              Enter
-                            </kbd>{' '}
-                            to submit
-                          </div>
-                          <div className='flex gap-2'>
-                            {newComment.trim() && (
-                              <button
-                                type='button'
-                                onClick={() => setNewComment('')}
-                                className='px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors'
-                              >
-                                Cancel
-                              </button>
-                            )}
                             <button
-                              type='submit'
-                              disabled={
-                                !newComment.trim() || isSubmittingComment
-                              }
-                              className='flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow disabled:hover:shadow-sm'
+                              type='button'
+                              onClick={() => setNewComment('')}
+                              className='px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors'
                             >
-                              {isSubmittingComment ? (
-                                <>
-                                  <div className='w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin' />
-                                  Posting...
-                                </>
-                              ) : (
-                                <>
-                                  <Send className='w-3 h-3' />
-                                  Comment
-                                </>
-                              )}
+                              Cancel
                             </button>
-                          </div>
+                          )}
+                          <button
+                            type='submit'
+                            disabled={!newComment.trim() || isSubmittingComment}
+                            className='flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow disabled:hover:shadow-sm'
+                          >
+                            {isSubmittingComment ? (
+                              <>
+                                <div className='w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin' />
+                                Posting...
+                              </>
+                            ) : (
+                              <>
+                                <Send className='w-3 h-3' />
+                                Comment
+                              </>
+                            )}
+                          </button>
                         </div>
-                      </form>
-                    </div>
+                      </div>
+                    </form>
                   </div>
                 </div>
 
@@ -1300,11 +1292,15 @@ export function CardModal({
                     filteredAndSortedComments.map((comment) => (
                       <div
                         key={comment.id}
-                        className='bg-background rounded-xl border border-border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden'
+                        className='group bg-background rounded-xl border border-border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden'
                       >
                         <div className='p-4'>
                           <div className='flex justify-between items-start mb-2'>
                             <div className='flex items-center gap-2'>
+                              <UserAvatar
+                                profile={comment.profiles}
+                                size={24}
+                              />
                               <span className='font-medium text-sm text-foreground'>
                                 {comment.profiles.full_name || 'Unknown User'}
                               </span>
@@ -1341,11 +1337,46 @@ export function CardModal({
                                 onChange={(e) =>
                                   setEditingCommentContent(e.target.value)
                                 }
+                                onKeyDown={(e) => {
+                                  if (
+                                    e.key === 'Enter' &&
+                                    e.ctrlKey &&
+                                    editingCommentContent.trim() &&
+                                    editingSavingCommentId !== comment.id
+                                  ) {
+                                    e.preventDefault();
+                                    handleSaveEditComment(comment.id);
+                                  }
+                                  if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setEditingCommentId(null);
+                                    setEditingCommentContent('');
+                                  }
+                                }}
                                 className='w-full p-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm bg-background min-h-[80px]'
                                 disabled={editingSavingCommentId === comment.id}
                                 aria-label='Edit comment'
                                 placeholder='Edit your comment...'
+                                autoFocus
                               />
+                              <div className='flex justify-between items-center mb-2'>
+                                <div className='text-xs text-muted-foreground'>
+                                  Press{' '}
+                                  <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                                    Ctrl
+                                  </kbd>{' '}
+                                  +{' '}
+                                  <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                                    Enter
+                                  </kbd>{' '}
+                                  to save or{' '}
+                                  <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                                    Esc
+                                  </kbd>{' '}
+                                  to cancel
+                                </div>
+                              </div>
                               <div className='flex gap-2'>
                                 <button
                                   onClick={() =>
@@ -1384,7 +1415,11 @@ export function CardModal({
                               </div>
                             </div>
                           ) : (
-                            <div className='group'>
+                            <div
+                              className='group cursor-pointer hover:bg-muted/30 rounded-md p-2 -m-2 transition-colors'
+                              onClick={() => handleEditComment(comment)}
+                              title='Click to edit comment'
+                            >
                               <p className='text-sm text-foreground whitespace-pre-wrap leading-relaxed'>
                                 {comment.content}
                               </p>
