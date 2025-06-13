@@ -3,15 +3,7 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import {
-  Paperclip,
-  MessageSquare,
-  Clock,
-  CheckSquare,
-  ArrowUp,
-  Bug,
-  Edit3,
-} from 'lucide-react';
+import { Clock, CheckSquare, ArrowUp, Bug } from 'lucide-react';
 import { TaskActionsMenu } from './TaskActionsMenu';
 
 // Define Task type matching page.tsx
@@ -158,39 +150,6 @@ export function TaskCard({
               {assignee.initials}
             </div>
           ))}
-        </div>
-
-        <div className='flex items-center gap-2.5'>
-          {/* Stats */}
-          <div className='flex items-center gap-2.5 text-muted-foreground text-xs'>
-            {task.attachments && (
-              <span className='flex items-center gap-0.5'>
-                <Paperclip className='w-3.5 h-3.5' />
-                {task.attachments}
-              </span>
-            )}
-            {task.comments && (
-              <span className='flex items-center gap-0.5'>
-                <MessageSquare className='w-3.5 h-3.5' />
-                {task.comments}
-              </span>
-            )}
-          </div>
-
-          {/* Edit Button */}
-          {onOpenCard && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                onOpenCard(task.id);
-              }}
-              className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-all duration-200 opacity-0 group-hover:opacity-100 hover:scale-105'
-              title='Edit card'
-            >
-              <Edit3 className='w-3.5 h-3.5' />
-            </button>
-          )}
         </div>
       </div>
     </>
