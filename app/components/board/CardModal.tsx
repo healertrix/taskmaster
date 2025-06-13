@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
+import { useAuth } from '@/context/AuthContext';
 import {
   X,
   Edit3,
@@ -21,6 +23,13 @@ import {
   Move,
   Share2,
   MoreHorizontal,
+  Bookmark,
+  ExternalLink,
+  Activity,
+  Send,
+  Edit,
+  Save,
+  MoreVertical,
 } from 'lucide-react';
 
 interface Card {
@@ -46,6 +55,35 @@ interface Card {
   };
 }
 
+interface Comment {
+  id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  is_edited: boolean;
+  profiles: {
+    id: string;
+    full_name: string | null;
+    avatar_url: string | null;
+  };
+}
+
+interface ActivityData {
+  id: string;
+  action_type: string;
+  action_data: any;
+  created_at: string;
+  profiles: {
+    id: string;
+    full_name: string | null;
+    avatar_url: string | null;
+  };
+  comments?: {
+    id: string;
+    content: string;
+  } | null;
+}
+
 interface CardModalProps {
   card: Card;
   isOpen: boolean;
@@ -57,6 +95,101 @@ interface CardModalProps {
   boardName?: string;
 }
 
+// Avatar Components with proper error handling
+const UserAvatar = ({
+  profile,
+  size = 32,
+}: {
+  profile: { full_name: string | null; avatar_url: string | null };
+  size?: number;
+}) => {
+  const [imageError, setImageError] = useState(false);
+  const sizeClass =
+    size === 32 ? 'w-8 h-8' : size === 24 ? 'w-6 h-6' : 'w-10 h-10';
+
+  if (profile.avatar_url && !imageError) {
+    return (
+      <Image
+        src={profile.avatar_url}
+        alt={profile.full_name || 'User'}
+        width={size}
+        height={size}
+        className={`${sizeClass} rounded-full object-cover`}
+        onError={() => setImageError(true)}
+      />
+    );
+  }
+
+  const initials =
+    profile.full_name
+      ?.split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase() || 'U';
+  const colors = [
+    'bg-blue-500',
+    'bg-green-500',
+    'bg-purple-500',
+    'bg-pink-500',
+    'bg-indigo-500',
+    'bg-yellow-500',
+    'bg-red-500',
+    'bg-teal-500',
+  ];
+  const colorIndex = profile.full_name?.charCodeAt(0) % colors.length || 0;
+
+  return (
+    <div
+      className={`${sizeClass} rounded-full ${colors[colorIndex]} flex items-center justify-center text-white text-sm font-bold shadow-sm`}
+    >
+      {initials}
+    </div>
+  );
+};
+
+const CurrentUserAvatar = ({
+  user,
+  size = 32,
+}: {
+  user: any;
+  size?: number;
+}) => {
+  const [imageError, setImageError] = useState(false);
+  const sizeClass =
+    size === 32 ? 'w-8 h-8' : size === 24 ? 'w-6 h-6' : 'w-10 h-10';
+
+  if (user?.user_metadata?.avatar_url && !imageError) {
+    return (
+      <Image
+        src={user.user_metadata.avatar_url}
+        alt={user.user_metadata?.full_name || 'You'}
+        width={size}
+        height={size}
+        className={`${sizeClass} rounded-full object-cover`}
+        onError={() => setImageError(true)}
+      />
+    );
+  }
+
+  const getInitials = () => {
+    if (!user?.user_metadata?.full_name) return 'Y';
+    return user.user_metadata.full_name
+      .split(' ')
+      .map((n: string) => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
+  };
+
+  return (
+    <div
+      className={`${sizeClass} rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold shadow-sm`}
+    >
+      {getInitials()}
+    </div>
+  );
+};
+
 export function CardModal({
   card,
   isOpen,
@@ -67,12 +200,27 @@ export function CardModal({
   listName = 'List',
   boardName = 'Board',
 }: CardModalProps) {
+  const { user: currentUser } = useAuth();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description || '');
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [activities, setActivities] = useState<ActivityData[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [isLoadingActivities, setIsLoadingActivities] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [activeTab, setActiveTab] = useState<'comments' | 'activities'>(
+    'comments'
+  );
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentContent, setEditingCommentContent] = useState('');
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(
+    null
+  );
 
   // Reset form when card changes
   useEffect(() => {
@@ -179,6 +327,259 @@ export function CardModal({
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  // Fetch comments and activities when modal opens
+  useEffect(() => {
+    if (isOpen && card) {
+      fetchComments();
+      fetchActivities();
+    }
+  }, [isOpen, card]);
+
+  const fetchComments = async () => {
+    if (!card) return;
+
+    setIsLoadingComments(true);
+    try {
+      const response = await fetch(`/api/cards/${card.id}/comments`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setComments(data.comments || []);
+      } else {
+        console.error('Failed to fetch comments:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+    } finally {
+      setIsLoadingComments(false);
+    }
+  };
+
+  const fetchActivities = async () => {
+    if (!card) return;
+
+    setIsLoadingActivities(true);
+    try {
+      const response = await fetch(`/api/cards/${card.id}/activities`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setActivities(data.activities || []);
+      } else {
+        console.error('Failed to fetch activities:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching activities:', error);
+    } finally {
+      setIsLoadingActivities(false);
+    }
+  };
+
+  const handleSubmitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim() || !card || isSubmittingComment) return;
+
+    setIsSubmittingComment(true);
+    try {
+      console.log('Submitting comment for card:', card.id);
+      console.log('Comment content:', newComment.trim());
+
+      const response = await fetch(`/api/cards/${card.id}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: newComment.trim(),
+        }),
+      });
+
+      console.log('Response status:', response.status);
+      const data = await response.json();
+      console.log('Response data:', data);
+
+      if (response.ok) {
+        setComments((prev) => [...prev, data.comment]);
+        setNewComment('');
+        // Refresh activities to show the new comment activity
+        fetchActivities();
+      } else {
+        console.error('Failed to create comment:', data.error);
+        alert(`Failed to add comment: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error creating comment:', error);
+      alert(
+        `Failed to add comment: ${
+          error instanceof Error ? error.message : 'Network error'
+        }`
+      );
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
+  const formatActivityMessage = (activity: ActivityData): string => {
+    const userName = activity.profiles.full_name || 'Unknown User';
+    const actionData = activity.action_data || {};
+
+    switch (activity.action_type) {
+      case 'card_created':
+        return `${userName} created this card`;
+      case 'card_updated':
+        return `${userName} updated this card`;
+      case 'comment_added':
+        return `${userName} commented on this card`;
+      case 'attachment_added':
+        return `${userName} added an attachment`;
+      case 'card_moved':
+        return `${userName} moved this card`;
+      case 'card_archived':
+        return `${userName} archived this card`;
+      case 'label_added':
+        return `${userName} added a label`;
+      case 'label_removed':
+        return `${userName} removed a label`;
+      case 'member_added':
+        return `${userName} added a member to this card`;
+      case 'member_removed':
+        return `${userName} removed a member from this card`;
+      case 'due_date_set':
+        return `${userName} set a due date`;
+      case 'due_date_removed':
+        return `${userName} removed the due date`;
+      case 'checklist_added':
+        return `${userName} added a checklist`;
+      case 'checklist_completed':
+        return `${userName} completed a checklist`;
+      default:
+        return `${userName} performed an action`;
+    }
+  };
+
+  const formatTimestamp = (timestamp: string): string => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffInHours = Math.floor(
+      (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+    );
+
+    if (diffInHours < 1) {
+      const diffInMinutes = Math.floor(
+        (now.getTime() - date.getTime()) / (1000 * 60)
+      );
+      return diffInMinutes < 1 ? 'Just now' : `${diffInMinutes}m ago`;
+    } else if (diffInHours < 24) {
+      return `${diffInHours}h ago`;
+    } else {
+      const diffInDays = Math.floor(diffInHours / 24);
+      return `${diffInDays}d ago`;
+    }
+  };
+
+  const handleEditComment = (comment: Comment) => {
+    setEditingCommentId(comment.id);
+    setEditingCommentContent(comment.content);
+  };
+
+  const handleSaveEditComment = async (commentId: string) => {
+    if (!editingCommentContent.trim()) return;
+
+    try {
+      const response = await fetch(
+        `/api/cards/${card?.id}/comments/${commentId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            content: editingCommentContent.trim(),
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setComments((prev) =>
+          prev.map((comment) =>
+            comment.id === commentId ? data.comment : comment
+          )
+        );
+        setEditingCommentId(null);
+        setEditingCommentContent('');
+      } else {
+        alert(`Failed to update comment: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error updating comment:', error);
+      alert('Failed to update comment. Please try again.');
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    setDeletingCommentId(commentId);
+
+    if (!confirm('Are you sure you want to delete this comment?')) {
+      setDeletingCommentId(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/cards/${card?.id}/comments/${commentId}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (response.ok) {
+        setComments((prev) =>
+          prev.filter((comment) => comment.id !== commentId)
+        );
+        // Refresh activities to reflect the deletion
+        fetchActivities();
+      } else {
+        const data = await response.json();
+        alert(`Failed to delete comment: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      alert('Failed to delete comment. Please try again.');
+    } finally {
+      setDeletingCommentId(null);
+    }
+  };
+
+  const getActivityIcon = (actionType: string) => {
+    switch (actionType) {
+      case 'comment_added':
+        return <MessageSquare className='w-4 h-4' />;
+      case 'card_created':
+        return <Plus className='w-4 h-4' />;
+      case 'card_updated':
+        return <Edit3 className='w-4 h-4' />;
+      case 'card_moved':
+        return <Move className='w-4 h-4' />;
+      case 'attachment_added':
+        return <Paperclip className='w-4 h-4' />;
+      case 'label_added':
+      case 'label_removed':
+        return <Tag className='w-4 h-4' />;
+      case 'member_added':
+      case 'member_removed':
+        return <User className='w-4 h-4' />;
+      case 'due_date_set':
+      case 'due_date_removed':
+        return <Calendar className='w-4 h-4' />;
+      case 'checklist_added':
+        return <CheckSquare className='w-4 h-4' />;
+      default:
+        return <Activity className='w-4 h-4' />;
+    }
   };
 
   if (!isOpen) return null;
@@ -295,68 +696,311 @@ export function CardModal({
               )}
             </div>
 
-            {/* Comments and Activity */}
-            <div>
-              <div className='flex items-center gap-2 mb-3'>
-                <MessageSquare className='w-5 h-5 text-muted-foreground' />
-                <h3 className='text-base font-medium text-foreground'>
-                  Comments and activity
-                </h3>
-                <button className='ml-auto text-sm text-muted-foreground hover:text-foreground transition-colors'>
-                  Hide details
+            {/* Updated Comments and Activity section */}
+            <div className='mt-8'>
+              {/* Improved Tab Design */}
+              <div className='flex gap-1 mb-6 p-1 bg-muted rounded-lg'>
+                <button
+                  onClick={() => setActiveTab('comments')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                    activeTab === 'comments'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                  }`}
+                >
+                  <MessageSquare className='w-4 h-4' />
+                  Comments
+                  <span className='bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-semibold'>
+                    {comments.length}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('activities')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                    activeTab === 'activities'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                  }`}
+                >
+                  <Activity className='w-4 h-4' />
+                  Activity
+                  <span className='bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-semibold'>
+                    {activities.length}
+                  </span>
                 </button>
               </div>
 
-              {/* Comment Input */}
-              <div className='bg-muted/50 border border-border rounded-md p-3 mb-4'>
-                <textarea
-                  placeholder='Write a comment...'
-                  className='w-full bg-transparent text-foreground placeholder-muted-foreground resize-none focus:outline-none'
-                  rows={2}
-                />
-              </div>
-
-              {/* Activity Feed */}
-              <div className='space-y-3'>
-                {/* Example activity items */}
-                <div className='flex items-start gap-3'>
-                  <div className='w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold'>
-                    H
-                  </div>
-                  <div className='flex-1'>
-                    <div className='flex items-center gap-2 text-sm'>
-                      <span className='font-medium text-foreground'>
-                        healertrix
-                      </span>
-                      <span className='text-muted-foreground'>
-                        marked this card as complete
-                      </span>
-                      <span className='text-muted-foreground/70 text-xs'>
-                        {formatDate(card.updated_at)}
-                      </span>
+              {activeTab === 'comments' && (
+                <div className='space-y-6'>
+                  {/* Enhanced Add comment form */}
+                  <div className='bg-muted/30 rounded-xl p-4 border border-border/50'>
+                    <div className='flex gap-3'>
+                      <div className='flex-shrink-0'>
+                        <CurrentUserAvatar user={currentUser} size={32} />
+                      </div>
+                      <div className='flex-1'>
+                        <form
+                          onSubmit={handleSubmitComment}
+                          className='space-y-3'
+                        >
+                          <div className='relative'>
+                            <textarea
+                              value={newComment}
+                              onChange={(e) => setNewComment(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (
+                                  e.key === 'Enter' &&
+                                  e.ctrlKey &&
+                                  newComment.trim() &&
+                                  !isSubmittingComment
+                                ) {
+                                  e.preventDefault();
+                                  handleSubmitComment(e);
+                                }
+                              }}
+                              placeholder='Write a comment...'
+                              className='w-full p-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 text-sm bg-background placeholder-muted-foreground min-h-[80px]'
+                              disabled={isSubmittingComment}
+                            />
+                            {newComment.trim() && (
+                              <div className='absolute bottom-3 right-3 text-xs text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded'>
+                                {newComment.length}/1000
+                              </div>
+                            )}
+                          </div>
+                          <div className='flex justify-between items-center'>
+                            <div className='text-xs text-muted-foreground'>
+                              Press{' '}
+                              <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                                Ctrl
+                              </kbd>{' '}
+                              +{' '}
+                              <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                                Enter
+                              </kbd>{' '}
+                              to submit
+                            </div>
+                            <div className='flex gap-2'>
+                              {newComment.trim() && (
+                                <button
+                                  type='button'
+                                  onClick={() => setNewComment('')}
+                                  className='px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors'
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                              <button
+                                type='submit'
+                                disabled={
+                                  !newComment.trim() || isSubmittingComment
+                                }
+                                className='flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow disabled:hover:shadow-sm'
+                              >
+                                {isSubmittingComment ? (
+                                  <>
+                                    <div className='w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin' />
+                                    Posting...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className='w-3 h-3' />
+                                    Comment
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        </form>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className='flex items-start gap-3'>
-                  <div className='w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold'>
-                    H
-                  </div>
-                  <div className='flex-1'>
-                    <div className='flex items-center gap-2 text-sm'>
-                      <span className='font-medium text-foreground'>
-                        healertrix
-                      </span>
-                      <span className='text-muted-foreground'>
-                        added this card to {listName}
-                      </span>
-                      <span className='text-muted-foreground/70 text-xs'>
-                        {formatDate(card.created_at)}
-                      </span>
+                  {/* Enhanced Comments list */}
+                  {isLoadingComments ? (
+                    <div className='flex justify-center py-8'>
+                      <div className='w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin' />
                     </div>
-                  </div>
+                  ) : comments.length > 0 ? (
+                    <div className='space-y-4'>
+                      {comments.map((comment) => (
+                        <div key={comment.id} className='group'>
+                          <div className='flex gap-3'>
+                            <div className='flex-shrink-0'>
+                              <UserAvatar
+                                profile={comment.profiles}
+                                size={32}
+                              />
+                            </div>
+                            <div className='flex-1 min-w-0'>
+                              <div className='bg-background rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow duration-200'>
+                                <div className='p-4'>
+                                  <div className='flex justify-between items-start mb-2'>
+                                    <div className='flex items-center gap-2'>
+                                      <span className='font-medium text-sm text-foreground'>
+                                        {comment.profiles.full_name ||
+                                          'Unknown User'}
+                                      </span>
+                                      <span className='text-xs text-muted-foreground'>
+                                        {formatTimestamp(comment.created_at)}
+                                        {comment.is_edited && ' (edited)'}
+                                      </span>
+                                    </div>
+
+                                    {/* Comment Actions */}
+                                    <div className='opacity-0 group-hover:opacity-100 transition-opacity duration-200'>
+                                      <div className='flex items-center gap-1'>
+                                        <button
+                                          onClick={() =>
+                                            handleEditComment(comment)
+                                          }
+                                          className='p-1 text-muted-foreground hover:text-foreground transition-colors rounded'
+                                          title='Edit comment'
+                                        >
+                                          <Edit className='w-3 h-3' />
+                                        </button>
+                                        <button
+                                          onClick={() =>
+                                            handleDeleteComment(comment.id)
+                                          }
+                                          disabled={
+                                            deletingCommentId === comment.id
+                                          }
+                                          className='p-1 text-muted-foreground hover:text-red-500 transition-colors rounded'
+                                          title='Delete comment'
+                                        >
+                                          {deletingCommentId === comment.id ? (
+                                            <div className='w-3 h-3 border border-gray-300 border-t-gray-600 rounded-full animate-spin' />
+                                          ) : (
+                                            <Trash2 className='w-3 h-3' />
+                                          )}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Comment Content */}
+                                  {editingCommentId === comment.id ? (
+                                    <div className='space-y-2'>
+                                      <textarea
+                                        value={editingCommentContent}
+                                        onChange={(e) =>
+                                          setEditingCommentContent(
+                                            e.target.value
+                                          )
+                                        }
+                                        className='w-full p-2 border border-border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm'
+                                        rows={3}
+                                        placeholder='Edit your comment...'
+                                        aria-label='Edit comment'
+                                      />
+                                      <div className='flex gap-2'>
+                                        <button
+                                          onClick={() =>
+                                            handleSaveEditComment(comment.id)
+                                          }
+                                          className='flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-xs rounded hover:bg-primary/90 transition-colors'
+                                        >
+                                          <Save className='w-3 h-3' />
+                                          Save
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setEditingCommentId(null);
+                                            setEditingCommentContent('');
+                                          }}
+                                          className='px-3 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors'
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className='text-sm text-foreground whitespace-pre-wrap leading-relaxed'>
+                                      {comment.content}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className='text-center py-12'>
+                      <div className='w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4'>
+                        <MessageSquare className='w-8 h-8 text-muted-foreground' />
+                      </div>
+                      <h3 className='font-medium text-foreground mb-1'>
+                        No comments yet
+                      </h3>
+                      <p className='text-sm text-muted-foreground'>
+                        Be the first to add a comment!
+                      </p>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
+
+              {activeTab === 'activities' && (
+                <div className='space-y-4'>
+                  {isLoadingActivities ? (
+                    <div className='flex justify-center py-8'>
+                      <div className='w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin' />
+                    </div>
+                  ) : activities.length > 0 ? (
+                    <div className='space-y-3'>
+                      {activities.map((activity) => (
+                        <div key={activity.id} className='flex gap-3 group'>
+                          <div className='flex-shrink-0 relative'>
+                            <UserAvatar profile={activity.profiles} size={32} />
+                            <div className='absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-background border border-border rounded-full flex items-center justify-center'>
+                              <div className='text-muted-foreground'>
+                                {getActivityIcon(activity.action_type)}
+                              </div>
+                            </div>
+                          </div>
+                          <div className='flex-1 min-w-0'>
+                            <div className='bg-muted/30 rounded-lg p-3 border border-border/50 hover:bg-muted/50 transition-colors duration-200'>
+                              <div className='flex justify-between items-start'>
+                                <div className='flex-1'>
+                                  <p className='text-sm text-foreground font-medium'>
+                                    {formatActivityMessage(activity)}
+                                  </p>
+                                  {activity.comments && (
+                                    <div className='mt-2 p-2 bg-background rounded border border-border/50'>
+                                      <p className='text-xs text-muted-foreground italic'>
+                                        "{activity.comments.content}"
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                                <span className='text-xs text-muted-foreground ml-2 flex-shrink-0'>
+                                  {formatTimestamp(activity.created_at)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className='text-center py-12'>
+                      <div className='w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4'>
+                        <Activity className='w-8 h-8 text-muted-foreground' />
+                      </div>
+                      <h3 className='font-medium text-foreground mb-1'>
+                        No activity yet
+                      </h3>
+                      <p className='text-sm text-muted-foreground'>
+                        Activity will appear here as actions are taken on this
+                        card.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
