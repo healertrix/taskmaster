@@ -30,6 +30,10 @@ import {
   Edit,
   Save,
   MoreVertical,
+  ChevronDown,
+  ChevronRight,
+  Calendar as CalendarIcon,
+  AlertCircle,
 } from 'lucide-react';
 
 interface Card {
@@ -225,6 +229,10 @@ export function CardModal({
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(
     null
   );
+  const [expandedActivities, setExpandedActivities] = useState<Set<string>>(
+    new Set()
+  );
+  const [showAllActivities, setShowAllActivities] = useState(false);
 
   // Reset form when card changes
   useEffect(() => {
@@ -474,6 +482,80 @@ export function CardModal({
         return `${userName} completed a checklist`;
       default:
         return `${userName} performed an action`;
+    }
+  };
+
+  const getDetailedActivityInfo = (activity: ActivityData) => {
+    const actionData = activity.action_data || {};
+
+    switch (activity.action_type) {
+      case 'card_updated':
+        const changes = [];
+        if (actionData.title_changed) changes.push('title');
+        if (actionData.description_changed) changes.push('description');
+        if (actionData.due_date_changed) changes.push('due date');
+        return changes.length > 0
+          ? `Updated: ${changes.join(', ')}`
+          : 'Made changes to the card';
+
+      case 'card_moved':
+        return actionData.from_list && actionData.to_list
+          ? `From "${actionData.from_list}" to "${actionData.to_list}"`
+          : 'Moved to a different list';
+
+      case 'label_added':
+      case 'label_removed':
+        return actionData.label_name ? `Label: ${actionData.label_name}` : null;
+
+      case 'member_added':
+      case 'member_removed':
+        return actionData.member_name
+          ? `Member: ${actionData.member_name}`
+          : null;
+
+      case 'due_date_set':
+        return actionData.due_date
+          ? `Due: ${formatDate(actionData.due_date)}`
+          : null;
+
+      case 'attachment_added':
+        return actionData.file_name ? `File: ${actionData.file_name}` : null;
+
+      default:
+        return null;
+    }
+  };
+
+  const toggleActivityExpansion = (activityId: string) => {
+    const newExpanded = new Set(expandedActivities);
+    if (newExpanded.has(activityId)) {
+      newExpanded.delete(activityId);
+    } else {
+      newExpanded.add(activityId);
+    }
+    setExpandedActivities(newExpanded);
+  };
+
+  const getActivityTypeColor = (actionType: string) => {
+    switch (actionType) {
+      case 'comment_added':
+      case 'comment_updated':
+        return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400';
+      case 'comment_deleted':
+        return 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400';
+      case 'card_created':
+      case 'card_updated':
+        return 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400';
+      case 'card_moved':
+        return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400';
+      case 'label_added':
+      case 'label_removed':
+        return 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400';
+      case 'due_date_set':
+      case 'due_date_removed':
+        return 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400';
+      default:
+        return 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400';
     }
   };
 
@@ -1038,40 +1120,184 @@ export function CardModal({
                       <div className='w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin' />
                     </div>
                   ) : activities.length > 0 ? (
-                    <div className='space-y-3'>
-                      {activities.map((activity) => (
-                        <div key={activity.id} className='flex gap-3 group'>
-                          <div className='flex-shrink-0 relative'>
-                            <UserAvatar profile={activity.profiles} size={32} />
-                            <div className='absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-background border border-border rounded-full flex items-center justify-center'>
-                              <div className='text-muted-foreground'>
-                                {getActivityIcon(activity.action_type)}
-                              </div>
-                            </div>
+                    <div className='space-y-1'>
+                      {/* Activity Summary */}
+                      <div className='flex items-center justify-between mb-4 p-3 bg-muted/30 rounded-lg border border-border/50'>
+                        <div className='flex items-center gap-2'>
+                          <div className='w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center'>
+                            <Activity className='w-4 h-4 text-primary' />
                           </div>
-                          <div className='flex-1 min-w-0'>
-                            <div className='bg-muted/30 rounded-lg p-3 border border-border/50 hover:bg-muted/50 transition-colors duration-200'>
-                              <div className='flex justify-between items-start'>
-                                <div className='flex-1'>
-                                  <p className='text-sm text-foreground font-medium'>
-                                    {formatActivityMessage(activity)}
-                                  </p>
-                                  {activity.comments && (
-                                    <div className='mt-2 p-2 bg-background rounded border border-border/50'>
-                                      <p className='text-xs text-muted-foreground italic'>
-                                        "{activity.comments.content}"
-                                      </p>
-                                    </div>
-                                  )}
-                                </div>
-                                <span className='text-xs text-muted-foreground ml-2 flex-shrink-0'>
-                                  {formatTimestamp(activity.created_at)}
-                                </span>
-                              </div>
-                            </div>
+                          <div>
+                            <h4 className='text-sm font-medium text-foreground'>
+                              {activities.length}{' '}
+                              {activities.length === 1
+                                ? 'activity'
+                                : 'activities'}
+                            </h4>
+                            <p className='text-xs text-muted-foreground'>
+                              Latest:{' '}
+                              {activities[0] &&
+                                formatTimestamp(activities[0].created_at)}
+                            </p>
                           </div>
                         </div>
-                      ))}
+                        <button
+                          onClick={() =>
+                            setShowAllActivities(!showAllActivities)
+                          }
+                          className='text-xs text-primary hover:text-primary/80 transition-colors'
+                        >
+                          {showAllActivities ? 'Show less' : 'Show all'}
+                        </button>
+                      </div>
+
+                      {/* Timeline */}
+                      <div className='relative'>
+                        {/* Timeline line */}
+                        <div className='absolute left-6 top-0 bottom-0 w-px bg-border' />
+
+                        <div className='space-y-4'>
+                          {(showAllActivities
+                            ? activities
+                            : activities.slice(0, 5)
+                          ).map((activity, index) => {
+                            const isExpanded = expandedActivities.has(
+                              activity.id
+                            );
+                            const detailedInfo =
+                              getDetailedActivityInfo(activity);
+                            const hasDetails =
+                              detailedInfo || activity.comments;
+
+                            return (
+                              <div
+                                key={activity.id}
+                                className='relative flex gap-4 group'
+                              >
+                                {/* Timeline dot */}
+                                <div className='relative z-10 flex-shrink-0'>
+                                  <div className='w-12 h-12 rounded-full border-2 border-background bg-card shadow-sm flex items-center justify-center'>
+                                    <UserAvatar
+                                      profile={activity.profiles}
+                                      size={24}
+                                    />
+                                  </div>
+                                  <div
+                                    className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-2 border-background flex items-center justify-center ${getActivityTypeColor(
+                                      activity.action_type
+                                    )}`}
+                                  >
+                                    {getActivityIcon(activity.action_type)}
+                                  </div>
+                                </div>
+
+                                {/* Content */}
+                                <div className='flex-1 min-w-0 pb-4'>
+                                  <div className='bg-card rounded-xl border border-border shadow-sm hover:shadow-md transition-all duration-200'>
+                                    <div
+                                      className={`p-4 ${
+                                        hasDetails ? 'cursor-pointer' : ''
+                                      }`}
+                                      onClick={() =>
+                                        hasDetails &&
+                                        toggleActivityExpansion(activity.id)
+                                      }
+                                    >
+                                      <div className='flex items-start justify-between'>
+                                        <div className='flex-1'>
+                                          <div className='flex items-center gap-2 mb-1'>
+                                            <p className='text-sm font-medium text-foreground'>
+                                              {formatActivityMessage(activity)}
+                                            </p>
+                                            {hasDetails && (
+                                              <button className='text-muted-foreground hover:text-foreground transition-colors'>
+                                                {isExpanded ? (
+                                                  <ChevronDown className='w-4 h-4' />
+                                                ) : (
+                                                  <ChevronRight className='w-4 h-4' />
+                                                )}
+                                              </button>
+                                            )}
+                                          </div>
+
+                                          {/* Quick preview of details */}
+                                          {!isExpanded && detailedInfo && (
+                                            <p className='text-xs text-muted-foreground truncate'>
+                                              {detailedInfo}
+                                            </p>
+                                          )}
+                                        </div>
+
+                                        <div className='flex items-center gap-2 ml-2'>
+                                          <span className='text-xs text-muted-foreground whitespace-nowrap'>
+                                            {formatTimestamp(
+                                              activity.created_at
+                                            )}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      {/* Expanded details */}
+                                      {isExpanded && (
+                                        <div className='mt-3 pt-3 border-t border-border/50 space-y-2'>
+                                          {detailedInfo && (
+                                            <div className='flex items-center gap-2 p-2 bg-muted/30 rounded-md'>
+                                              <AlertCircle className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+                                              <span className='text-sm text-foreground'>
+                                                {detailedInfo}
+                                              </span>
+                                            </div>
+                                          )}
+
+                                          {activity.comments && (
+                                            <div className='p-3 bg-muted/20 rounded-md border border-border/30'>
+                                              <div className='flex items-center gap-2 mb-2'>
+                                                <MessageSquare className='w-4 h-4 text-muted-foreground' />
+                                                <span className='text-xs font-medium text-muted-foreground'>
+                                                  Comment
+                                                </span>
+                                              </div>
+                                              <p className='text-sm text-foreground italic'>
+                                                "{activity.comments.content}"
+                                              </p>
+                                            </div>
+                                          )}
+
+                                          <div className='flex items-center gap-4 text-xs text-muted-foreground pt-2'>
+                                            <div className='flex items-center gap-1'>
+                                              <CalendarIcon className='w-3 h-3' />
+                                              {formatDate(activity.created_at)}
+                                            </div>
+                                            <div className='flex items-center gap-1'>
+                                              <User className='w-3 h-3' />
+                                              {activity.profiles.full_name ||
+                                                'Unknown User'}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Show more activities button */}
+                        {!showAllActivities && activities.length > 5 && (
+                          <div className='relative flex gap-4 mt-4'>
+                            <div className='w-12 flex-shrink-0' />
+                            <button
+                              onClick={() => setShowAllActivities(true)}
+                              className='flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors'
+                            >
+                              <ChevronDown className='w-4 h-4' />
+                              Show {activities.length - 5} more activities
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className='text-center py-12'>
