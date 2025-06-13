@@ -25,6 +25,7 @@ import { TaskCard } from '../../components/board/TaskCard';
 import { useBoard } from '@/hooks/useBoard';
 import { useLists } from '@/hooks/useLists';
 import { AddListForm } from '../../components/board/AddListForm';
+import { CardModal } from '../../components/board/CardModal';
 import {
   Star,
   User,
@@ -588,6 +589,10 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   const [deletionStats, setDeletionStats] = useState<any>(null);
   const [showDeletionDetails, setShowDeletionDetails] = useState(false);
 
+  // Card modal states
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+
   // Notification states
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -914,6 +919,50 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     console.log('Manage due date for task:', taskId);
     // TODO: Implement due date management modal
     showSuccess('Due date management will be implemented soon');
+  };
+
+  // Card modal handlers
+  const handleOpenCard = (cardId: string) => {
+    setSelectedCardId(cardId);
+    setIsCardModalOpen(true);
+  };
+
+  const handleCloseCard = () => {
+    setSelectedCardId(null);
+    setIsCardModalOpen(false);
+  };
+
+  const handleUpdateCard = async (
+    cardId: string,
+    updates: any
+  ): Promise<boolean> => {
+    try {
+      const response = await fetch(`/api/cards/${cardId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update card');
+      }
+
+      // The card is updated on the server, we can close the modal
+      // The useLists hook will handle the state update automatically
+
+      showSuccess('Card updated successfully');
+      return true;
+    } catch (error) {
+      console.error('Error updating card:', error);
+      showError(
+        error instanceof Error ? error.message : 'Failed to update card'
+      );
+      return false;
+    }
   };
 
   // Handle adding a new card to a column
@@ -1377,6 +1426,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   onManageLabels={handleManageLabels}
                   onManageAssignees={handleManageAssignees}
                   onManageDueDate={handleManageDueDate}
+                  onOpenCard={handleOpenCard}
                 />
               </div>
             ))}
@@ -1403,6 +1453,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 onManageLabels={handleManageLabels}
                 onManageAssignees={handleManageAssignees}
                 onManageDueDate={handleManageDueDate}
+                onOpenCard={handleOpenCard}
               />
             )}
           </DragOverlay>
@@ -1551,6 +1602,37 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           </div>
         </div>
       )}
+
+      {/* Card Modal */}
+      {isCardModalOpen &&
+        selectedCardId &&
+        (() => {
+          // Find the selected card across all lists
+          let selectedCard = null;
+          let listName = '';
+
+          for (const list of lists) {
+            const card = list.cards.find((c) => c.id === selectedCardId);
+            if (card) {
+              selectedCard = card;
+              listName = list.name;
+              break;
+            }
+          }
+
+          return selectedCard ? (
+            <CardModal
+              card={selectedCard}
+              isOpen={isCardModalOpen}
+              onClose={handleCloseCard}
+              onUpdateCard={handleUpdateCard}
+              onDeleteCard={handleDeleteTask}
+              onArchiveCard={handleArchiveTask}
+              listName={listName}
+              boardName={board?.name || 'Board'}
+            />
+          ) : null;
+        })()}
 
       {/* Success Toast */}
       {showSuccessToast && (

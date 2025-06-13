@@ -10,6 +10,7 @@ import {
   CheckSquare,
   ArrowUp,
   Bug,
+  Edit3,
 } from 'lucide-react';
 import { TaskActionsMenu } from './TaskActionsMenu';
 
@@ -36,6 +37,7 @@ interface TaskCardProps {
   onManageLabels?: (taskId: string) => void;
   onManageAssignees?: (taskId: string) => void;
   onManageDueDate?: (taskId: string) => void;
+  onOpenCard?: (taskId: string) => void; // Add callback for opening card modal
 }
 
 export function TaskCard({
@@ -51,6 +53,7 @@ export function TaskCard({
   onManageLabels,
   onManageAssignees,
   onManageDueDate,
+  onOpenCard,
 }: TaskCardProps) {
   const {
     attributes,
@@ -101,7 +104,7 @@ export function TaskCard({
     <div className='w-full h-full border-dashed border-2 border-primary/30 rounded-lg bg-primary/5 min-h-[80px]' />
   ) : (
     <>
-      {/* Header with Edit Button */}
+      {/* Header with Labels and Actions */}
       <div className='flex justify-between items-start mb-2'>
         <div className='flex-1'>
           {/* Labels */}
@@ -121,23 +124,25 @@ export function TaskCard({
           )}
         </div>
 
-        {/* Edit Button - Only show if there are actions */}
+        {/* Three-dot menu - Only show if there are actions */}
         {hasActions && (
-          <TaskActionsMenu
-            task={task}
-            onEditTask={onEditTask}
-            onCopyTask={onCopyTask}
-            onArchiveTask={onArchiveTask}
-            onDeleteTask={onDeleteTask}
-            onManageLabels={onManageLabels}
-            onManageAssignees={onManageAssignees}
-            onManageDueDate={onManageDueDate}
-          />
+          <div onClick={(e) => e.stopPropagation()}>
+            <TaskActionsMenu
+              task={task}
+              onEditTask={onEditTask}
+              onCopyTask={onCopyTask}
+              onArchiveTask={onArchiveTask}
+              onDeleteTask={onDeleteTask}
+              onManageLabels={onManageLabels}
+              onManageAssignees={onManageAssignees}
+              onManageDueDate={onManageDueDate}
+            />
+          </div>
         )}
       </div>
 
       {/* Title */}
-      <p className='text-sm font-medium text-white mb-3 leading-snug break-words'>
+      <p className='text-sm font-medium text-foreground mb-3 leading-snug break-words'>
         {task.title}
       </p>
 
@@ -155,23 +160,50 @@ export function TaskCard({
           ))}
         </div>
 
-        <div className='flex items-center gap-2.5 text-white/60 text-xs'>
-          {task.attachments && (
-            <span className='flex items-center gap-0.5'>
-              <Paperclip className='w-3.5 h-3.5' />
-              {task.attachments}
-            </span>
-          )}
-          {task.comments && (
-            <span className='flex items-center gap-0.5'>
-              <MessageSquare className='w-3.5 h-3.5' />
-              {task.comments}
-            </span>
+        <div className='flex items-center gap-2.5'>
+          {/* Stats */}
+          <div className='flex items-center gap-2.5 text-muted-foreground text-xs'>
+            {task.attachments && (
+              <span className='flex items-center gap-0.5'>
+                <Paperclip className='w-3.5 h-3.5' />
+                {task.attachments}
+              </span>
+            )}
+            {task.comments && (
+              <span className='flex items-center gap-0.5'>
+                <MessageSquare className='w-3.5 h-3.5' />
+                {task.comments}
+              </span>
+            )}
+          </div>
+
+          {/* Edit Button */}
+          {onOpenCard && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onOpenCard(task.id);
+              }}
+              className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-all duration-200 opacity-0 group-hover:opacity-100 hover:scale-105'
+              title='Edit card'
+            >
+              <Edit3 className='w-3.5 h-3.5' />
+            </button>
           )}
         </div>
       </div>
     </>
   );
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't open modal if dragging or if clicking edit button
+    if (isDragging || e.defaultPrevented) return;
+
+    if (onOpenCard) {
+      onOpenCard(task.id);
+    }
+  };
 
   return (
     <div
@@ -179,7 +211,8 @@ export function TaskCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`group p-3 rounded-lg backdrop-blur-sm border shadow-lg shadow-black/10 cursor-grab active:cursor-grabbing min-h-[80px] h-auto mb-6 last:mb-0
+      onClick={handleCardClick}
+      className={`group p-3 rounded-lg backdrop-blur-sm border shadow-lg shadow-black/10 cursor-pointer min-h-[80px] h-auto mb-6 last:mb-0
         transition-all duration-300 ease-out transform
         ${!isDragging ? 'hover:-translate-y-1' : ''}
         ${
