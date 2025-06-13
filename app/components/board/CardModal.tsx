@@ -34,6 +34,10 @@ import {
   ChevronRight,
   Calendar as CalendarIcon,
   AlertCircle,
+  Search,
+  SortAsc,
+  SortDesc,
+  Filter,
 } from 'lucide-react';
 
 interface Card {
@@ -233,6 +237,13 @@ export function CardModal({
     new Set()
   );
   const [showAllActivities, setShowAllActivities] = useState(false);
+
+  // Comment filtering and search states
+  const [commentSortOrder, setCommentSortOrder] = useState<'newest' | 'oldest'>(
+    'newest'
+  );
+  const [commentSearchQuery, setCommentSearchQuery] = useState('');
+  const [showCommentFilters, setShowCommentFilters] = useState(false);
 
   // Reset form when card changes
   useEffect(() => {
@@ -671,6 +682,48 @@ export function CardModal({
     setCommentToDelete(null);
   };
 
+  // Comment filtering and search logic
+  const filteredAndSortedComments = React.useMemo(() => {
+    let filtered = comments;
+
+    // Filter by search query
+    if (commentSearchQuery.trim()) {
+      const query = commentSearchQuery.toLowerCase();
+      filtered = comments.filter(
+        (comment) =>
+          comment.content.toLowerCase().includes(query) ||
+          comment.profiles.full_name?.toLowerCase().includes(query)
+      );
+    }
+
+    // Sort comments
+    const sorted = [...filtered].sort((a, b) => {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+
+      if (commentSortOrder === 'newest') {
+        return dateB - dateA; // Newest first
+      } else {
+        return dateA - dateB; // Oldest first
+      }
+    });
+
+    return sorted;
+  }, [comments, commentSearchQuery, commentSortOrder]);
+
+  const handleCommentSearch = (query: string) => {
+    setCommentSearchQuery(query);
+  };
+
+  const toggleCommentSort = () => {
+    setCommentSortOrder((prev) => (prev === 'newest' ? 'oldest' : 'newest'));
+  };
+
+  const clearCommentFilters = () => {
+    setCommentSearchQuery('');
+    setCommentSortOrder('newest');
+  };
+
   const getActivityIcon = (actionType: string) => {
     switch (actionType) {
       case 'comment_added':
@@ -938,14 +991,111 @@ export function CardModal({
                     </div>
                   </div>
 
+                  {/* Comment Filters and Search */}
+                  {comments.length > 0 && (
+                    <div className='bg-background rounded-lg border border-border p-4 space-y-3'>
+                      <div className='flex items-center justify-between'>
+                        <div className='flex items-center gap-2'>
+                          <Filter className='w-4 h-4 text-muted-foreground' />
+                          <span className='text-sm font-medium text-foreground'>
+                            Filter & Search Comments
+                          </span>
+                          <span className='text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded'>
+                            {filteredAndSortedComments.length} of{' '}
+                            {comments.length}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() =>
+                            setShowCommentFilters(!showCommentFilters)
+                          }
+                          className='text-xs text-primary hover:text-primary/80 transition-colors'
+                        >
+                          {showCommentFilters ? 'Hide filters' : 'Show filters'}
+                        </button>
+                      </div>
+
+                      {showCommentFilters && (
+                        <div className='space-y-3 pt-2 border-t border-border/50'>
+                          {/* Search Input */}
+                          <div className='relative'>
+                            <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground' />
+                            <input
+                              type='text'
+                              placeholder='Search comments by content or author...'
+                              value={commentSearchQuery}
+                              onChange={(e) =>
+                                handleCommentSearch(e.target.value)
+                              }
+                              className='w-full pl-10 pr-4 py-2 border border-border rounded-md text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all'
+                            />
+                            {commentSearchQuery && (
+                              <button
+                                onClick={() => handleCommentSearch('')}
+                                className='absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors'
+                                title='Clear search'
+                              >
+                                <X className='w-4 h-4' />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Sort Options */}
+                          <div className='flex items-center gap-3'>
+                            <span className='text-xs font-medium text-muted-foreground'>
+                              Sort by:
+                            </span>
+                            <div className='flex gap-1'>
+                              <button
+                                onClick={() => setCommentSortOrder('newest')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-all ${
+                                  commentSortOrder === 'newest'
+                                    ? 'bg-primary text-primary-foreground shadow-sm'
+                                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                }`}
+                              >
+                                <SortDesc className='w-3 h-3' />
+                                Newest first
+                              </button>
+                              <button
+                                onClick={() => setCommentSortOrder('oldest')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-all ${
+                                  commentSortOrder === 'oldest'
+                                    ? 'bg-primary text-primary-foreground shadow-sm'
+                                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                }`}
+                              >
+                                <SortAsc className='w-3 h-3' />
+                                Oldest first
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Clear Filters */}
+                          {(commentSearchQuery ||
+                            commentSortOrder !== 'newest') && (
+                            <div className='flex justify-end'>
+                              <button
+                                onClick={clearCommentFilters}
+                                className='text-xs text-muted-foreground hover:text-foreground transition-colors'
+                              >
+                                Clear all filters
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Enhanced Comments list */}
                   {isLoadingComments ? (
                     <div className='flex justify-center py-8'>
                       <div className='w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin' />
                     </div>
-                  ) : comments.length > 0 ? (
+                  ) : filteredAndSortedComments.length > 0 ? (
                     <div className='space-y-4'>
-                      {comments.map((comment) => (
+                      {filteredAndSortedComments.map((comment) => (
                         <div key={comment.id} className='group'>
                           <div className='flex gap-3'>
                             <div className='flex-shrink-0'>
@@ -1100,14 +1250,32 @@ export function CardModal({
                   ) : (
                     <div className='text-center py-12'>
                       <div className='w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4'>
-                        <MessageSquare className='w-8 h-8 text-muted-foreground' />
+                        {comments.length === 0 ? (
+                          <MessageSquare className='w-8 h-8 text-muted-foreground' />
+                        ) : (
+                          <Search className='w-8 h-8 text-muted-foreground' />
+                        )}
                       </div>
                       <h3 className='font-medium text-foreground mb-1'>
-                        No comments yet
+                        {comments.length === 0
+                          ? 'No comments yet'
+                          : 'No matching comments'}
                       </h3>
                       <p className='text-sm text-muted-foreground'>
-                        Be the first to add a comment!
+                        {comments.length === 0
+                          ? 'Be the first to add a comment!'
+                          : 'Try adjusting your search or filter criteria.'}
                       </p>
+                      {comments.length > 0 &&
+                        (commentSearchQuery ||
+                          commentSortOrder !== 'newest') && (
+                          <button
+                            onClick={clearCommentFilters}
+                            className='mt-3 text-sm text-primary hover:text-primary/80 transition-colors'
+                          >
+                            Clear filters
+                          </button>
+                        )}
                     </div>
                   )}
                 </div>
