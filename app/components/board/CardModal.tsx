@@ -214,6 +214,7 @@ export function CardModal({
   const [isLoadingActivities, setIsLoadingActivities] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [shouldCloseAfterSubmit, setShouldCloseAfterSubmit] = useState(false);
+  const [savingCommentId, setSavingCommentId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'comments' | 'activities'>(
     'comments'
   );
@@ -502,6 +503,8 @@ export function CardModal({
   const handleSaveEditComment = async (commentId: string) => {
     if (!editingCommentContent.trim()) return;
 
+    setSavingCommentId(commentId);
+
     try {
       const response = await fetch(
         `/api/cards/${card?.id}/comments/${commentId}`,
@@ -536,6 +539,8 @@ export function CardModal({
     } catch (error) {
       console.error('Error updating comment:', error);
       alert('Failed to update comment. Please try again.');
+    } finally {
+      setSavingCommentId(null);
     }
   };
 
@@ -962,12 +967,22 @@ export function CardModal({
                                               handleSaveEditComment(comment.id)
                                             }
                                             disabled={
-                                              !editingCommentContent.trim()
+                                              !editingCommentContent.trim() ||
+                                              savingCommentId === comment.id
                                             }
                                             className='flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow disabled:hover:shadow-sm'
                                           >
-                                            <Save className='w-3 h-3' />
-                                            Save
+                                            {savingCommentId === comment.id ? (
+                                              <>
+                                                <div className='w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin' />
+                                                Saving...
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Save className='w-3 h-3' />
+                                                Save
+                                              </>
+                                            )}
                                           </button>
                                         </div>
                                       </div>
