@@ -213,6 +213,7 @@ export function CardModal({
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [isLoadingActivities, setIsLoadingActivities] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [shouldCloseAfterSubmit, setShouldCloseAfterSubmit] = useState(false);
   const [activeTab, setActiveTab] = useState<'comments' | 'activities'>(
     'comments'
   );
@@ -308,12 +309,15 @@ export function CardModal({
   };
 
   const handleDescriptionKeyPress = (e: React.KeyboardEvent) => {
+    // Escape to cancel editing
     if (e.key === 'Escape') {
       setDescription(card.description || '');
       setIsEditingDescription(false);
     }
     // Ctrl+Enter to save
     if (e.key === 'Enter' && e.ctrlKey) {
+      e.preventDefault();
+      e.stopPropagation();
       handleSaveDescription();
     }
   };
@@ -382,6 +386,13 @@ export function CardModal({
     if (!newComment.trim() || !card || isSubmittingComment) return;
 
     setIsSubmittingComment(true);
+
+    // Close modal immediately if Ctrl+Enter was used
+    if (shouldCloseAfterSubmit) {
+      onClose();
+      setShouldCloseAfterSubmit(false);
+    }
+
     try {
       console.log('Submitting comment for card:', card.id);
       console.log('Comment content:', newComment.trim());
@@ -432,6 +443,10 @@ export function CardModal({
         return `${userName} updated this card`;
       case 'comment_added':
         return `${userName} commented on this card`;
+      case 'comment_updated':
+        return `${userName} edited a comment`;
+      case 'comment_deleted':
+        return `${userName} deleted a comment`;
       case 'attachment_added':
         return `${userName} added an attachment`;
       case 'card_moved':
@@ -511,8 +526,12 @@ export function CardModal({
         );
         setEditingCommentId(null);
         setEditingCommentContent('');
+        // Refresh activities to show the comment edit activity
+        fetchActivities();
       } else {
-        alert(`Failed to update comment: ${data.error || 'Unknown error'}`);
+        console.error('Failed to update comment:', data);
+        const errorMessage = data.error || 'Unknown error';
+        alert(`Failed to update comment: ${errorMessage}`);
       }
     } catch (error) {
       console.error('Error updating comment:', error);
@@ -521,12 +540,11 @@ export function CardModal({
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    setDeletingCommentId(commentId);
-
-    if (!confirm('Are you sure you want to delete this comment?')) {
-      setDeletingCommentId(null);
+    if (!confirm('Delete this comment?')) {
       return;
     }
+
+    setDeletingCommentId(commentId);
 
     try {
       const response = await fetch(
@@ -558,6 +576,10 @@ export function CardModal({
     switch (actionType) {
       case 'comment_added':
         return <MessageSquare className='w-4 h-4' />;
+      case 'comment_updated':
+        return <Edit className='w-4 h-4' />;
+      case 'comment_deleted':
+        return <Trash2 className='w-4 h-4' />;
       case 'card_created':
         return <Plus className='w-4 h-4' />;
       case 'card_updated':
@@ -755,6 +777,7 @@ export function CardModal({
                                   !isSubmittingComment
                                 ) {
                                   e.preventDefault();
+                                  setShouldCloseAfterSubmit(true);
                                   handleSubmitComment(e);
                                 }
                               }}
@@ -852,21 +875,12 @@ export function CardModal({
                                       <div className='flex items-center gap-1'>
                                         <button
                                           onClick={() =>
-                                            handleEditComment(comment)
-                                          }
-                                          className='p-1 text-muted-foreground hover:text-foreground transition-colors rounded'
-                                          title='Edit comment'
-                                        >
-                                          <Edit className='w-3 h-3' />
-                                        </button>
-                                        <button
-                                          onClick={() =>
                                             handleDeleteComment(comment.id)
                                           }
                                           disabled={
                                             deletingCommentId === comment.id
                                           }
-                                          className='p-1 text-muted-foreground hover:text-red-500 transition-colors rounded'
+                                          className='p-1 text-muted-foreground hover:text-red-500 transition-colors rounded disabled:opacity-50'
                                           title='Delete comment'
                                         >
                                           {deletingCommentId === comment.id ? (
@@ -881,42 +895,89 @@ export function CardModal({
 
                                   {/* Comment Content */}
                                   {editingCommentId === comment.id ? (
-                                    <div className='space-y-2'>
-                                      <textarea
-                                        value={editingCommentContent}
-                                        onChange={(e) =>
-                                          setEditingCommentContent(
-                                            e.target.value
-                                          )
-                                        }
-                                        className='w-full p-2 border border-border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm'
-                                        rows={3}
-                                        placeholder='Edit your comment...'
-                                        aria-label='Edit comment'
-                                      />
-                                      <div className='flex gap-2'>
-                                        <button
-                                          onClick={() =>
-                                            handleSaveEditComment(comment.id)
+                                    <div className='space-y-3'>
+                                      <div className='relative'>
+                                        <textarea
+                                          value={editingCommentContent}
+                                          onChange={(e) =>
+                                            setEditingCommentContent(
+                                              e.target.value
+                                            )
                                           }
-                                          className='flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-xs rounded hover:bg-primary/90 transition-colors'
-                                        >
-                                          <Save className='w-3 h-3' />
-                                          Save
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            setEditingCommentId(null);
-                                            setEditingCommentContent('');
+                                          onKeyDown={(e) => {
+                                            if (
+                                              e.key === 'Enter' &&
+                                              e.ctrlKey &&
+                                              editingCommentContent.trim()
+                                            ) {
+                                              e.preventDefault();
+                                              handleSaveEditComment(comment.id);
+                                            }
+                                            if (e.key === 'Escape') {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              setEditingCommentId(null);
+                                              setEditingCommentContent('');
+                                            }
                                           }}
-                                          className='px-3 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors'
-                                        >
-                                          Cancel
-                                        </button>
+                                          className='w-full p-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 text-sm bg-background placeholder-muted-foreground min-h-[80px]'
+                                          placeholder='Edit your comment...'
+                                          aria-label='Edit comment'
+                                          autoFocus
+                                        />
+                                        {editingCommentContent.trim() && (
+                                          <div className='absolute bottom-3 right-3 text-xs text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded'>
+                                            {editingCommentContent.length}/1000
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className='flex justify-between items-center'>
+                                        <div className='text-xs text-muted-foreground'>
+                                          Press{' '}
+                                          <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                                            Ctrl
+                                          </kbd>{' '}
+                                          +{' '}
+                                          <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                                            Enter
+                                          </kbd>{' '}
+                                          to save or{' '}
+                                          <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                                            Esc
+                                          </kbd>{' '}
+                                          to cancel
+                                        </div>
+                                        <div className='flex gap-2'>
+                                          <button
+                                            onClick={() => {
+                                              setEditingCommentId(null);
+                                              setEditingCommentContent('');
+                                            }}
+                                            className='px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors'
+                                          >
+                                            Cancel
+                                          </button>
+                                          <button
+                                            onClick={() =>
+                                              handleSaveEditComment(comment.id)
+                                            }
+                                            disabled={
+                                              !editingCommentContent.trim()
+                                            }
+                                            className='flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow disabled:hover:shadow-sm'
+                                          >
+                                            <Save className='w-3 h-3' />
+                                            Save
+                                          </button>
+                                        </div>
                                       </div>
                                     </div>
                                   ) : (
-                                    <p className='text-sm text-foreground whitespace-pre-wrap leading-relaxed'>
+                                    <p
+                                      className='text-sm text-foreground whitespace-pre-wrap leading-relaxed cursor-pointer hover:bg-muted/40 rounded p-1 -m-1 transition-colors'
+                                      onClick={() => handleEditComment(comment)}
+                                      title='Click to edit'
+                                    >
                                       {comment.content}
                                     </p>
                                   )}
@@ -1143,12 +1204,6 @@ export function CardModal({
                 this card?
               </p>
               <div className='flex gap-3 mt-2'>
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className='px-4 py-2 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors text-sm font-medium'
-                >
-                  Cancel
-                </button>
                 <button
                   onClick={() => {
                     setShowDeleteConfirm(false);
