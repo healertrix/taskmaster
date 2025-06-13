@@ -423,7 +423,7 @@ export function CardModal({
       console.log('Response data:', data);
 
       if (response.ok) {
-        setComments((prev) => [...prev, data.comment]);
+        setComments((prev) => [data.comment, ...prev]);
         setNewComment('');
         // Refresh activities to show the new comment activity
         fetchActivities();

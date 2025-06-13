@@ -49,7 +49,7 @@ export async function GET(
       `
       )
       .eq('card_id', cardId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: false });
 
     if (commentsError) {
       console.error('Error fetching comments:', commentsError);
