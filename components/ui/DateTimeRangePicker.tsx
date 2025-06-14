@@ -12,6 +12,7 @@ import {
   Trash2,
   Edit,
 } from 'lucide-react';
+import { CustomTimePicker } from './CustomTimePicker';
 import { format, isAfter, isBefore, isEqual, startOfDay } from 'date-fns';
 
 interface DateTimeRangePickerProps {
@@ -335,7 +336,7 @@ export function DateTimeRangePicker({
               <div className='space-y-3'>
                 {/* Start Time */}
                 {selectedStartDate && (
-                  <div>
+                  <div className='relative'>
                     <div className='flex items-center justify-between mb-2'>
                       <label className='text-sm text-foreground'>
                         Start Time
@@ -351,13 +352,10 @@ export function DateTimeRangePicker({
                       )}
                     </div>
 
-                    <input
-                      type='time'
+                    <CustomTimePicker
                       value={selectedStartTime}
-                      onChange={(e) => setSelectedStartTime(e.target.value)}
-                      className='w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors'
-                      title='Select start time'
-                      aria-label='Select start time'
+                      onChange={setSelectedStartTime}
+                      label='Start Time'
                       placeholder='Select start time'
                     />
                   </div>
@@ -365,7 +363,7 @@ export function DateTimeRangePicker({
 
                 {/* Due Time */}
                 {selectedEndDate && (
-                  <div>
+                  <div className='relative'>
                     <div className='flex items-center justify-between mb-2'>
                       <label className='text-sm text-foreground'>
                         Due Time
@@ -381,13 +379,10 @@ export function DateTimeRangePicker({
                       )}
                     </div>
 
-                    <input
-                      type='time'
+                    <CustomTimePicker
                       value={selectedDueTime}
-                      onChange={(e) => setSelectedDueTime(e.target.value)}
-                      className='w-full px-3 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors'
-                      title='Select due time'
-                      aria-label='Select due time'
+                      onChange={setSelectedDueTime}
+                      label='Due Time'
                       placeholder='Select due time'
                     />
                   </div>
