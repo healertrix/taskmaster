@@ -99,6 +99,36 @@ export function Checklist({
     }
   }, [checklist.name, isEditingName, isSavingTitle]);
 
+  // Handle ESC key for checklist delete confirmation modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showDeleteConfirm) {
+        e.stopPropagation(); // Prevent parent modal from closing
+        setShowDeleteConfirm(false);
+      }
+    };
+
+    if (showDeleteConfirm) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [showDeleteConfirm]);
+
+  // Handle ESC key for item delete confirmation modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showItemDeleteConfirm) {
+        e.stopPropagation(); // Prevent parent modal from closing
+        cancelDeleteItem();
+      }
+    };
+
+    if (showItemDeleteConfirm) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [showItemDeleteConfirm]);
+
   const handleSaveChecklistName = async () => {
     if (checklistName.trim() && checklistName !== checklist.name) {
       const nameToSave = checklistName.trim();

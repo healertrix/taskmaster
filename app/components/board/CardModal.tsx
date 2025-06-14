@@ -366,6 +366,12 @@ export function CardModal({
           setIsEditingDescription(false);
         } else if (showDeleteConfirm) {
           setShowDeleteConfirm(false);
+        } else if (showDeleteModal) {
+          e.stopPropagation();
+          cancelDeleteComment();
+        } else if (showDeleteAttachmentModal) {
+          e.stopPropagation();
+          cancelDeleteAttachment();
         } else {
           onClose();
         }
@@ -387,6 +393,8 @@ export function CardModal({
     isEditingTitle,
     isEditingDescription,
     showDeleteConfirm,
+    showDeleteModal,
+    showDeleteAttachmentModal,
     title,
     description,
   ]);
