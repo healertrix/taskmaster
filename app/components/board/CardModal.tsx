@@ -43,6 +43,8 @@ import {
   Check,
 } from 'lucide-react';
 import { DateTimeRangePicker } from '@/components/ui/DateTimeRangePicker';
+import { Checklist } from '@/components/ui/Checklist';
+import { AddChecklistModal } from '@/components/ui/AddChecklistModal';
 import {
   combineDateAndTime,
   extractDate,
@@ -103,6 +105,22 @@ interface ActivityData {
     id: string;
     content: string;
   } | null;
+}
+
+interface ChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ChecklistData {
+  id: string;
+  name: string;
+  items: ChecklistItem[];
+  created_at: string;
+  updated_at: string;
 }
 
 interface CardModalProps {
@@ -283,6 +301,12 @@ export function CardModal({
   );
   const [isSavingDates, setIsSavingDates] = useState(false);
 
+  // Checklist state
+  const [checklists, setChecklists] = useState<ChecklistData[]>([]);
+  const [isLoadingChecklists, setIsLoadingChecklists] = useState(false);
+  const [showAddChecklistModal, setShowAddChecklistModal] = useState(false);
+  const [isAddingChecklist, setIsAddingChecklist] = useState(false);
+
   // Reset form when card changes
   useEffect(() => {
     setTitle(card.title);
@@ -392,11 +416,12 @@ export function CardModal({
     return getRelativeDateTime(dateString);
   };
 
-  // Fetch comments and activities when modal opens
+  // Fetch comments, activities, and checklists when modal opens
   useEffect(() => {
     if (isOpen && card) {
       fetchComments();
       fetchActivities();
+      fetchChecklists();
     }
   }, [isOpen, card]);
 
@@ -437,6 +462,26 @@ export function CardModal({
       console.error('Error fetching activities:', error);
     } finally {
       setIsLoadingActivities(false);
+    }
+  };
+
+  const fetchChecklists = async () => {
+    if (!card) return;
+
+    setIsLoadingChecklists(true);
+    try {
+      const response = await fetch(`/api/cards/${card.id}/checklists`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setChecklists(data.checklists || []);
+      } else {
+        console.error('Failed to fetch checklists:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching checklists:', error);
+    } finally {
+      setIsLoadingChecklists(false);
     }
   };
 
@@ -819,6 +864,379 @@ export function CardModal({
     setShowDatePicker(true);
   };
 
+  // Checklist handlers
+  const handleAddChecklist = async (
+    name: string,
+    templateItems?: string[]
+  ): Promise<boolean> => {
+    if (!card) return false;
+
+    setIsAddingChecklist(true);
+    try {
+      const response = await fetch(`/api/cards/${card.id}/checklists`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, templateItems }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setChecklists((prev) => [...prev, data.checklist]);
+        return true;
+      } else {
+        console.error('Failed to add checklist:', data.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error adding checklist:', error);
+      return false;
+    } finally {
+      setIsAddingChecklist(false);
+    }
+  };
+
+  const handleUpdateChecklist = async (
+    checklistId: string,
+    updates: Partial<ChecklistData>
+  ): Promise<boolean> => {
+    if (!card) return false;
+
+    try {
+      const response = await fetch(
+        `/api/cards/${card.id}/checklists/${checklistId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name: updates.name }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setChecklists((prev) =>
+          prev.map((checklist) =>
+            checklist.id === checklistId
+              ? { ...checklist, ...updates }
+              : checklist
+          )
+        );
+        return true;
+      } else {
+        console.error('Failed to update checklist:', data.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error updating checklist:', error);
+      return false;
+    }
+  };
+
+  const handleDeleteChecklist = async (
+    checklistId: string
+  ): Promise<boolean> => {
+    if (!card) return false;
+
+    try {
+      const response = await fetch(
+        `/api/cards/${card.id}/checklists/${checklistId}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (response.ok) {
+        setChecklists((prev) =>
+          prev.filter((checklist) => checklist.id !== checklistId)
+        );
+        return true;
+      } else {
+        const data = await response.json();
+        console.error('Failed to delete checklist:', data.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error deleting checklist:', error);
+      return false;
+    }
+  };
+
+  const handleAddChecklistItem = async (
+    checklistId: string,
+    text: string
+  ): Promise<boolean> => {
+    if (!card) return false;
+
+    // Create temporary item for optimistic update
+    const tempItem: ChecklistItem = {
+      id: `temp-${Date.now()}`,
+      text: text,
+      completed: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Optimistic update - add item immediately
+    setChecklists((prev) =>
+      prev.map((checklist) =>
+        checklist.id === checklistId
+          ? { ...checklist, items: [...checklist.items, tempItem] }
+          : checklist
+      )
+    );
+
+    try {
+      const response = await fetch(
+        `/api/cards/${card.id}/checklists/${checklistId}/items`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Replace temp item with real item from server
+        setChecklists((prev) =>
+          prev.map((checklist) =>
+            checklist.id === checklistId
+              ? {
+                  ...checklist,
+                  items: checklist.items.map((item) =>
+                    item.id === tempItem.id ? data.item : item
+                  ),
+                }
+              : checklist
+          )
+        );
+        return true;
+      } else {
+        console.error('Failed to add checklist item:', data.error);
+        // Remove temp item on error
+        setChecklists((prev) =>
+          prev.map((checklist) =>
+            checklist.id === checklistId
+              ? {
+                  ...checklist,
+                  items: checklist.items.filter(
+                    (item) => item.id !== tempItem.id
+                  ),
+                }
+              : checklist
+          )
+        );
+        return false;
+      }
+    } catch (error) {
+      console.error('Error adding checklist item:', error);
+      // Remove temp item on error
+      setChecklists((prev) =>
+        prev.map((checklist) =>
+          checklist.id === checklistId
+            ? {
+                ...checklist,
+                items: checklist.items.filter(
+                  (item) => item.id !== tempItem.id
+                ),
+              }
+            : checklist
+        )
+      );
+      return false;
+    }
+  };
+
+  const handleUpdateChecklistItem = async (
+    checklistId: string,
+    itemId: string,
+    updates: Partial<ChecklistItem>
+  ): Promise<boolean> => {
+    if (!card) return false;
+
+    // Optimistic update - update UI immediately
+    setChecklists((prev) =>
+      prev.map((checklist) =>
+        checklist.id === checklistId
+          ? {
+              ...checklist,
+              items: checklist.items.map((item) =>
+                item.id === itemId ? { ...item, ...updates } : item
+              ),
+            }
+          : checklist
+      )
+    );
+
+    try {
+      const response = await fetch(
+        `/api/cards/${card.id}/checklists/${checklistId}/items/${itemId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updates),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Update with server response to ensure consistency
+        setChecklists((prev) =>
+          prev.map((checklist) =>
+            checklist.id === checklistId
+              ? {
+                  ...checklist,
+                  items: checklist.items.map((item) =>
+                    item.id === itemId ? data.item : item
+                  ),
+                }
+              : checklist
+          )
+        );
+        return true;
+      } else {
+        console.error('Failed to update checklist item:', data.error);
+        // Revert optimistic update on error
+        setChecklists((prev) =>
+          prev.map((checklist) =>
+            checklist.id === checklistId
+              ? {
+                  ...checklist,
+                  items: checklist.items.map((item) => {
+                    if (item.id === itemId) {
+                      // Revert the changes
+                      const revertedItem = { ...item };
+                      Object.keys(updates).forEach((key) => {
+                        if (key === 'completed') {
+                          revertedItem.completed = !updates.completed!;
+                        } else if (key === 'text') {
+                          // For text updates, we'd need to store the original value
+                          // For now, just keep the current value
+                        }
+                      });
+                      return revertedItem;
+                    }
+                    return item;
+                  }),
+                }
+              : checklist
+          )
+        );
+        return false;
+      }
+    } catch (error) {
+      console.error('Error updating checklist item:', error);
+      // Revert optimistic update on error
+      setChecklists((prev) =>
+        prev.map((checklist) =>
+          checklist.id === checklistId
+            ? {
+                ...checklist,
+                items: checklist.items.map((item) => {
+                  if (item.id === itemId) {
+                    // Revert the changes
+                    const revertedItem = { ...item };
+                    Object.keys(updates).forEach((key) => {
+                      if (key === 'completed') {
+                        revertedItem.completed = !updates.completed!;
+                      }
+                    });
+                    return revertedItem;
+                  }
+                  return item;
+                }),
+              }
+            : checklist
+        )
+      );
+      return false;
+    }
+  };
+
+  const handleDeleteChecklistItem = async (
+    checklistId: string,
+    itemId: string
+  ): Promise<boolean> => {
+    if (!card) return false;
+
+    // Store the item for potential restoration
+    let deletedItem: ChecklistItem | null = null;
+
+    // Optimistic update - remove item immediately
+    setChecklists((prev) =>
+      prev.map((checklist) => {
+        if (checklist.id === checklistId) {
+          deletedItem =
+            checklist.items.find((item) => item.id === itemId) || null;
+          return {
+            ...checklist,
+            items: checklist.items.filter((item) => item.id !== itemId),
+          };
+        }
+        return checklist;
+      })
+    );
+
+    try {
+      const response = await fetch(
+        `/api/cards/${card.id}/checklists/${checklistId}/items/${itemId}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (response.ok) {
+        return true;
+      } else {
+        const data = await response.json();
+        console.error('Failed to delete checklist item:', data.error);
+
+        // Restore the item on error
+        if (deletedItem) {
+          setChecklists((prev) =>
+            prev.map((checklist) =>
+              checklist.id === checklistId
+                ? {
+                    ...checklist,
+                    items: [...checklist.items, deletedItem!],
+                  }
+                : checklist
+            )
+          );
+        }
+        return false;
+      }
+    } catch (error) {
+      console.error('Error deleting checklist item:', error);
+
+      // Restore the item on error
+      if (deletedItem) {
+        setChecklists((prev) =>
+          prev.map((checklist) =>
+            checklist.id === checklistId
+              ? {
+                  ...checklist,
+                  items: [...checklist.items, deletedItem!],
+                }
+              : checklist
+          )
+        );
+      }
+      return false;
+    }
+  };
+
   const getActivityIcon = (actionType: string) => {
     switch (actionType) {
       case 'comment_added':
@@ -1120,6 +1538,55 @@ export function CardModal({
                 </div>
               )}
 
+              {/* Checklists Section */}
+              <div className='mb-6'>
+                <div className='flex items-center justify-between mb-4'>
+                  <div className='flex items-center gap-2'>
+                    <CheckSquare className='w-4 h-4 text-muted-foreground' />
+                    <h3 className='text-sm font-medium text-foreground'>
+                      Checklists
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowAddChecklistModal(true)}
+                    className='flex items-center gap-1.5 px-2.5 py-1.5 bg-primary text-primary-foreground text-xs font-medium rounded-md hover:bg-primary/90 transition-colors'
+                    disabled={isAddingChecklist}
+                  >
+                    <Plus className='w-3 h-3' />
+                    Add
+                  </button>
+                </div>
+
+                {isLoadingChecklists ? (
+                  <div className='flex items-center justify-center py-8'>
+                    <div className='w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
+                  </div>
+                ) : checklists.length > 0 ? (
+                  <div className='space-y-4'>
+                    {checklists.map((checklist) => (
+                      <Checklist
+                        key={checklist.id}
+                        checklist={checklist}
+                        onUpdateChecklist={handleUpdateChecklist}
+                        onDeleteChecklist={handleDeleteChecklist}
+                        onAddItem={handleAddChecklistItem}
+                        onUpdateItem={handleUpdateChecklistItem}
+                        onDeleteItem={handleDeleteChecklistItem}
+                        isLoading={false}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className='text-center py-6 text-muted-foreground'>
+                    <CheckSquare className='w-8 h-8 mx-auto mb-2 opacity-50' />
+                    <p className='text-xs'>No checklists yet</p>
+                    <p className='text-xs mt-1 opacity-75'>
+                      Add a checklist to track your progress
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Created info */}
               <div className='text-sm text-muted-foreground space-y-2 pt-4 border-t border-border'>
                 <div className='flex items-center gap-2'>
@@ -1176,7 +1643,13 @@ export function CardModal({
                             <Tag className='w-4 h-4 text-muted-foreground' />
                             Labels
                           </button>
-                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                          <button
+                            onClick={() => {
+                              setShowAddChecklistModal(true);
+                              setIsAddToCardDropdownOpen(false);
+                            }}
+                            className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'
+                          >
                             <CheckSquare className='w-4 h-4 text-muted-foreground' />
                             Checklist
                           </button>
@@ -1946,6 +2419,15 @@ export function CardModal({
             </div>
           </div>
         )}
+
+        {/* Add Checklist Modal */}
+        <AddChecklistModal
+          isOpen={showAddChecklistModal}
+          onClose={() => setShowAddChecklistModal(false)}
+          onAddChecklist={handleAddChecklist}
+          isLoading={isAddingChecklist}
+          existingChecklists={checklists}
+        />
       </div>
     </div>
   );
