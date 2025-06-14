@@ -45,6 +45,7 @@ import {
 import { DateTimeRangePicker } from '@/components/ui/DateTimeRangePicker';
 import { Checklist } from '@/components/ui/Checklist';
 import { AddChecklistModal } from '@/components/ui/AddChecklistModal';
+import LabelModal from './LabelModal';
 import {
   combineDateAndTime,
   extractDate,
@@ -306,6 +307,7 @@ export function CardModal({
   const [isLoadingChecklists, setIsLoadingChecklists] = useState(false);
   const [showAddChecklistModal, setShowAddChecklistModal] = useState(false);
   const [isAddingChecklist, setIsAddingChecklist] = useState(false);
+  const [showLabelModal, setShowLabelModal] = useState(false);
 
   // Reset form when card changes
   useEffect(() => {
@@ -1634,7 +1636,13 @@ export function CardModal({
                             <User className='w-4 h-4 text-muted-foreground' />
                             Members
                           </button>
-                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                          <button
+                            onClick={() => {
+                              setShowLabelModal(true);
+                              setIsAddToCardDropdownOpen(false);
+                            }}
+                            className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'
+                          >
                             <Tag className='w-4 h-4 text-muted-foreground' />
                             Labels
                           </button>
@@ -2429,6 +2437,18 @@ export function CardModal({
           onAddChecklist={handleAddChecklist}
           isLoading={isAddingChecklist}
           existingChecklists={checklists}
+        />
+
+        {/* Label Modal */}
+        <LabelModal
+          isOpen={showLabelModal}
+          onClose={() => setShowLabelModal(false)}
+          cardId={card.id}
+          boardId={card.board_id}
+          onLabelsUpdated={() => {
+            // Refresh card data to show updated labels
+            // This will trigger a re-render and show the labels on the card
+          }}
         />
       </div>
     </div>

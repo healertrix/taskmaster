@@ -1668,7 +1668,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
           return selectedCard ? (
             <CardModal
-              card={selectedCard}
+              card={{ ...selectedCard, board_id: params.id }}
               isOpen={isCardModalOpen}
               onClose={handleCloseCard}
               onUpdateCard={handleUpdateCard}
