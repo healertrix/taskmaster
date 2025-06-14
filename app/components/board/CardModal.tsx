@@ -18,8 +18,6 @@ import {
   Plus,
   Eye,
   Clock,
-  MapPin,
-  Vote,
   Copy,
   Move,
   Share2,
@@ -41,10 +39,14 @@ import {
   Filter,
   Settings,
   Check,
+  Video,
+  Music,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { DateTimeRangePicker } from '@/components/ui/DateTimeRangePicker';
 import { Checklist } from '@/components/ui/Checklist';
 import { AddChecklistModal } from '@/components/ui/AddChecklistModal';
+import { AttachmentModal } from './AttachmentModal';
 import LabelModal from './LabelModal';
 import CardLabels from './CardLabels';
 import {
@@ -78,6 +80,7 @@ interface Card {
     full_name: string;
     avatar_url?: string;
   };
+  attachments?: number;
 }
 
 interface Comment {
@@ -115,6 +118,20 @@ interface ChecklistItem {
   completed: boolean;
   created_at: string;
   updated_at: string;
+}
+
+interface AttachmentData {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+  created_at: string;
+  created_by: string;
+  profiles?: {
+    id: string;
+    full_name: string;
+    avatar_url?: string;
+  };
 }
 
 interface ChecklistData {
@@ -311,6 +328,19 @@ export function CardModal({
   const [showLabelModal, setShowLabelModal] = useState(false);
   const [labelsRefreshKey, setLabelsRefreshKey] = useState(0);
 
+  // Attachment state
+  const [attachments, setAttachments] = useState<AttachmentData[]>([]);
+  const [isLoadingAttachments, setIsLoadingAttachments] = useState(false);
+  const [showAttachmentModal, setShowAttachmentModal] = useState(false);
+  const [isAddingAttachment, setIsAddingAttachment] = useState(false);
+  const [editingAttachment, setEditingAttachment] =
+    useState<AttachmentData | null>(null);
+  const [showDeleteAttachmentModal, setShowDeleteAttachmentModal] =
+    useState(false);
+  const [attachmentToDelete, setAttachmentToDelete] =
+    useState<AttachmentData | null>(null);
+  const [isDeletingAttachment, setIsDeletingAttachment] = useState(false);
+
   // Reset form when card changes
   useEffect(() => {
     setTitle(card.title);
@@ -420,12 +450,13 @@ export function CardModal({
     return getRelativeDateTime(dateString);
   };
 
-  // Fetch comments, activities, and checklists only when modal first opens
+  // Fetch comments, activities, checklists, and attachments only when modal first opens
   useEffect(() => {
     if (isOpen && card) {
       fetchComments();
       fetchActivities();
       fetchChecklists();
+      fetchAttachments();
     }
   }, [isOpen, card.id]); // Only depend on card.id, not the entire card object
 
@@ -486,6 +517,26 @@ export function CardModal({
       console.error('Error fetching checklists:', error);
     } finally {
       setIsLoadingChecklists(false);
+    }
+  };
+
+  const fetchAttachments = async () => {
+    if (!card) return;
+
+    setIsLoadingAttachments(true);
+    try {
+      const response = await fetch(`/api/cards/${card.id}/attachments`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setAttachments(data.attachments || []);
+      } else {
+        console.error('Failed to fetch attachments:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching attachments:', error);
+    } finally {
+      setIsLoadingAttachments(false);
     }
   };
 
@@ -552,6 +603,10 @@ export function CardModal({
         return `${userName} deleted a comment`;
       case 'attachment_added':
         return `${userName} added an attachment`;
+      case 'attachment_removed':
+        return `${userName} removed an attachment`;
+      case 'attachment_updated':
+        return `${userName} updated an attachment`;
       case 'card_moved':
         return `${userName} moved this card`;
       case 'card_archived':
@@ -611,7 +666,24 @@ export function CardModal({
           : null;
 
       case 'attachment_added':
-        return actionData.file_name ? `File: ${actionData.file_name}` : null;
+        return actionData.attachment_name
+          ? `File: ${actionData.attachment_name}`
+          : null;
+
+      case 'attachment_removed':
+        return actionData.attachment_name
+          ? `File: ${actionData.attachment_name}`
+          : null;
+
+      case 'attachment_updated':
+        return actionData.attachment_name
+          ? `File: ${actionData.attachment_name}${
+              actionData.old_name &&
+              actionData.old_name !== actionData.attachment_name
+                ? ` (was: ${actionData.old_name})`
+                : ''
+            }`
+          : null;
 
       default:
         return null;
@@ -1236,6 +1308,149 @@ export function CardModal({
     }
   };
 
+  const handleAddAttachment = async (
+    name: string,
+    url: string,
+    type: string
+  ): Promise<boolean> => {
+    if (!card) return false;
+
+    setIsAddingAttachment(true);
+    try {
+      const response = await fetch(`/api/cards/${card.id}/attachments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          url: url.trim(),
+          type: type.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Add the new attachment to state
+        setAttachments((prev) => [data.attachment, ...prev]);
+        // Refresh activities to show the new attachment activity
+        fetchActivities();
+        return true;
+      } else {
+        console.error('Failed to add attachment:', data.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error adding attachment:', error);
+      return false;
+    } finally {
+      setIsAddingAttachment(false);
+    }
+  };
+
+  const handleUpdateAttachment = async (
+    attachmentId: string,
+    name: string,
+    url: string,
+    type: string
+  ): Promise<boolean> => {
+    if (!card) return false;
+
+    setIsAddingAttachment(true);
+    try {
+      const response = await fetch(
+        `/api/cards/${card.id}/attachments/${attachmentId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: name.trim(),
+            url: url.trim(),
+            type: type.trim(),
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Update the attachment in state
+        setAttachments((prev) =>
+          prev.map((att) => (att.id === attachmentId ? data.attachment : att))
+        );
+        // Refresh activities to show the update activity
+        fetchActivities();
+        return true;
+      } else {
+        console.error('Failed to update attachment:', data.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error updating attachment:', error);
+      return false;
+    } finally {
+      setIsAddingAttachment(false);
+    }
+  };
+
+  const handleDeleteAttachment = (attachment: AttachmentData) => {
+    setAttachmentToDelete(attachment);
+    setShowDeleteAttachmentModal(true);
+  };
+
+  const confirmDeleteAttachment = async () => {
+    if (!card || !attachmentToDelete) return;
+
+    setIsDeletingAttachment(true);
+
+    try {
+      const response = await fetch(
+        `/api/cards/${card.id}/attachments/${attachmentToDelete.id}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (response.ok) {
+        // Remove attachment from state
+        setAttachments((prev) =>
+          prev.filter((att) => att.id !== attachmentToDelete.id)
+        );
+        // Refresh activities to show the deletion activity
+        fetchActivities();
+        // Close modal
+        setShowDeleteAttachmentModal(false);
+        setAttachmentToDelete(null);
+      } else {
+        const data = await response.json();
+        console.error('Failed to delete attachment:', data.error);
+        alert(`Failed to delete attachment: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting attachment:', error);
+      alert(
+        `Failed to delete attachment: ${
+          error instanceof Error ? error.message : 'Network error'
+        }`
+      );
+    } finally {
+      setIsDeletingAttachment(false);
+    }
+  };
+
+  const cancelDeleteAttachment = () => {
+    setShowDeleteAttachmentModal(false);
+    setAttachmentToDelete(null);
+  };
+
+  const handleEditAttachment = (attachment: AttachmentData) => {
+    setEditingAttachment(attachment);
+    setShowAttachmentModal(true);
+  };
+
   const getActivityIcon = (actionType: string) => {
     switch (actionType) {
       case 'comment_added':
@@ -1251,6 +1466,8 @@ export function CardModal({
       case 'card_moved':
         return <Move className='w-4 h-4' />;
       case 'attachment_added':
+      case 'attachment_removed':
+      case 'attachment_updated':
         return <Paperclip className='w-4 h-4' />;
       case 'label_added':
       case 'label_removed':
@@ -1613,6 +1830,106 @@ export function CardModal({
                 )}
               </div>
 
+              {/* Attachments Section */}
+              <div>
+                <div className='flex items-center justify-between mb-3'>
+                  <div className='flex items-center gap-2'>
+                    <Paperclip className='w-5 h-5 text-muted-foreground' />
+                    <h3 className='text-base font-medium text-foreground'>
+                      Attachments
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowAttachmentModal(true)}
+                    className='flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors'
+                    title='Add attachment'
+                  >
+                    <Plus className='w-3 h-3' />
+                    Add
+                  </button>
+                </div>
+
+                {isLoadingAttachments ? (
+                  <div className='flex items-center justify-center py-8'>
+                    <div className='w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
+                  </div>
+                ) : attachments.length > 0 ? (
+                  <div className='space-y-3'>
+                    {attachments.map((attachment) => (
+                      <div
+                        key={attachment.id}
+                        className='flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border/50 hover:bg-muted/50 transition-colors group'
+                      >
+                        <div className='w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0'>
+                          {attachment.type === 'image' ? (
+                            <Image className='w-4 h-4 text-primary' />
+                          ) : attachment.type === 'document' ? (
+                            <FileText className='w-4 h-4 text-primary' />
+                          ) : attachment.type === 'video' ? (
+                            <Video className='w-4 h-4 text-primary' />
+                          ) : attachment.type === 'audio' ? (
+                            <Music className='w-4 h-4 text-primary' />
+                          ) : attachment.type === 'archive' ? (
+                            <Archive className='w-4 h-4 text-primary' />
+                          ) : (
+                            <LinkIcon className='w-4 h-4 text-primary' />
+                          )}
+                        </div>
+                        <div className='flex-1 min-w-0'>
+                          <a
+                            href={attachment.url}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className='text-sm font-medium text-foreground hover:text-primary transition-colors block truncate'
+                            title={attachment.name}
+                          >
+                            {attachment.name}
+                          </a>
+                          <div className='flex items-center gap-2 text-xs text-muted-foreground mt-1'>
+                            <span>
+                              Added {formatDate(attachment.created_at)}
+                            </span>
+                            {attachment.profiles && (
+                              <>
+                                <span>•</span>
+                                <span>
+                                  by{' '}
+                                  {attachment.profiles.full_name || 'Unknown'}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className='flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
+                          <button
+                            onClick={() => handleEditAttachment(attachment)}
+                            className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors'
+                            title='Edit attachment'
+                          >
+                            <Edit className='w-3 h-3' />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAttachment(attachment)}
+                            className='p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors'
+                            title='Delete attachment'
+                          >
+                            <Trash2 className='w-3 h-3' />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className='text-center py-6 text-muted-foreground'>
+                    <Paperclip className='w-8 h-8 mx-auto mb-2 opacity-50' />
+                    <p className='text-xs'>No attachments yet</p>
+                    <p className='text-xs mt-1 opacity-75'>
+                      Add links to files, documents, or resources
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Created info */}
               <div className='text-sm text-muted-foreground space-y-2 pt-4 border-t border-border'>
                 <div className='flex items-center gap-2'>
@@ -1695,17 +2012,15 @@ export function CardModal({
                             <Calendar className='w-4 h-4 text-muted-foreground' />
                             Dates
                           </button>
-                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                          <button
+                            onClick={() => {
+                              setShowAttachmentModal(true);
+                              setIsAddToCardDropdownOpen(false);
+                            }}
+                            className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'
+                          >
                             <Paperclip className='w-4 h-4 text-muted-foreground' />
                             Attachment
-                          </button>
-                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
-                            <MapPin className='w-4 h-4 text-muted-foreground' />
-                            Location
-                          </button>
-                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
-                            <Vote className='w-4 h-4 text-muted-foreground' />
-                            Voting
                           </button>
                         </div>
                       </div>
@@ -2459,6 +2774,68 @@ export function CardModal({
           </div>
         )}
 
+        {/* Delete Attachment Confirmation Modal */}
+        {showDeleteAttachmentModal && attachmentToDelete && (
+          <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4'>
+            <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full'>
+              <div className='p-6'>
+                <div className='flex items-center gap-3 mb-4'>
+                  <div className='w-10 h-10 bg-red-100 rounded-full flex items-center justify-center'>
+                    <Paperclip className='w-5 h-5 text-red-600' />
+                  </div>
+                  <div>
+                    <h3 className='text-lg font-semibold text-foreground'>
+                      Delete Attachment
+                    </h3>
+                    <p className='text-sm text-muted-foreground'>
+                      This action cannot be undone
+                    </p>
+                  </div>
+                </div>
+
+                <p className='text-sm text-foreground mb-2'>
+                  Are you sure you want to delete this attachment?
+                </p>
+                <div className='p-3 bg-muted/30 rounded-lg border border-border/50 mb-6'>
+                  <p className='text-sm font-medium text-foreground truncate'>
+                    {attachmentToDelete.name}
+                  </p>
+                  <p className='text-xs text-muted-foreground truncate'>
+                    {attachmentToDelete.url}
+                  </p>
+                </div>
+
+                <div className='flex gap-3 justify-end'>
+                  <button
+                    onClick={cancelDeleteAttachment}
+                    className='px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors'
+                    disabled={isDeletingAttachment}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDeleteAttachment}
+                    disabled={isDeletingAttachment}
+                    className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
+                  >
+                    {isDeletingAttachment ? (
+                      <>
+                        <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className='w-4 h-4' />
+                        Delete Attachment
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Add Checklist Modal */}
         <AddChecklistModal
           isOpen={showAddChecklistModal}
@@ -2478,6 +2855,19 @@ export function CardModal({
             // Refresh the labels display by updating the key
             setLabelsRefreshKey((prev) => prev + 1);
           }}
+        />
+
+        {/* Attachment Modal */}
+        <AttachmentModal
+          isOpen={showAttachmentModal}
+          onClose={() => {
+            setShowAttachmentModal(false);
+            setEditingAttachment(null);
+          }}
+          onAddAttachment={handleAddAttachment}
+          onUpdateAttachment={handleUpdateAttachment}
+          isLoading={isAddingAttachment}
+          editingAttachment={editingAttachment}
         />
       </div>
     </div>

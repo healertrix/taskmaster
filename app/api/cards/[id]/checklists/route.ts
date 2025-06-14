@@ -192,6 +192,22 @@ export async function POST(
       }
     }
 
+    // Create activity record
+    try {
+      await supabase.from('activities').insert({
+        profile_id: user.id,
+        board_id: card.board_id,
+        card_id: cardId,
+        action_type: 'checklist_added',
+        action_data: {
+          checklist_title: checklist.title,
+        },
+      });
+    } catch (activityError) {
+      // Don't fail the main operation if activity logging fails
+      console.error('Failed to log activity:', activityError);
+    }
+
     // Return the created checklist with items
     const transformedChecklist = {
       id: checklist.id,

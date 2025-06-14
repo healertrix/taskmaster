@@ -3,7 +3,14 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Clock, CheckSquare, ArrowUp, Bug } from 'lucide-react';
+import {
+  Clock,
+  CheckSquare,
+  ArrowUp,
+  Bug,
+  MessageSquare,
+  Paperclip,
+} from 'lucide-react';
 import { TaskActionsMenu } from './TaskActionsMenu';
 import { getRelativeDateTime } from '@/utils/dateTime';
 
@@ -236,6 +243,28 @@ export function TaskCard({
               {assignee.initials}
             </div>
           ))}
+        </div>
+
+        {/* Stats: Comments and Attachments */}
+        <div className='flex items-center gap-3 text-muted-foreground'>
+          {task.comments && task.comments > 0 && (
+            <div
+              className='flex items-center gap-1 text-xs'
+              title={`${task.comments} comments`}
+            >
+              <MessageSquare className='w-3.5 h-3.5' />
+              <span className='font-medium'>{task.comments}</span>
+            </div>
+          )}
+          {task.attachments && task.attachments > 0 && (
+            <div
+              className='flex items-center gap-1 text-xs'
+              title={`${task.attachments} attachments`}
+            >
+              <Paperclip className='w-3.5 h-3.5' />
+              <span className='font-medium'>{task.attachments}</span>
+            </div>
+          )}
         </div>
       </div>
     </>

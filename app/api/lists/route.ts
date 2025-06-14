@@ -207,6 +207,47 @@ export async function GET(request: NextRequest) {
         cards: list.cards?.sort((a, b) => a.position - b.position) || [],
       })) || [];
 
+    // Get attachment and comment counts for all cards
+    const allCardIds = listsWithSortedCards.flatMap((list) =>
+      list.cards.map((card) => card.id)
+    );
+
+    if (allCardIds.length > 0) {
+      // Get attachment counts
+      const { data: attachmentCounts } = await supabase
+        .from('card_attachments')
+        .select('card_id')
+        .in('card_id', allCardIds);
+
+      // Get comment counts
+      const { data: commentCounts } = await supabase
+        .from('comments')
+        .select('card_id')
+        .in('card_id', allCardIds);
+
+      // Create count maps
+      const attachmentCountMap = new Map();
+      const commentCountMap = new Map();
+
+      attachmentCounts?.forEach((attachment) => {
+        const count = attachmentCountMap.get(attachment.card_id) || 0;
+        attachmentCountMap.set(attachment.card_id, count + 1);
+      });
+
+      commentCounts?.forEach((comment) => {
+        const count = commentCountMap.get(comment.card_id) || 0;
+        commentCountMap.set(comment.card_id, count + 1);
+      });
+
+      // Add counts to cards
+      listsWithSortedCards.forEach((list) => {
+        list.cards.forEach((card) => {
+          card.attachments = attachmentCountMap.get(card.id) || 0;
+          card.comments = commentCountMap.get(card.id) || 0;
+        });
+      });
+    }
+
     return NextResponse.json({ lists: listsWithSortedCards });
   } catch (error) {
     console.error('Unexpected error:', error);
