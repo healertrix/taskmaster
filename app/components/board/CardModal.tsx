@@ -46,6 +46,7 @@ import { DateTimeRangePicker } from '@/components/ui/DateTimeRangePicker';
 import { Checklist } from '@/components/ui/Checklist';
 import { AddChecklistModal } from '@/components/ui/AddChecklistModal';
 import LabelModal from './LabelModal';
+import CardLabels from './CardLabels';
 import {
   combineDateAndTime,
   extractDate,
@@ -308,6 +309,7 @@ export function CardModal({
   const [showAddChecklistModal, setShowAddChecklistModal] = useState(false);
   const [isAddingChecklist, setIsAddingChecklist] = useState(false);
   const [showLabelModal, setShowLabelModal] = useState(false);
+  const [labelsRefreshKey, setLabelsRefreshKey] = useState(0);
 
   // Reset form when card changes
   useEffect(() => {
@@ -1300,11 +1302,38 @@ export function CardModal({
             </div>
 
             {/* Breadcrumb */}
-            <p className='text-sm text-muted-foreground'>
+            <p className='text-sm text-muted-foreground mb-3'>
               in list{' '}
               <span className='font-medium text-foreground'>{listName}</span> on{' '}
               <span className='font-medium text-foreground'>{boardName}</span>
             </p>
+
+            {/* Labels Section */}
+            <div className='flex items-center gap-3'>
+              <div
+                className='flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-lg px-2 py-1 -mx-2 -my-1 transition-colors'
+                onClick={() => setShowLabelModal(true)}
+                title='Manage labels'
+              >
+                <Tag className='w-4 h-4 text-muted-foreground' />
+                <span className='text-sm font-medium text-foreground'>
+                  Labels
+                </span>
+              </div>
+              <div
+                className='flex-1 cursor-pointer hover:bg-muted/30 rounded-lg px-2 py-1 -mx-2 -my-1 transition-colors'
+                onClick={() => setShowLabelModal(true)}
+                title='Click to manage labels'
+              >
+                <CardLabels
+                  key={labelsRefreshKey}
+                  cardId={card.id}
+                  maxVisible={8}
+                  showNames={true}
+                  size='md'
+                />
+              </div>
+            </div>
           </div>
 
           {/* Close Button */}
@@ -2446,8 +2475,8 @@ export function CardModal({
           cardId={card.id}
           boardId={card.board_id}
           onLabelsUpdated={() => {
-            // Refresh card data to show updated labels
-            // This will trigger a re-render and show the labels on the card
+            // Refresh the labels display by updating the key
+            setLabelsRefreshKey((prev) => prev + 1);
           }}
         />
       </div>
