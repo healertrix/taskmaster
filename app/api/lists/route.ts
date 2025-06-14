@@ -176,6 +176,7 @@ export async function GET(request: NextRequest) {
           position,
           created_at,
           updated_at,
+          start_date,
           due_date,
           due_status,
           created_by,

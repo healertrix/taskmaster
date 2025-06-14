@@ -249,13 +249,14 @@ export async function PUT(
     }
 
     // Verify user has access to the board
-    const { data: boardData, error: boardError } = await supabase
-      .from('boards')
+    const { data: boardAccess, error: boardError } = await supabase
+      .from('board_members')
       .select('id')
-      .eq('id', card.board_id)
+      .eq('board_id', card.board_id)
+      .eq('profile_id', user.id)
       .single();
 
-    if (boardError || !boardData) {
+    if (boardError || !boardAccess) {
       return NextResponse.json(
         { error: 'Board not found or access denied' },
         { status: 403 }

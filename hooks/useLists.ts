@@ -17,6 +17,7 @@ export interface Card {
   position: number;
   created_at: string;
   updated_at: string;
+  start_date?: string;
   due_date?: string;
   due_status?: string;
   created_by: string;
