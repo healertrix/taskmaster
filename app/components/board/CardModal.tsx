@@ -622,6 +622,14 @@ export function CardModal({
 
       if (response.ok) {
         setActivities(data.activities || []);
+
+        // Update card's updated_at timestamp to latest activity time
+        if (data.activities && data.activities.length > 0 && onUpdateCard) {
+          const latestActivity = data.activities[0]; // Activities are sorted by created_at DESC
+          await onUpdateCard(card.id, {
+            updated_at: latestActivity.created_at,
+          });
+        }
       } else {
         console.error('Failed to fetch activities:', data.error);
       }

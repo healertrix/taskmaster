@@ -69,6 +69,7 @@ interface Task {
   start_date?: string;
   due_date?: string;
   due_status?: 'due_soon' | 'overdue' | 'complete' | null;
+  updated_at?: string;
 }
 
 // Define column type
@@ -932,6 +933,32 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     updates: any
   ): Promise<boolean> => {
     try {
+      // If only updating timestamp (from activity refresh), just update local state
+      if (Object.keys(updates).length === 1 && updates.updated_at) {
+        // Update the local state with just the timestamp
+        setColumns((prevColumns) =>
+          prevColumns.map((column) => ({
+            ...column,
+            cards: column.cards.map((card) =>
+              card.id === cardId
+                ? {
+                    ...card,
+                    updated_at: updates.updated_at,
+                  }
+                : card
+            ),
+          }))
+        );
+
+        // Update the card in lists state for CardModal
+        updateCard(cardId, {
+          updated_at: updates.updated_at,
+        });
+
+        return true;
+      }
+
+      // For actual field updates, make API call
       const response = await fetch(`/api/cards/${cardId}`, {
         method: 'PUT',
         headers: {
@@ -959,6 +986,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   start_date: data.card.start_date,
                   due_date: data.card.due_date,
                   due_status: data.card.due_status,
+                  updated_at: data.card.updated_at,
                 }
               : card
           ),
@@ -972,6 +1000,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         start_date: data.card.start_date,
         due_date: data.card.due_date,
         due_status: data.card.due_status,
+        updated_at: data.card.updated_at,
       });
 
       showSuccess('Card updated successfully');

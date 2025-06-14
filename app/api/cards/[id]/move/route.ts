@@ -85,6 +85,19 @@ export async function POST(
       });
     }
 
+    // Get list names for activity logging
+    const { data: fromList } = await supabase
+      .from('lists')
+      .select('name')
+      .eq('id', card.list_id)
+      .single();
+
+    const { data: toList } = await supabase
+      .from('lists')
+      .select('name')
+      .eq('id', target_list_id)
+      .single();
+
     // Update positions in a transaction
     const { data: updatedCard, error: updateError } = await supabase.rpc(
       'move_card_to_list',
@@ -117,10 +130,46 @@ export async function POST(
         );
       }
 
+      // Create activity for card move (fallback case)
+      try {
+        await supabase.from('activities').insert({
+          profile_id: user.id,
+          board_id: card.board_id,
+          card_id: cardId,
+          action_type: 'card_moved',
+          action_data: {
+            from_list: fromList?.name || 'Unknown List',
+            to_list: toList?.name || 'Unknown List',
+            from_list_id: card.list_id,
+            to_list_id: target_list_id,
+          },
+        });
+      } catch (activityError) {
+        console.error('Failed to log move activity:', activityError);
+      }
+
       return NextResponse.json({
         message: 'Card moved successfully',
         card: fallbackCard,
       });
+    }
+
+    // Create activity for card move (successful case)
+    try {
+      await supabase.from('activities').insert({
+        profile_id: user.id,
+        board_id: card.board_id,
+        card_id: cardId,
+        action_type: 'card_moved',
+        action_data: {
+          from_list: fromList?.name || 'Unknown List',
+          to_list: toList?.name || 'Unknown List',
+          from_list_id: card.list_id,
+          to_list_id: target_list_id,
+        },
+      });
+    } catch (activityError) {
+      console.error('Failed to log move activity:', activityError);
     }
 
     return NextResponse.json({
