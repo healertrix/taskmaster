@@ -1,6 +1,35 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
+// Helper function to generate timeline summary
+function generateTimelineSummary(dateChanges: any): string {
+  const changes = [];
+  
+  if (dateChanges.start_date) {
+    const { old: oldStart, new: newStart } = dateChanges.start_date;
+    if (!oldStart && newStart) {
+      changes.push('start date added');
+    } else if (oldStart && !newStart) {
+      changes.push('start date removed');
+    } else {
+      changes.push('start date changed');
+    }
+  }
+  
+  if (dateChanges.due_date) {
+    const { old: oldDue, new: newDue } = dateChanges.due_date;
+    if (!oldDue && newDue) {
+      changes.push('due date added');
+    } else if (oldDue && !newDue) {
+      changes.push('due date removed');
+    } else {
+      changes.push('due date changed');
+    }
+  }
+  
+  return changes.join(' and ');
+}
+
 // DELETE /api/cards/[id] - Delete a specific card
 export async function DELETE(
   request: NextRequest,
@@ -237,10 +266,10 @@ export async function PUT(
     const body = await request.json();
     const { title, description, start_date, due_date, due_status } = body;
 
-    // Fetch the card to verify it exists and get board info
+    // Fetch the card to verify it exists and get board info, including current dates for comparison
     const { data: card, error: cardError } = await supabase
       .from('cards')
-      .select('id, board_id')
+      .select('id, board_id, start_date, due_date')
       .eq('id', cardId)
       .single();
 
@@ -288,6 +317,47 @@ export async function PUT(
         { error: 'Failed to update card' },
         { status: 500 }
       );
+    }
+
+    // Create a single timeline activity for any date changes
+    try {
+      const dateChanges = {};
+      let hasDateChanges = false;
+
+      // Check for start_date changes
+      if (start_date !== undefined && card.start_date !== start_date) {
+        dateChanges.start_date = {
+          old: card.start_date,
+          new: start_date,
+        };
+        hasDateChanges = true;
+      }
+
+      // Check for due_date changes
+      if (due_date !== undefined && card.due_date !== due_date) {
+        dateChanges.due_date = {
+          old: card.due_date,
+          new: due_date,
+        };
+        hasDateChanges = true;
+      }
+
+      // Create single timeline activity if any dates changed
+      if (hasDateChanges) {
+        await supabase.from('activities').insert({
+          profile_id: user.id,
+          board_id: card.board_id,
+          card_id: cardId,
+          action_type: 'timeline_updated',
+          action_data: {
+            changes: dateChanges,
+            summary: generateTimelineSummary(dateChanges),
+          },
+        });
+      }
+    } catch (activityError) {
+      // Don't fail the main operation if activity logging fails
+      console.error('Failed to log date change activity:', activityError);
     }
 
     return NextResponse.json({

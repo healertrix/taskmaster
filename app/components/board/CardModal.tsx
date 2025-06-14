@@ -42,6 +42,12 @@ import {
   Video,
   Music,
   Link as LinkIcon,
+  Play,
+  Flag,
+  CalendarPlus,
+  CalendarX,
+  Timer,
+  Target,
 } from 'lucide-react';
 import { DateTimeRangePicker } from '@/components/ui/DateTimeRangePicker';
 import { Checklist } from '@/components/ui/Checklist';
@@ -518,6 +524,64 @@ export function CardModal({
     return getRelativeDateTime(dateString);
   };
 
+  // Helper function to generate timeline details
+  const generateTimelineDetails = (actionData: any) => {
+    if (!actionData.changes) return actionData.summary || null;
+
+    const details = [];
+    const changes = actionData.changes;
+
+    // Format a date for display (using proper date format instead of relative)
+    const formatDateForTimeline = (dateString?: string) => {
+      if (!dateString) return null;
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year:
+          date.getFullYear() !== new Date().getFullYear()
+            ? 'numeric'
+            : undefined,
+      });
+    };
+
+    if (changes.start_date) {
+      const { old: oldStart, new: newStart } = changes.start_date;
+      if (!oldStart && newStart) {
+        details.push(`✓ Start date set to ${formatDateForTimeline(newStart)}`);
+      } else if (oldStart && !newStart) {
+        details.push(
+          `✗ Start date removed (was ${formatDateForTimeline(oldStart)})`
+        );
+      } else if (oldStart !== newStart) {
+        details.push(
+          `⟳ Start date: ${formatDateForTimeline(
+            oldStart
+          )} → ${formatDateForTimeline(newStart)}`
+        );
+      }
+    }
+
+    if (changes.due_date) {
+      const { old: oldDue, new: newDue } = changes.due_date;
+      if (!oldDue && newDue) {
+        details.push(`✓ Due date set to ${formatDateForTimeline(newDue)}`);
+      } else if (oldDue && !newDue) {
+        details.push(
+          `✗ Due date removed (was ${formatDateForTimeline(oldDue)})`
+        );
+      } else if (oldDue !== newDue) {
+        details.push(
+          `⟳ Due date: ${formatDateForTimeline(
+            oldDue
+          )} → ${formatDateForTimeline(newDue)}`
+        );
+      }
+    }
+
+    return details.length > 0 ? details.join('\n') : null;
+  };
+
   // Fetch comments, activities, checklists, and attachments only when modal first opens
   useEffect(() => {
     if (isOpen && card) {
@@ -687,14 +751,22 @@ export function CardModal({
         return `${userName} added a member to this card`;
       case 'member_removed':
         return `${userName} removed a member from this card`;
+      case 'timeline_updated':
+        return `${userName} updated the timeline`;
       case 'due_date_set':
         return `${userName} set a due date`;
       case 'due_date_removed':
         return `${userName} removed the due date`;
+      case 'start_date_set':
+        return `${userName} set a start date`;
+      case 'start_date_removed':
+        return `${userName} removed the start date`;
       case 'checklist_added':
         return `${userName} added a checklist`;
-      case 'checklist_completed':
-        return `${userName} completed a checklist`;
+      case 'checklist_updated':
+        return `${userName} updated a checklist`;
+      case 'checklist_removed':
+        return `${userName} removed a checklist`;
       default:
         return `${userName} performed an action`;
     }
@@ -728,27 +800,51 @@ export function CardModal({
           ? `Member: ${actionData.member_name}`
           : null;
 
+      case 'timeline_updated':
+        return generateTimelineDetails(actionData);
+
       case 'due_date_set':
         return actionData.due_date
           ? `Due: ${formatDate(actionData.due_date)}`
           : null;
 
+      case 'start_date_set':
+        return actionData.start_date
+          ? `Start: ${formatDate(actionData.start_date)}`
+          : null;
+
       case 'attachment_added':
         return actionData.attachment_name
-          ? `File: ${actionData.attachment_name}`
+          ? `Link: ${actionData.attachment_name}`
           : null;
 
       case 'attachment_removed':
         return actionData.attachment_name
-          ? `File: ${actionData.attachment_name}`
+          ? `Link: ${actionData.attachment_name}`
           : null;
 
       case 'attachment_updated':
         return actionData.attachment_name
-          ? `File: ${actionData.attachment_name}${
+          ? `Link: ${actionData.attachment_name}${
               actionData.old_name &&
               actionData.old_name !== actionData.attachment_name
                 ? ` (was: ${actionData.old_name})`
+                : ''
+            }`
+          : null;
+
+      case 'checklist_added':
+      case 'checklist_removed':
+        return actionData.checklist_title
+          ? `Checklist: ${actionData.checklist_title}`
+          : null;
+
+      case 'checklist_updated':
+        return actionData.checklist_title
+          ? `Checklist: ${actionData.checklist_title}${
+              actionData.old_title &&
+              actionData.old_title !== actionData.checklist_title
+                ? ` (was: ${actionData.old_title})`
                 : ''
             }`
           : null;
@@ -780,12 +876,27 @@ export function CardModal({
         return 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400';
       case 'card_moved':
         return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400';
+      case 'attachment_added':
+        return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400';
+      case 'attachment_removed':
+        return 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400';
+      case 'attachment_updated':
+        return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400';
       case 'label_added':
       case 'label_removed':
         return 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400';
+      case 'timeline_updated':
+        return 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400';
       case 'due_date_set':
       case 'due_date_removed':
-        return 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400';
+        return 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400';
+      case 'start_date_set':
+      case 'start_date_removed':
+        return 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400';
+      case 'checklist_added':
+      case 'checklist_updated':
+      case 'checklist_removed':
+        return 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400';
       default:
         return 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400';
     }
@@ -969,6 +1080,8 @@ export function CardModal({
         if (success) {
           setShowDatePicker(false);
           setIsAddToCardDropdownOpen(false);
+          // Refresh activities to show the date change activity
+          fetchActivities();
           // Local state will be updated by useEffect when card prop changes
         } else {
           alert('Failed to update dates. Please try again.');
@@ -1024,6 +1137,8 @@ export function CardModal({
 
       if (response.ok) {
         setChecklists((prev) => [...prev, data.checklist]);
+        // Refresh activities to show the new checklist activity
+        fetchActivities();
         return true;
       } else {
         console.error('Failed to add checklist:', data.error);
@@ -1065,6 +1180,8 @@ export function CardModal({
               : checklist
           )
         );
+        // Refresh activities to show the checklist update activity
+        fetchActivities();
         return true;
       } else {
         console.error('Failed to update checklist:', data.error);
@@ -1093,6 +1210,8 @@ export function CardModal({
         setChecklists((prev) =>
           prev.filter((checklist) => checklist.id !== checklistId)
         );
+        // Refresh activities to show the checklist deletion activity
+        fetchActivities();
         return true;
       } else {
         const data = await response.json();
@@ -1537,20 +1656,33 @@ export function CardModal({
       case 'card_moved':
         return <Move className='w-4 h-4' />;
       case 'attachment_added':
-      case 'attachment_removed':
-      case 'attachment_updated':
         return <Paperclip className='w-4 h-4' />;
+      case 'attachment_removed':
+        return <Trash2 className='w-4 h-4' />;
+      case 'attachment_updated':
+        return <Edit className='w-4 h-4' />;
       case 'label_added':
       case 'label_removed':
         return <Tag className='w-4 h-4' />;
       case 'member_added':
       case 'member_removed':
         return <User className='w-4 h-4' />;
-      case 'due_date_set':
-      case 'due_date_removed':
+      case 'timeline_updated':
         return <Calendar className='w-4 h-4' />;
+      case 'start_date_set':
+        return <Play className='w-4 h-4' />;
+      case 'start_date_removed':
+        return <Timer className='w-4 h-4' />;
+      case 'due_date_set':
+        return <Flag className='w-4 h-4' />;
+      case 'due_date_removed':
+        return <Target className='w-4 h-4' />;
       case 'checklist_added':
         return <CheckSquare className='w-4 h-4' />;
+      case 'checklist_updated':
+        return <Edit className='w-4 h-4' />;
+      case 'checklist_removed':
+        return <X className='w-4 h-4' />;
       default:
         return <Activity className='w-4 h-4' />;
     }
@@ -2718,11 +2850,25 @@ export function CardModal({
                                     {isExpanded && (
                                       <div className='mt-3 pt-3 border-t border-border/50 space-y-2'>
                                         {detailedInfo && (
-                                          <div className='flex items-center gap-2 p-2 bg-muted/30 rounded-md'>
-                                            <AlertCircle className='w-4 h-4 text-muted-foreground flex-shrink-0' />
-                                            <span className='text-sm text-foreground'>
-                                              {detailedInfo}
-                                            </span>
+                                          <div className='p-3 bg-muted/30 rounded-md'>
+                                            <div className='flex items-center gap-2 mb-2'>
+                                              <Calendar className='w-4 h-4 text-indigo-500 flex-shrink-0' />
+                                              <span className='text-xs font-medium text-muted-foreground'>
+                                                Timeline Changes
+                                              </span>
+                                            </div>
+                                            <div className='space-y-1'>
+                                              {detailedInfo
+                                                .split('\n')
+                                                .map((line, index) => (
+                                                  <div
+                                                    key={index}
+                                                    className='text-sm text-foreground font-mono'
+                                                  >
+                                                    {line}
+                                                  </div>
+                                                ))}
+                                            </div>
                                           </div>
                                         )}
 
@@ -2789,6 +2935,7 @@ export function CardModal({
             )}
           </div>
         </div>
+
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (
           <div className='fixed inset-0 bg-black/60 z-50 flex items-center justify-center'>
@@ -2950,6 +3097,8 @@ export function CardModal({
           onLabelsUpdated={() => {
             // Refresh the labels display by updating the key
             setLabelsRefreshKey((prev) => prev + 1);
+            // Refresh activities to show the label change activity
+            fetchActivities();
           }}
         />
 

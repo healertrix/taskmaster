@@ -146,6 +146,7 @@ export async function POST(
         card_id: cardId,
         title: name.trim(),
         position: nextPosition,
+        created_by: user.id,
       })
       .select()
       .single();

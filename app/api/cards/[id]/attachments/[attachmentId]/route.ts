@@ -118,23 +118,7 @@ export async function PUT(
       );
     }
 
-    // Create activity record for attachment update
-    const { error: activityError } = await supabase.from('activities').insert({
-      card_id: cardId,
-      action_type: 'attachment_updated',
-      action_data: {
-        attachment_name: name.trim(),
-        attachment_url: url.trim(),
-        attachment_type: type.trim(),
-        old_name: attachment.filename,
-      },
-      created_by: user.id,
-    });
-
-    if (activityError) {
-      console.error('Error creating activity record:', activityError);
-      // Don't fail the request if activity creation fails
-    }
+    // Activity is now automatically created by database trigger
 
     // Transform the response to match the expected format
     const transformedAttachment = {
@@ -248,20 +232,7 @@ export async function DELETE(
       );
     }
 
-    // Create activity record for attachment deletion using correct column name
-    const { error: activityError } = await supabase.from('activities').insert({
-      card_id: cardId,
-      action_type: 'attachment_removed',
-      action_data: {
-        attachment_name: attachment.filename, // Use filename instead of name
-      },
-      created_by: user.id,
-    });
-
-    if (activityError) {
-      console.error('Error creating activity record:', activityError);
-      // Don't fail the request if activity creation fails
-    }
+    // Activity is now automatically created by database trigger
 
     return NextResponse.json({ success: true });
   } catch (error) {

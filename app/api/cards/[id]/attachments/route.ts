@@ -75,22 +75,7 @@ export async function POST(
       );
     }
 
-    // Create activity record for attachment addition
-    const { error: activityError } = await supabase.from('activities').insert({
-      card_id: cardId,
-      action_type: 'attachment_added',
-      action_data: {
-        attachment_name: name.trim(),
-        attachment_url: url.trim(),
-        attachment_type: type.trim(),
-      },
-      created_by: user.id,
-    });
-
-    if (activityError) {
-      console.error('Error creating activity record:', activityError);
-      // Don't fail the request if activity creation fails
-    }
+    // Activity is now automatically created by database trigger
 
     // Transform the response to match the expected format
     const transformedAttachment = {
