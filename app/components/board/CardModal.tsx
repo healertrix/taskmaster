@@ -1043,9 +1043,9 @@ export function CardModal({
   ): Promise<boolean> => {
     if (!card) return false;
 
-    // Create temporary item for optimistic update
+    // Create temporary item for optimistic update with a "saving" indicator
     const tempItem: ChecklistItem = {
-      id: `temp-${Date.now()}`,
+      id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       text: text,
       completed: false,
       created_at: new Date().toISOString(),
@@ -1133,6 +1133,20 @@ export function CardModal({
   ): Promise<boolean> => {
     if (!card) return false;
 
+    // Store original values for rollback
+    const originalValues: Partial<ChecklistItem> = {};
+    setChecklists((prev) => {
+      const checklist = prev.find((c) => c.id === checklistId);
+      const item = checklist?.items.find((i) => i.id === itemId);
+      if (item) {
+        Object.keys(updates).forEach((key) => {
+          originalValues[key as keyof ChecklistItem] =
+            item[key as keyof ChecklistItem];
+        });
+      }
+      return prev;
+    });
+
     // Optimistic update - update UI immediately
     setChecklists((prev) =>
       prev.map((checklist) =>
@@ -1178,28 +1192,15 @@ export function CardModal({
         return true;
       } else {
         console.error('Failed to update checklist item:', data.error);
-        // Revert optimistic update on error
+        // Revert optimistic update on error using stored original values
         setChecklists((prev) =>
           prev.map((checklist) =>
             checklist.id === checklistId
               ? {
                   ...checklist,
-                  items: checklist.items.map((item) => {
-                    if (item.id === itemId) {
-                      // Revert the changes
-                      const revertedItem = { ...item };
-                      Object.keys(updates).forEach((key) => {
-                        if (key === 'completed') {
-                          revertedItem.completed = !updates.completed!;
-                        } else if (key === 'text') {
-                          // For text updates, we'd need to store the original value
-                          // For now, just keep the current value
-                        }
-                      });
-                      return revertedItem;
-                    }
-                    return item;
-                  }),
+                  items: checklist.items.map((item) =>
+                    item.id === itemId ? { ...item, ...originalValues } : item
+                  ),
                 }
               : checklist
           )
@@ -1208,25 +1209,15 @@ export function CardModal({
       }
     } catch (error) {
       console.error('Error updating checklist item:', error);
-      // Revert optimistic update on error
+      // Revert optimistic update on error using stored original values
       setChecklists((prev) =>
         prev.map((checklist) =>
           checklist.id === checklistId
             ? {
                 ...checklist,
-                items: checklist.items.map((item) => {
-                  if (item.id === itemId) {
-                    // Revert the changes
-                    const revertedItem = { ...item };
-                    Object.keys(updates).forEach((key) => {
-                      if (key === 'completed') {
-                        revertedItem.completed = !updates.completed!;
-                      }
-                    });
-                    return revertedItem;
-                  }
-                  return item;
-                }),
+                items: checklist.items.map((item) =>
+                  item.id === itemId ? { ...item, ...originalValues } : item
+                ),
               }
             : checklist
         )

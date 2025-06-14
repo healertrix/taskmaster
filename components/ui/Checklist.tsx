@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   CheckSquare,
   Square,
@@ -10,6 +10,7 @@ import {
   Trash2,
   MoreHorizontal,
   Check,
+  Loader2,
 } from 'lucide-react';
 
 interface ChecklistItem {
@@ -60,12 +61,28 @@ export function Checklist({
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemText, setEditingItemText] = useState('');
+  const [originalItemText, setOriginalItemText] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   const [deletingItemIds, setDeletingItemIds] = useState<Set<string>>(
     new Set()
   );
   const [isDeletingChecklist, setIsDeletingChecklist] = useState(false);
+
+  // Item deletion confirmation
+  const [showItemDeleteConfirm, setShowItemDeleteConfirm] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<ChecklistItem | null>(null);
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
+
+  // New state for tracking saving items
+  const [savingItemIds, setSavingItemIds] = useState<Set<string>>(new Set());
+
+  // State for tracking checklist title saving
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
+  const [originalChecklistName, setOriginalChecklistName] = useState('');
+
+  // Ref for the add input field
+  const addInputRef = useRef<HTMLInputElement>(null);
 
   // Calculate progress
   const totalItems = checklist.items.length;
@@ -75,13 +92,33 @@ export function Checklist({
   const progressPercentage =
     totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
 
+  // Sync checklistName with prop when it changes (e.g., from parent optimistic update)
+  useEffect(() => {
+    if (!isEditingName && !isSavingTitle) {
+      setChecklistName(checklist.name);
+    }
+  }, [checklist.name, isEditingName, isSavingTitle]);
+
   const handleSaveChecklistName = async () => {
     if (checklistName.trim() && checklistName !== checklist.name) {
+      const nameToSave = checklistName.trim();
+
+      // Close the input immediately (optimistic UI)
+      setIsEditingName(false);
+
+      // Set saving state
+      setIsSavingTitle(true);
+
       const success = await onUpdateChecklist(checklist.id, {
-        name: checklistName.trim(),
+        name: nameToSave,
       });
-      if (success) {
-        setIsEditingName(false);
+
+      // Remove saving state
+      setIsSavingTitle(false);
+
+      if (!success) {
+        // On failure, revert to original name
+        setChecklistName(originalChecklistName);
       }
     } else {
       setIsEditingName(false);
@@ -93,55 +130,126 @@ export function Checklist({
     e.preventDefault();
     if (newItemText.trim() && !isLoading) {
       const itemText = newItemText.trim();
-      // Clear input immediately for better UX
+
+      // Clear input immediately for continuous adding
       setNewItemText('');
 
+      // Call onAddItem which will handle optimistic update
       const success = await onAddItem(checklist.id, itemText);
+
       if (!success) {
         // Restore text if adding failed
         setNewItemText(itemText);
       }
+
+      // Keep focus on input for continuous adding
+      setTimeout(() => {
+        addInputRef.current?.focus();
+      }, 0);
+
       // Keep the form open for continuous adding
       // Don't set setIsAddingItem(false) here
     }
   };
 
   const handleToggleItem = async (item: ChecklistItem) => {
-    await onUpdateItem(checklist.id, item.id, { completed: !item.completed });
+    // Add optimistic update with saving state
+    setSavingItemIds((prev) => new Set(prev).add(item.id));
+
+    const success = await onUpdateItem(checklist.id, item.id, {
+      completed: !item.completed,
+    });
+
+    // Remove saving state
+    setSavingItemIds((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(item.id);
+      return newSet;
+    });
   };
 
   const handleEditItem = (item: ChecklistItem) => {
-    setEditingItemId(item.id);
-    setEditingItemText(item.text);
+    const isSaving = savingItemIds.has(item.id) || item.id.startsWith('temp-');
+    if (!isSaving) {
+      setEditingItemId(item.id);
+      setEditingItemText(item.text);
+      setOriginalItemText(item.text);
+    }
   };
 
   const handleSaveEditItem = async () => {
     if (editingItemText.trim() && editingItemId) {
-      const success = await onUpdateItem(checklist.id, editingItemId, {
-        text: editingItemText.trim(),
-      });
-      if (success) {
+      // Only proceed if text has actually changed
+      if (editingItemText.trim() === originalItemText.trim()) {
         setEditingItemId(null);
         setEditingItemText('');
+        setOriginalItemText('');
+        return;
+      }
+
+      const itemIdToSave = editingItemId;
+      const textToSave = editingItemText.trim();
+
+      // Close the input immediately (optimistic UI)
+      setEditingItemId(null);
+      setEditingItemText('');
+      setOriginalItemText('');
+
+      // Add saving state
+      setSavingItemIds((prev) => new Set(prev).add(itemIdToSave));
+
+      const success = await onUpdateItem(checklist.id, itemIdToSave, {
+        text: textToSave,
+      });
+
+      // Remove saving state
+      setSavingItemIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(itemIdToSave);
+        return newSet;
+      });
+
+      if (!success) {
+        // On failure, we don't need to do anything special since onUpdateItem
+        // will handle reverting the optimistic update in the parent component
       }
     } else {
       setEditingItemId(null);
       setEditingItemText('');
+      setOriginalItemText('');
     }
   };
 
-  const handleDeleteItem = async (itemId: string) => {
-    // Add visual feedback for deletion
-    setDeletingItemIds((prev) => new Set(prev).add(itemId));
+  const handleDeleteItem = (item: ChecklistItem) => {
+    setItemToDelete(item);
+    setShowItemDeleteConfirm(true);
+  };
 
-    const success = await onDeleteItem(checklist.id, itemId);
+  const confirmDeleteItem = async () => {
+    if (!itemToDelete) return;
+
+    setIsDeletingItem(true);
+
+    // Add visual feedback for deletion
+    setDeletingItemIds((prev) => new Set(prev).add(itemToDelete.id));
+
+    const success = await onDeleteItem(checklist.id, itemToDelete.id);
 
     // Remove from deleting state regardless of success/failure
     setDeletingItemIds((prev) => {
       const newSet = new Set(prev);
-      newSet.delete(itemId);
+      newSet.delete(itemToDelete.id);
       return newSet;
     });
+
+    setIsDeletingItem(false);
+    setShowItemDeleteConfirm(false);
+    setItemToDelete(null);
+  };
+
+  const cancelDeleteItem = () => {
+    setShowItemDeleteConfirm(false);
+    setItemToDelete(null);
   };
 
   const handleDeleteChecklist = async () => {
@@ -160,31 +268,56 @@ export function Checklist({
         <div className='flex items-center gap-3 flex-1'>
           <CheckSquare className='w-5 h-5 text-muted-foreground' />
           {isEditingName ? (
-            <input
-              type='text'
-              value={checklistName}
-              onChange={(e) => setChecklistName(e.target.value)}
-              onBlur={handleSaveChecklistName}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveChecklistName();
-                if (e.key === 'Escape') {
-                  setChecklistName(checklist.name);
-                  setIsEditingName(false);
-                }
-              }}
-              className='flex-1 text-base font-semibold bg-background border border-border rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/50'
-              autoFocus
-              disabled={isLoading}
-              aria-label='Edit checklist name'
-              placeholder='Checklist name'
-            />
+            <div className='flex items-center gap-2 flex-1'>
+              <input
+                type='text'
+                value={checklistName}
+                onChange={(e) => setChecklistName(e.target.value)}
+                onBlur={handleSaveChecklistName}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveChecklistName();
+                  if (e.key === 'Escape') {
+                    setChecklistName(originalChecklistName);
+                    setIsEditingName(false);
+                  }
+                }}
+                className='text-base font-semibold bg-transparent border-b-2 border-primary focus:outline-none flex-1'
+                autoFocus
+                disabled={isLoading || isSavingTitle}
+                aria-label='Edit checklist name'
+                placeholder='Checklist name'
+              />
+              {isSavingTitle && (
+                <Loader2 className='w-4 h-4 animate-spin text-muted-foreground' />
+              )}
+            </div>
           ) : (
-            <h4
-              className='text-base font-semibold text-foreground cursor-pointer hover:bg-muted/50 rounded-md px-2 py-1 -mx-2 -my-1 transition-colors'
-              onClick={() => setIsEditingName(true)}
-            >
-              {checklist.name}
-            </h4>
+            <div className='flex items-center gap-2 flex-1'>
+              <h4
+                className={`text-base font-semibold text-foreground transition-colors ${
+                  isSavingTitle
+                    ? 'cursor-not-allowed'
+                    : 'cursor-pointer hover:bg-muted/50 rounded-md px-2 py-1 -mx-2 -my-1'
+                }`}
+                onClick={() => {
+                  if (!isSavingTitle) {
+                    setOriginalChecklistName(checklist.name);
+                    setChecklistName(checklist.name);
+                    setIsEditingName(true);
+                  }
+                }}
+              >
+                {checklistName}
+              </h4>
+
+              {/* Title saving indicator */}
+              {isSavingTitle && (
+                <div className='flex items-center gap-1 text-muted-foreground'>
+                  <Loader2 className='w-3 h-3 animate-spin' />
+                  <span className='text-xs'>Saving...</span>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -225,6 +358,10 @@ export function Checklist({
       <div className='space-y-2 mb-4'>
         {checklist.items.map((item) => {
           const isDeleting = deletingItemIds.has(item.id);
+          const isSaving =
+            savingItemIds.has(item.id) || item.id.startsWith('temp-');
+          const isEditing = editingItemId === item.id;
+          const isDisabled = isDeleting || isLoading;
 
           return (
             <div
@@ -236,7 +373,9 @@ export function Checklist({
                   ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
                   : 'bg-background border-border hover:bg-muted/50'
               }`}
-              onMouseEnter={() => !isDeleting && setHoveredItemId(item.id)}
+              onMouseEnter={() =>
+                !isDisabled && !isDeleting && setHoveredItemId(item.id)
+              }
               onMouseLeave={() => setHoveredItemId(null)}
             >
               {/* Checkbox */}
@@ -246,14 +385,20 @@ export function Checklist({
                   item.completed
                     ? 'bg-primary border-primary text-primary-foreground'
                     : 'border-muted-foreground hover:border-primary'
+                } ${
+                  isDisabled
+                    ? 'opacity-50 cursor-not-allowed'
+                    : isSaving
+                    ? 'cursor-not-allowed'
+                    : ''
                 }`}
-                disabled={isLoading || isDeleting}
+                disabled={isDisabled || isSaving}
               >
                 {item.completed && <Check className='w-3 h-3' />}
               </button>
 
               {/* Item Text */}
-              {editingItemId === item.id ? (
+              {isEditing ? (
                 <input
                   type='text'
                   value={editingItemText}
@@ -270,49 +415,68 @@ export function Checklist({
                       e.stopPropagation();
                       setEditingItemId(null);
                       setEditingItemText('');
+                      setOriginalItemText('');
                     }
                   }}
                   className='flex-1 bg-background border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50'
                   autoFocus
-                  disabled={isLoading || isDeleting}
+                  disabled={isDisabled}
                   aria-label='Edit checklist item'
                   placeholder='Item text'
                 />
               ) : (
                 <span
-                  className={`flex-1 text-sm cursor-pointer transition-all duration-200 ${
+                  className={`flex-1 text-sm transition-all duration-200 ${
                     isDeleting
-                      ? 'text-red-500 line-through'
+                      ? 'text-red-500 line-through cursor-not-allowed'
                       : item.completed
                       ? 'text-muted-foreground line-through'
-                      : 'text-foreground hover:text-primary'
+                      : 'text-foreground'
+                  } ${
+                    !isDisabled && !isSaving
+                      ? 'cursor-pointer hover:text-primary'
+                      : isSaving
+                      ? 'cursor-not-allowed'
+                      : 'cursor-not-allowed opacity-50'
                   }`}
-                  onClick={() => !isDeleting && handleEditItem(item)}
+                  onClick={() =>
+                    !isDisabled && !isSaving && handleEditItem(item)
+                  }
                 >
                   {item.text}
                 </span>
               )}
 
+              {/* Saving indicator */}
+              {isSaving && (
+                <div className='flex items-center gap-2 text-muted-foreground'>
+                  <Loader2 className='w-3 h-3 animate-spin' />
+                  <span className='text-xs'>Saving...</span>
+                </div>
+              )}
+
               {/* Item Actions */}
-              {editingItemId !== item.id && !isDeleting && (
+              {!isEditing && !isSaving && !isDeleting && (
                 <div
                   className={`flex items-center gap-1 transition-opacity duration-200 ${
-                    hoveredItemId === item.id ? 'opacity-100' : 'opacity-0'
+                    hoveredItemId === item.id && !isDisabled
+                      ? 'opacity-100'
+                      : 'opacity-0'
                   }`}
                 >
                   <button
                     onClick={() => handleEditItem(item)}
                     className='p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors'
                     title='Edit item'
-                    disabled={isLoading}
+                    disabled={isDisabled}
                   >
                     <Edit2 className='w-3 h-3' />
                   </button>
                   <button
-                    onClick={() => handleDeleteItem(item.id)}
+                    onClick={() => handleDeleteItem(item)}
                     className='p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors'
                     title='Delete item'
-                    disabled={isLoading}
+                    disabled={isDisabled}
                   >
                     <X className='w-3 h-3' />
                   </button>
@@ -322,7 +486,7 @@ export function Checklist({
               {/* Deleting indicator */}
               {isDeleting && (
                 <div className='flex items-center gap-2 text-red-500'>
-                  <div className='w-3 h-3 border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin' />
+                  <Loader2 className='w-3 h-3 animate-spin' />
                   <span className='text-xs'>Deleting...</span>
                 </div>
               )}
@@ -336,6 +500,7 @@ export function Checklist({
         <div className='space-y-2'>
           <form onSubmit={handleAddItem} className='flex gap-2'>
             <input
+              ref={addInputRef}
               type='text'
               value={newItemText}
               onChange={(e) => setNewItemText(e.target.value)}
@@ -429,13 +594,69 @@ export function Checklist({
                 >
                   {isDeletingChecklist ? (
                     <>
-                      <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                      <Loader2 className='w-4 h-4 animate-spin' />
                       Deleting...
                     </>
                   ) : (
                     <>
                       <Trash2 className='w-4 h-4' />
                       Delete Checklist
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Item Delete Confirmation Modal */}
+      {showItemDeleteConfirm && itemToDelete && (
+        <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4'>
+          <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full'>
+            <div className='p-6'>
+              <div className='flex items-center gap-3 mb-4'>
+                <div className='w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center'>
+                  <Trash2 className='w-5 h-5 text-red-600 dark:text-red-400' />
+                </div>
+                <div>
+                  <h3 className='text-lg font-semibold text-foreground'>
+                    Delete Item
+                  </h3>
+                  <p className='text-sm text-muted-foreground'>
+                    This action cannot be undone
+                  </p>
+                </div>
+              </div>
+
+              <p className='text-sm text-foreground mb-6'>
+                Are you sure you want to delete{' '}
+                <span className='font-medium'>"{itemToDelete.text}"</span>? This
+                will permanently remove the item from this checklist.
+              </p>
+
+              <div className='flex gap-3 justify-end'>
+                <button
+                  onClick={cancelDeleteItem}
+                  className='px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors'
+                  disabled={isDeletingItem}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteItem}
+                  disabled={isDeletingItem}
+                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
+                >
+                  {isDeletingItem ? (
+                    <>
+                      <Loader2 className='w-4 h-4 animate-spin' />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className='w-4 h-4' />
+                      Delete Item
                     </>
                   )}
                 </button>
