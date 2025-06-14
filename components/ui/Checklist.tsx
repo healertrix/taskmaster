@@ -129,6 +129,8 @@ export function Checklist({
     }
   }, [showItemDeleteConfirm]);
 
+  // Remove the global event listener - we'll only use inline handlers like AddListForm does
+
   const handleSaveChecklistName = async () => {
     if (checklistName.trim() && checklistName !== checklist.name) {
       const nameToSave = checklistName.trim();
@@ -305,8 +307,14 @@ export function Checklist({
                 onChange={(e) => setChecklistName(e.target.value)}
                 onBlur={handleSaveChecklistName}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveChecklistName();
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSaveChecklistName();
+                  }
                   if (e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopPropagation();
                     setChecklistName(originalChecklistName);
                     setIsEditingName(false);
                   }

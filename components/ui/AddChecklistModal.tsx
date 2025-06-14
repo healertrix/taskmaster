@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, CheckSquare, Plus, Copy, List, Sparkles } from 'lucide-react';
 
 interface AddChecklistModalProps {
@@ -100,6 +100,20 @@ export function AddChecklistModal({
     setShowTemplates(false);
     onClose();
   };
+
+  // Handle ESC key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown, true); // Use capture phase
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

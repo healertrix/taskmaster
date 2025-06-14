@@ -358,7 +358,11 @@ export function CardModal({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        if (isEditingTitle) {
+        if (showAddChecklistModal) {
+          setShowAddChecklistModal(false);
+        } else if (showAttachmentModal) {
+          setShowAttachmentModal(false);
+        } else if (isEditingTitle) {
           setTitle(card.title);
           setIsEditingTitle(false);
         } else if (isEditingDescription) {
@@ -395,6 +399,8 @@ export function CardModal({
     showDeleteConfirm,
     showDeleteModal,
     showDeleteAttachmentModal,
+    showAddChecklistModal,
+    showAttachmentModal,
     title,
     description,
   ]);
@@ -1791,8 +1797,9 @@ export function CardModal({
                   </div>
                   <button
                     onClick={() => setShowAddChecklistModal(true)}
-                    className='flex items-center gap-1.5 px-2.5 py-1.5 bg-primary text-primary-foreground text-xs font-medium rounded-md hover:bg-primary/90 transition-colors'
+                    className='flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors'
                     disabled={isAddingChecklist}
+                    title='Add checklist'
                   >
                     <Plus className='w-3 h-3' />
                     Add

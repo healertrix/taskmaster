@@ -79,6 +79,20 @@ export function AttachmentModal({
     }
   };
 
+  // Handle ESC key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown, true); // Use capture phase
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, isLoading]);
+
   const isValidUrl = (string: string): boolean => {
     try {
       const url = new URL(string);
