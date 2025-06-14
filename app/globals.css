@@ -55,7 +55,7 @@
   }
 
   .btn-primary {
-    @apply bg-primary text-primary-foreground hover:bg-[hsl(var(--primary),0.9)];
+    @apply bg-primary text-primary-foreground hover:bg-primary/80;
     box-shadow: 0 4px 15px -2px hsl(var(--primary), 0.4);
   }
 
