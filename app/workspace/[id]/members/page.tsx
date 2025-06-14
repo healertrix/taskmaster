@@ -825,7 +825,7 @@ export default function WorkspaceMembersPage() {
       {/* Add Member Modal - Modern & Beautiful */}
       {showAddMemberModal && (
         <div className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4'>
-          <div className='bg-gradient-to-br from-background via-background to-background/95 border border-border/50 rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden'>
+          <div className='bg-gradient-to-br from-background via-background to-background/95 border border-border/50 rounded-2xl shadow-2xl w-full max-w-2xl h-[600px] mx-4 overflow-hidden flex flex-col'>
             {/* Header */}
             <div className='relative bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 border-b border-border/50'>
               <div className='flex items-center justify-between'>
@@ -858,7 +858,7 @@ export default function WorkspaceMembersPage() {
             </div>
 
             {/* Content */}
-            <div className='p-6 space-y-6'>
+            <div className='flex-1 p-6 space-y-6 overflow-y-auto'>
               {/* Search Section */}
               <div className='space-y-3'>
                 <label className='text-sm font-medium text-foreground flex items-center gap-2'>
@@ -1008,39 +1008,106 @@ export default function WorkspaceMembersPage() {
                   </div>
 
                   {/* Role Selection */}
-                  <div className='space-y-2'>
-                    <label className='text-sm font-medium text-foreground flex items-center gap-2'>
-                      <Shield className='w-4 h-4' />
-                      Role
-                    </label>
-                    <div className='grid grid-cols-2 gap-2'>
+                  <div className='space-y-4'>
+                    <div className='flex items-center gap-2'>
+                      <div className='w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center'>
+                        <Shield className='w-4 h-4 text-primary' />
+                      </div>
+                      <label className='text-base font-semibold text-foreground'>
+                        Select Role
+                      </label>
+                    </div>
+                    <div className='grid grid-cols-2 gap-4'>
                       <button
                         onClick={() => setAddMemberRole('member')}
-                        className={`p-3 rounded-lg border-2 transition-all duration-200 ${
+                        className={`group relative p-4 rounded-xl border-2 transition-all duration-300 text-left ${
                           addMemberRole === 'member'
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-border/50 hover:border-border bg-background/50 text-muted-foreground hover:text-foreground'
+                            ? 'border-primary bg-gradient-to-br from-primary/10 to-primary/5 shadow-lg shadow-primary/20'
+                            : 'border-border/50 hover:border-border bg-background/50 hover:bg-background/80 hover:shadow-md'
                         }`}
                       >
-                        <div className='flex items-center gap-2'>
-                          <User className='w-4 h-4' />
-                          <span className='font-medium'>Member</span>
+                        <div className='flex flex-col items-center text-center space-y-3'>
+                          <div
+                            className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                              addMemberRole === 'member'
+                                ? 'bg-primary/20 text-primary'
+                                : 'bg-muted/50 text-muted-foreground group-hover:bg-muted/80'
+                            }`}
+                          >
+                            <User className='w-6 h-6' />
+                          </div>
+                          <div>
+                            <div
+                              className={`font-semibold text-base transition-colors ${
+                                addMemberRole === 'member'
+                                  ? 'text-primary'
+                                  : 'text-foreground'
+                              }`}
+                            >
+                              Member
+                            </div>
+                            <div
+                              className={`text-xs transition-colors ${
+                                addMemberRole === 'member'
+                                  ? 'text-primary/80'
+                                  : 'text-muted-foreground'
+                              }`}
+                            >
+                              Basic access
+                            </div>
+                          </div>
+                          {addMemberRole === 'member' && (
+                            <div className='absolute top-3 right-3 w-5 h-5 rounded-full bg-primary flex items-center justify-center'>
+                              <Check className='w-3 h-3 text-primary-foreground' />
+                            </div>
+                          )}
                         </div>
-                        <p className='text-xs mt-1 opacity-80'>Basic access</p>
                       </button>
+
                       <button
                         onClick={() => setAddMemberRole('admin')}
-                        className={`p-3 rounded-lg border-2 transition-all duration-200 ${
+                        className={`group relative p-4 rounded-xl border-2 transition-all duration-300 text-left ${
                           addMemberRole === 'admin'
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-border/50 hover:border-border bg-background/50 text-muted-foreground hover:text-foreground'
+                            ? 'border-primary bg-gradient-to-br from-primary/10 to-primary/5 shadow-lg shadow-primary/20'
+                            : 'border-border/50 hover:border-border bg-background/50 hover:bg-background/80 hover:shadow-md'
                         }`}
                       >
-                        <div className='flex items-center gap-2'>
-                          <Shield className='w-4 h-4' />
-                          <span className='font-medium'>Admin</span>
+                        <div className='flex flex-col items-center text-center space-y-3'>
+                          <div
+                            className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 ${
+                              addMemberRole === 'admin'
+                                ? 'bg-primary/20 text-primary'
+                                : 'bg-muted/50 text-muted-foreground group-hover:bg-muted/80'
+                            }`}
+                          >
+                            <Shield className='w-6 h-6' />
+                          </div>
+                          <div>
+                            <div
+                              className={`font-semibold text-base transition-colors ${
+                                addMemberRole === 'admin'
+                                  ? 'text-primary'
+                                  : 'text-foreground'
+                              }`}
+                            >
+                              Admin
+                            </div>
+                            <div
+                              className={`text-xs transition-colors ${
+                                addMemberRole === 'admin'
+                                  ? 'text-primary/80'
+                                  : 'text-muted-foreground'
+                              }`}
+                            >
+                              Full access
+                            </div>
+                          </div>
+                          {addMemberRole === 'admin' && (
+                            <div className='absolute top-3 right-3 w-5 h-5 rounded-full bg-primary flex items-center justify-center'>
+                              <Check className='w-3 h-3 text-primary-foreground' />
+                            </div>
+                          )}
                         </div>
-                        <p className='text-xs mt-1 opacity-80'>Full access</p>
                       </button>
                     </div>
                   </div>
@@ -1049,7 +1116,7 @@ export default function WorkspaceMembersPage() {
             </div>
 
             {/* Footer */}
-            <div className='bg-gradient-to-r from-muted/20 to-transparent p-6 border-t border-border/50'>
+            <div className='flex-shrink-0 bg-gradient-to-r from-muted/20 to-transparent p-6 border-t border-border/50'>
               <div className='flex justify-end gap-3'>
                 <button
                   onClick={() => {
