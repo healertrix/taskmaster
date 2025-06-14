@@ -20,6 +20,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Bug,
+  Trash2,
+  UserMinus,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -68,11 +70,21 @@ export default function WorkspaceMembersPage() {
   const [currentUserRole, setCurrentUserRole] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
-  const [isInviting, setIsInviting] = useState(false);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedMember, setSelectedMember] = useState<any>(null);
+  const [addMemberRole, setAddMemberRole] = useState<'admin' | 'member'>(
+    'member'
+  );
+  const [isSearching, setIsSearching] = useState(false);
+  const [isAddingMember, setIsAddingMember] = useState(false);
   const [showDebugInfo, setShowDebugInfo] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<WorkspaceMember | null>(
+    null
+  );
+  const [isRemovingMember, setIsRemovingMember] = useState(false);
 
   // Notification states
   const [showSuccessToast, setShowSuccessToast] = useState(false);
@@ -258,7 +270,7 @@ export default function WorkspaceMembersPage() {
   };
 
   // Define permission flags
-  const canInviteMembers =
+  const canAddMembers =
     currentUserRole === 'owner' || currentUserRole === 'admin';
   const canManageMembers =
     currentUserRole === 'owner' || currentUserRole === 'admin';
@@ -327,37 +339,137 @@ export default function WorkspaceMembersPage() {
     </div>
   );
 
-  const handleInviteMember = async () => {
-    if (!inviteEmail.trim()) return;
+  // Search for profiles
+  const handleSearch = async (query: string) => {
+    console.log('handleSearch called with query:', query);
 
-    setIsInviting(true);
+    if (!query || query.length < 2) {
+      console.log('Query too short, clearing results');
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
     try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/members`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: inviteEmail.trim(),
-          role: inviteRole,
-        }),
-      });
+      const searchUrl = `/api/profiles/search?q=${encodeURIComponent(
+        query
+      )}&workspace_id=${workspaceId}`;
+      console.log('Making request to:', searchUrl);
+
+      const response = await fetch(searchUrl);
+      console.log('Response status:', response.status);
 
       if (response.ok) {
-        setInviteEmail('');
-        setShowInviteModal(false);
-        showSuccess(`Invitation sent to ${inviteEmail.trim()}`);
-        // Refresh invitations
-        window.location.reload();
+        const data = await response.json();
+        console.log('Search response data:', data);
+        setSearchResults(data.profiles || []);
       } else {
-        const error = await response.text();
-        showError(`Failed to send invitation: ${error}`);
+        const errorText = await response.text();
+        console.error(
+          'Failed to search profiles. Status:',
+          response.status,
+          'Error:',
+          errorText
+        );
+        setSearchResults([]);
       }
     } catch (error) {
-      console.error('Error sending invitation:', error);
-      showError('Failed to send invitation');
+      console.error('Error searching profiles:', error);
+      setSearchResults([]);
     } finally {
-      setIsInviting(false);
+      setIsSearching(false);
+    }
+  };
+
+  // Handle adding a member
+  const handleAddMember = async () => {
+    if (!selectedMember) return;
+
+    setIsAddingMember(true);
+    try {
+      const response = await fetch(
+        `/api/workspaces/${workspaceId}/add-member`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            profile_id: selectedMember.id,
+            role: addMemberRole,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        setSearchQuery('');
+        setSearchResults([]);
+        setSelectedMember(null);
+        setShowAddMemberModal(false);
+        showSuccess(`${selectedMember.name} has been added to the workspace`);
+        // Refresh the page to show new member
+        window.location.reload();
+      } else {
+        const errorData = await response.json();
+        showError(
+          `Failed to add member: ${errorData.error || 'Unknown error'}`
+        );
+      }
+    } catch (error) {
+      console.error('Error adding member:', error);
+      showError('Failed to add member');
+    } finally {
+      setIsAddingMember(false);
+    }
+  };
+
+  // Handle removing a member
+  const handleRemoveMember = async () => {
+    if (!memberToRemove) return;
+
+    console.log('Removing member:', {
+      memberToRemove,
+      workspaceId,
+      profile_id: memberToRemove.profile_id,
+    });
+
+    setIsRemovingMember(true);
+    try {
+      const response = await fetch(
+        `/api/workspaces/${workspaceId}/remove-member`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            profile_id: memberToRemove.profile_id,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setShowRemoveConfirm(false);
+        setMemberToRemove(null);
+        showSuccess(
+          `${
+            memberToRemove.profile.full_name || memberToRemove.profile.email
+          } has been removed from the workspace`
+        );
+        // Refresh the page to show updated members list
+        window.location.reload();
+      } else {
+        const errorData = await response.json();
+        showError(
+          `Failed to remove member: ${errorData.error || 'Unknown error'}`
+        );
+      }
+    } catch (error) {
+      console.error('Error removing member:', error);
+      showError('Failed to remove member');
+    } finally {
+      setIsRemovingMember(false);
     }
   };
 
@@ -382,7 +494,7 @@ export default function WorkspaceMembersPage() {
         }))
       );
       console.log('Invitations:', invitations);
-      console.log('Can Invite Members:', canInviteMembers);
+      console.log('Can Add Members:', canAddMembers);
       console.log('Can Manage Members:', canManageMembers);
       console.log('=== END DEBUG INFO ===');
     }
@@ -477,13 +589,13 @@ export default function WorkspaceMembersPage() {
               Debug
             </button>
 
-            {canInviteMembers && (
+            {canAddMembers && (
               <button
-                onClick={() => setShowInviteModal(true)}
+                onClick={() => setShowAddMemberModal(true)}
                 className='btn btn-primary flex items-center gap-2'
               >
                 <UserPlus className='w-4 h-4' />
-                Invite Members
+                Add Members
               </button>
             )}
           </div>
@@ -535,7 +647,7 @@ export default function WorkspaceMembersPage() {
                       {
                         user_id: currentUser,
                         role: currentUserRole,
-                        can_invite: canInviteMembers,
+                        can_add_members: canAddMembers,
                         can_manage: canManageMembers,
                       },
                       null,
@@ -622,10 +734,38 @@ export default function WorkspaceMembersPage() {
                       </div>
                       {canManageMembers &&
                         member.profile_id !== currentUser && (
-                          <button className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'>
-                            Change
-                            <ChevronRight className='w-4 h-4' />
-                          </button>
+                          <div className='flex items-center gap-2'>
+                            <button className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'>
+                              Change
+                              <ChevronRight className='w-4 h-4' />
+                            </button>
+                            {/* Only show remove button for owners/admins, and prevent removing last owner */}
+                            {['owner', 'admin'].includes(currentUserRole) &&
+                              !(
+                                member.role === 'owner' &&
+                                members.filter((m) => m.role === 'owner')
+                                  .length <= 1
+                              ) && (
+                                <button
+                                  onClick={() => {
+                                    console.log(
+                                      'Setting member to remove:',
+                                      member
+                                    );
+                                    setMemberToRemove(member);
+                                    setShowRemoveConfirm(true);
+                                  }}
+                                  className='px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center gap-1'
+                                  title={`Remove ${
+                                    member.profile.full_name ||
+                                    member.profile.email
+                                  } from workspace (ID: ${member.profile_id})`}
+                                >
+                                  <UserMinus className='w-4 h-4' />
+                                  Remove
+                                </button>
+                              )}
+                          </div>
                         )}
                     </div>
                   </div>
@@ -635,7 +775,7 @@ export default function WorkspaceMembersPage() {
           </div>
 
           {/* Pending Invitations */}
-          {canInviteMembers && invitations.length > 0 && (
+          {canAddMembers && invitations.length > 0 && (
             <div className='card p-6'>
               <h2 className='text-lg font-semibold mb-4'>
                 Pending invitations ({invitations.length})
@@ -682,68 +822,268 @@ export default function WorkspaceMembersPage() {
         </div>
       </main>
 
-      {/* Invite Modal */}
-      {showInviteModal && (
-        <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
-          <div className='bg-background border border-border rounded-lg p-6 w-full max-w-md mx-4'>
-            <h3 className='text-lg font-semibold mb-4'>Invite Member</h3>
-
-            <div className='space-y-4'>
-              <div>
-                <label className='block text-sm font-medium mb-2'>
-                  Email Address
-                </label>
-                <input
-                  type='email'
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder='Enter email address'
-                  className='w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
-                />
-              </div>
-
-              <div>
-                <label className='block text-sm font-medium mb-2'>Role</label>
-                <select
-                  value={inviteRole}
-                  onChange={(e) =>
-                    setInviteRole(e.target.value as 'admin' | 'member')
-                  }
-                  className='w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary'
-                  aria-label='Select role for new member'
+      {/* Add Member Modal - Modern & Beautiful */}
+      {showAddMemberModal && (
+        <div className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4'>
+          <div className='bg-gradient-to-br from-background via-background to-background/95 border border-border/50 rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden'>
+            {/* Header */}
+            <div className='relative bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 border-b border-border/50'>
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-3'>
+                  <div className='w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center'>
+                    <UserPlus className='w-5 h-5 text-primary' />
+                  </div>
+                  <div>
+                    <h3 className='text-xl font-semibold text-foreground'>
+                      Add Member
+                    </h3>
+                    <p className='text-sm text-muted-foreground'>
+                      Search and add existing users to your workspace
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowAddMemberModal(false);
+                    setSearchQuery('');
+                    setSearchResults([]);
+                    setSelectedMember(null);
+                  }}
+                  className='w-8 h-8 rounded-full bg-muted/50 hover:bg-muted/80 flex items-center justify-center transition-colors'
+                  aria-label='Close modal'
                 >
-                  <option value='member'>Member</option>
-                  <option value='admin'>Admin</option>
-                </select>
+                  <X className='w-4 h-4' />
+                </button>
               </div>
             </div>
 
-            <div className='flex justify-end gap-3 mt-6'>
-              <button
-                onClick={() => setShowInviteModal(false)}
-                className='px-4 py-2 text-muted-foreground hover:text-foreground'
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleInviteMember}
-                disabled={isInviting || !inviteEmail.trim()}
-                className={`btn btn-primary flex items-center gap-2 transition-all duration-200 ${
-                  isInviting ? 'scale-95 opacity-90' : 'hover:scale-105'
-                } disabled:opacity-50`}
-              >
-                {isInviting ? (
-                  <>
-                    <LoadingSpinner size='sm' />
-                    <span className='animate-pulse'>Sending...</span>
-                  </>
-                ) : (
-                  <>
-                    <Send className='w-4 h-4' />
-                    Send Invitation
-                  </>
+            {/* Content */}
+            <div className='p-6 space-y-6'>
+              {/* Search Section */}
+              <div className='space-y-3'>
+                <label className='text-sm font-medium text-foreground flex items-center gap-2'>
+                  <Users className='w-4 h-4' />
+                  Search for users
+                </label>
+                <div className='relative'>
+                  <input
+                    type='text'
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      handleSearch(e.target.value);
+                    }}
+                    placeholder='Type name or email to search...'
+                    className='w-full px-4 py-3 pl-11 border border-border/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 bg-background/50 backdrop-blur-sm transition-all duration-200'
+                  />
+                  <div className='absolute left-3 top-1/2 -translate-y-1/2'>
+                    {isSearching ? (
+                      <Loader2 className='w-5 h-5 animate-spin text-muted-foreground' />
+                    ) : (
+                      <Users className='w-5 h-5 text-muted-foreground' />
+                    )}
+                  </div>
+                  {searchQuery && (
+                    <button
+                      onClick={() => {
+                        setSearchQuery('');
+                        setSearchResults([]);
+                        setSelectedMember(null);
+                      }}
+                      className='absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-muted/50 hover:bg-muted flex items-center justify-center transition-colors'
+                      aria-label='Clear search'
+                    >
+                      <X className='w-3 h-3' />
+                    </button>
+                  )}
+                </div>
+
+                {/* Search Results */}
+                {searchQuery.length >= 2 && (
+                  <div className='mt-4 border border-border/50 rounded-xl overflow-hidden bg-background/30 backdrop-blur-sm'>
+                    {isSearching ? (
+                      <div className='p-8 text-center'>
+                        <div className='flex flex-col items-center gap-3'>
+                          <div className='w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center'>
+                            <Loader2 className='w-5 h-5 animate-spin text-primary' />
+                          </div>
+                          <p className='text-sm text-muted-foreground'>
+                            Searching for users...
+                          </p>
+                        </div>
+                      </div>
+                    ) : searchResults.length > 0 ? (
+                      <div className='max-h-64 overflow-y-auto'>
+                        <div className='p-2 space-y-1'>
+                          {searchResults.map((profile) => (
+                            <button
+                              key={profile.id}
+                              onClick={() => setSelectedMember(profile)}
+                              className={`w-full text-left p-3 rounded-lg transition-all duration-200 ${
+                                selectedMember?.id === profile.id
+                                  ? 'bg-primary/10 border-2 border-primary/30 shadow-sm'
+                                  : 'hover:bg-muted/30 border-2 border-transparent'
+                              }`}
+                            >
+                              <div className='flex items-center gap-3'>
+                                {profile.avatar_url ? (
+                                  <img
+                                    src={profile.avatar_url}
+                                    alt={profile.name}
+                                    className='w-10 h-10 rounded-full object-cover border-2 border-border/20'
+                                  />
+                                ) : (
+                                  <div className='w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground font-medium'>
+                                    {profile.name.charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                                <div className='flex-1 min-w-0'>
+                                  <div className='font-medium text-foreground truncate'>
+                                    {profile.name}
+                                  </div>
+                                  <div className='text-sm text-muted-foreground truncate'>
+                                    {profile.email}
+                                  </div>
+                                </div>
+                                {selectedMember?.id === profile.id && (
+                                  <div className='w-5 h-5 rounded-full bg-primary flex items-center justify-center'>
+                                    <Check className='w-3 h-3 text-primary-foreground' />
+                                  </div>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className='p-8 text-center'>
+                        <div className='flex flex-col items-center gap-3'>
+                          <div className='w-12 h-12 rounded-full bg-muted/20 flex items-center justify-center'>
+                            <Users className='w-6 h-6 text-muted-foreground' />
+                          </div>
+                          <div>
+                            <p className='font-medium text-foreground'>
+                              No users found
+                            </p>
+                            <p className='text-sm text-muted-foreground'>
+                              Try adjusting your search terms
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
-              </button>
+              </div>
+
+              {/* Selected Member Preview */}
+              {selectedMember && (
+                <div className='bg-gradient-to-r from-primary/5 to-transparent border border-primary/20 rounded-xl p-4'>
+                  <div className='flex items-center gap-3 mb-4'>
+                    <div className='w-2 h-2 rounded-full bg-primary animate-pulse'></div>
+                    <span className='text-sm font-medium text-primary'>
+                      Selected Member
+                    </span>
+                  </div>
+                  <div className='flex items-center gap-3 mb-4'>
+                    {selectedMember.avatar_url ? (
+                      <img
+                        src={selectedMember.avatar_url}
+                        alt={selectedMember.name}
+                        className='w-12 h-12 rounded-full object-cover border-2 border-primary/20'
+                      />
+                    ) : (
+                      <div className='w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground font-medium text-lg'>
+                        {selectedMember.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <div className='font-medium text-foreground'>
+                        {selectedMember.name}
+                      </div>
+                      <div className='text-sm text-muted-foreground'>
+                        {selectedMember.email}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Role Selection */}
+                  <div className='space-y-2'>
+                    <label className='text-sm font-medium text-foreground flex items-center gap-2'>
+                      <Shield className='w-4 h-4' />
+                      Role
+                    </label>
+                    <div className='grid grid-cols-2 gap-2'>
+                      <button
+                        onClick={() => setAddMemberRole('member')}
+                        className={`p-3 rounded-lg border-2 transition-all duration-200 ${
+                          addMemberRole === 'member'
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border/50 hover:border-border bg-background/50 text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <div className='flex items-center gap-2'>
+                          <User className='w-4 h-4' />
+                          <span className='font-medium'>Member</span>
+                        </div>
+                        <p className='text-xs mt-1 opacity-80'>Basic access</p>
+                      </button>
+                      <button
+                        onClick={() => setAddMemberRole('admin')}
+                        className={`p-3 rounded-lg border-2 transition-all duration-200 ${
+                          addMemberRole === 'admin'
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border/50 hover:border-border bg-background/50 text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <div className='flex items-center gap-2'>
+                          <Shield className='w-4 h-4' />
+                          <span className='font-medium'>Admin</span>
+                        </div>
+                        <p className='text-xs mt-1 opacity-80'>Full access</p>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className='bg-gradient-to-r from-muted/20 to-transparent p-6 border-t border-border/50'>
+              <div className='flex justify-end gap-3'>
+                <button
+                  onClick={() => {
+                    setShowAddMemberModal(false);
+                    setSearchQuery('');
+                    setSearchResults([]);
+                    setSelectedMember(null);
+                  }}
+                  className='px-6 py-2.5 text-muted-foreground hover:text-foreground transition-colors font-medium'
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddMember}
+                  disabled={isAddingMember || !selectedMember}
+                  className={`px-6 py-2.5 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground font-medium rounded-lg flex items-center gap-2 transition-all duration-200 ${
+                    isAddingMember || !selectedMember
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:from-primary/90 hover:to-primary hover:shadow-lg hover:shadow-primary/25 active:scale-95'
+                  }`}
+                >
+                  {isAddingMember ? (
+                    <>
+                      <Loader2 className='w-4 h-4 animate-spin' />
+                      <span>Adding...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className='w-4 h-4' />
+                      <span>Add Member</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -823,15 +1163,125 @@ export default function WorkspaceMembersPage() {
         </div>
       )}
 
+      {/* Remove Member Confirmation Modal */}
+      {showRemoveConfirm && memberToRemove && (
+        <div className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4'>
+          <div className='bg-gradient-to-br from-background via-background to-background/95 border border-border/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden'>
+            {/* Header */}
+            <div className='relative bg-gradient-to-r from-red-500/10 via-red-500/5 to-transparent p-6 border-b border-border/50'>
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-3'>
+                  <div className='w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center'>
+                    <UserMinus className='w-5 h-5 text-red-500' />
+                  </div>
+                  <div>
+                    <h3 className='text-xl font-semibold text-foreground'>
+                      Remove Member
+                    </h3>
+                    <p className='text-sm text-muted-foreground'>
+                      This action cannot be undone
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowRemoveConfirm(false);
+                    setMemberToRemove(null);
+                  }}
+                  className='w-8 h-8 rounded-full bg-muted/50 hover:bg-muted/80 flex items-center justify-center transition-colors'
+                  aria-label='Close modal'
+                >
+                  <X className='w-4 h-4' />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className='p-6 space-y-4'>
+              <div className='flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl dark:bg-red-900/20 dark:border-red-800'>
+                <div className='w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white font-medium text-lg'>
+                  {memberToRemove.profile.full_name?.charAt(0).toUpperCase() ||
+                    memberToRemove.profile.email.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div className='font-medium text-foreground'>
+                    {memberToRemove.profile.full_name ||
+                      memberToRemove.profile.email}
+                  </div>
+                  <div className='text-sm text-muted-foreground'>
+                    {memberToRemove.profile.email}
+                  </div>
+                  <div className='text-xs text-red-600 dark:text-red-400 mt-1'>
+                    {getRoleDisplay(memberToRemove.role).text}
+                  </div>
+                </div>
+              </div>
+
+              <div className='bg-amber-50 border border-amber-200 rounded-xl p-4 dark:bg-amber-900/20 dark:border-amber-800'>
+                <div className='flex items-start gap-3'>
+                  <AlertCircle className='w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5' />
+                  <div className='text-sm'>
+                    <p className='font-medium text-amber-800 dark:text-amber-200 mb-1'>
+                      Are you sure you want to remove this member?
+                    </p>
+                    <p className='text-amber-700 dark:text-amber-300'>
+                      They will lose access to this workspace and all its
+                      boards. You can add them back later if needed.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className='bg-gradient-to-r from-muted/20 to-transparent p-6 border-t border-border/50'>
+              <div className='flex justify-end gap-3'>
+                <button
+                  onClick={() => {
+                    setShowRemoveConfirm(false);
+                    setMemberToRemove(null);
+                  }}
+                  disabled={isRemovingMember}
+                  className='px-6 py-2.5 text-muted-foreground hover:text-foreground transition-colors font-medium disabled:opacity-50'
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRemoveMember}
+                  disabled={isRemovingMember}
+                  className={`px-6 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white font-medium rounded-lg flex items-center gap-2 transition-all duration-200 ${
+                    isRemovingMember
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:from-red-600 hover:to-red-700 hover:shadow-lg hover:shadow-red-500/25 active:scale-95'
+                  }`}
+                >
+                  {isRemovingMember ? (
+                    <>
+                      <Loader2 className='w-4 h-4 animate-spin' />
+                      <span>Removing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className='w-4 h-4' />
+                      <span>Remove Member</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Global Loading Overlay for Critical Actions */}
-      {isInviting && (
+      {(isAddingMember || isRemovingMember) && (
         <div className='fixed inset-0 bg-black/10 backdrop-blur-sm z-[90] flex items-center justify-center'>
           <div className='bg-background/90 backdrop-blur border border-border rounded-lg p-6 shadow-xl'>
             <div className='flex items-center gap-4'>
-              <LoadingSpinner size='lg' />
+              <Loader2 className='w-8 h-8 animate-spin' />
               <div>
                 <p className='font-medium text-foreground'>
-                  Sending invitation...
+                  {isAddingMember ? 'Adding member...' : 'Removing member...'}
                 </p>
                 <p className='text-sm text-muted-foreground'>
                   This will only take a moment
