@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
   X,
   Edit3,
+  Edit2,
   Calendar,
   User,
   Tag,
@@ -41,6 +42,16 @@ import {
   Settings,
   Check,
 } from 'lucide-react';
+import { DateTimeRangePicker } from '@/components/ui/DateTimeRangePicker';
+import {
+  combineDateAndTime,
+  extractDate,
+  extractTime,
+  formatDateTime,
+  getRelativeDateTime,
+  isOverdue,
+  isDueSoon,
+} from '@/utils/dateTime';
 
 interface Card {
   id: string;
@@ -256,15 +267,28 @@ export function CardModal({
   // Date picker state
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedStartDate, setSelectedStartDate] = useState(
-    card.start_date || ''
+    extractDate(card.start_date)
   );
-  const [selectedDueDate, setSelectedDueDate] = useState(card.due_date || '');
+  const [selectedDueDate, setSelectedDueDate] = useState(
+    extractDate(card.due_date)
+  );
+  const [selectedStartTime, setSelectedStartTime] = useState(
+    extractTime(card.start_date)
+  );
+  const [selectedDueTime, setSelectedDueTime] = useState(
+    extractTime(card.due_date)
+  );
   const [isSavingDates, setIsSavingDates] = useState(false);
 
   // Reset form when card changes
   useEffect(() => {
     setTitle(card.title);
     setDescription(card.description || '');
+    // Reset date states when card changes
+    setSelectedStartDate(extractDate(card.start_date));
+    setSelectedDueDate(extractDate(card.due_date));
+    setSelectedStartTime(extractTime(card.start_date));
+    setSelectedDueTime(extractTime(card.due_date));
   }, [card]);
 
   // Global keyboard shortcuts
@@ -362,13 +386,7 @@ export function CardModal({
 
   // Format date for display
   const formatDate = (dateString?: string) => {
-    if (!dateString) return '';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return getRelativeDateTime(dateString);
   };
 
   // Fetch comments and activities when modal opens
@@ -741,44 +759,50 @@ export function CardModal({
   };
 
   // Date handling functions
-  const handleSaveDates = async () => {
+  const handleSaveDates = (dates: {
+    startDate?: string;
+    endDate?: string;
+    startTime?: string;
+    endTime?: string;
+  }) => {
     if (!onUpdateCard) return;
 
     setIsSavingDates(true);
-    try {
-      const updates = {
-        start_date: selectedStartDate || null,
-        due_date: selectedDueDate || null,
-      };
 
-      const success = await onUpdateCard(card.id, updates);
-      if (success) {
-        setShowDatePicker(false);
-        setIsAddToCardDropdownOpen(false);
-      } else {
+    const startDateTime = combineDateAndTime(dates.startDate, dates.startTime);
+    const endDateTime = combineDateAndTime(dates.endDate, dates.endTime);
+
+    const updates = {
+      start_date: startDateTime || null,
+      due_date: endDateTime || null,
+    };
+
+    onUpdateCard(card.id, updates)
+      .then((success) => {
+        if (success) {
+          setShowDatePicker(false);
+          setIsAddToCardDropdownOpen(false);
+          // Local state will be updated by useEffect when card prop changes
+        } else {
+          alert('Failed to update dates. Please try again.');
+        }
+      })
+      .catch((error) => {
+        console.error('Error updating dates:', error);
         alert('Failed to update dates. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error updating dates:', error);
-      alert('Failed to update dates. Please try again.');
-    } finally {
-      setIsSavingDates(false);
-    }
+      })
+      .finally(() => {
+        setIsSavingDates(false);
+      });
   };
 
-  const handleClearDates = async () => {
-    setSelectedStartDate('');
-    setSelectedDueDate('');
-    await handleSaveDates();
-  };
-
-  const formatDateForInput = (dateString: string) => {
-    if (!dateString) return '';
-    return new Date(dateString).toISOString().split('T')[0];
-  };
-
-  const getTodayDate = () => {
-    return new Date().toISOString().split('T')[0];
+  const handleClearDates = () => {
+    handleSaveDates({
+      startDate: undefined,
+      endDate: undefined,
+      startTime: undefined,
+      endTime: undefined,
+    });
   };
 
   const getActivityIcon = (actionType: string) => {
@@ -942,7 +966,10 @@ export function CardModal({
                   <div className='space-y-3'>
                     {/* Start Date */}
                     {card.start_date && (
-                      <div className='flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl dark:bg-green-900/20 dark:border-green-800'>
+                      <div
+                        onClick={() => setShowDatePicker(true)}
+                        className='flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl dark:bg-green-900/20 dark:border-green-800 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors'
+                      >
                         <div className='w-8 h-8 bg-green-100 text-green-600 rounded-lg flex items-center justify-center dark:bg-green-900/40 dark:text-green-400'>
                           <Calendar className='w-4 h-4' />
                         </div>
@@ -954,18 +981,22 @@ export function CardModal({
                             {formatDate(card.start_date)}
                           </div>
                         </div>
+                        <div className='opacity-0 group-hover:opacity-100 transition-opacity'>
+                          <Edit2 className='w-4 h-4 text-green-600 dark:text-green-400' />
+                        </div>
                       </div>
                     )}
 
                     {/* Due Date */}
                     {card.due_date && (
                       <div
-                        className={`flex items-center gap-3 p-3 rounded-xl border ${
+                        onClick={() => setShowDatePicker(true)}
+                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer hover:opacity-80 transition-all group ${
                           card.due_status === 'complete'
-                            ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800'
+                            ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
                             : card.due_status === 'overdue'
-                            ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
-                            : 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800'
+                            ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30'
+                            : 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30'
                         }`}
                       >
                         <div
@@ -1007,6 +1038,17 @@ export function CardModal({
                           >
                             {formatDate(card.due_date)}
                           </div>
+                        </div>
+                        <div className='opacity-0 group-hover:opacity-100 transition-opacity'>
+                          <Edit2
+                            className={`w-4 h-4 ${
+                              card.due_status === 'complete'
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : card.due_status === 'overdue'
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-amber-600 dark:text-amber-400'
+                            }`}
+                          />
                         </div>
                         {card.due_status === 'complete' && (
                           <div className='w-6 h-6 bg-emerald-500 text-white rounded-full flex items-center justify-center'>
@@ -1191,247 +1233,17 @@ export function CardModal({
               </div>
             </div>
 
-            {/* Date Picker Modal */}
+            {/* Date Time Range Picker */}
             {showDatePicker && (
-              <>
-                {/* Backdrop */}
-                <div
-                  className='fixed inset-0 z-30'
-                  onClick={() => setShowDatePicker(false)}
-                />
-
-                {/* Beautiful Date Picker Modal */}
-                <div className='fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40 w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'>
-                  {/* Gradient Header */}
-                  <div className='bg-gradient-to-r from-primary to-primary/80 px-6 py-4'>
-                    <div className='flex items-center justify-between text-white'>
-                      <div className='flex items-center gap-3'>
-                        <div className='w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center'>
-                          <Calendar className='w-5 h-5' />
-                        </div>
-                        <div>
-                          <h3 className='text-xl font-semibold'>
-                            Set Card Dates
-                          </h3>
-                          <p className='text-white/80 text-sm'>
-                            Schedule your card timeline
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => setShowDatePicker(false)}
-                        className='p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200'
-                        title='Close date picker'
-                        aria-label='Close date picker'
-                      >
-                        <X className='w-5 h-5' />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className='p-6 space-y-6'>
-                    {/* Date Inputs */}
-                    <div className='space-y-5'>
-                      {/* Start Date */}
-                      <div className='group'>
-                        <label className='flex items-center gap-2 text-sm font-semibold text-foreground mb-3'>
-                          <div className='w-6 h-6 bg-green-100 text-green-600 rounded-lg flex items-center justify-center dark:bg-green-900/30 dark:text-green-400'>
-                            <Calendar className='w-3 h-3' />
-                          </div>
-                          Start Date
-                          <span className='text-xs text-muted-foreground font-normal'>
-                            (Optional)
-                          </span>
-                        </label>
-                        <div className='relative'>
-                          <input
-                            type='date'
-                            value={formatDateForInput(selectedStartDate)}
-                            onChange={(e) =>
-                              setSelectedStartDate(e.target.value)
-                            }
-                            className='w-full px-4 py-3 border-2 border-border rounded-xl text-sm bg-background focus:outline-none focus:ring-4 focus:ring-green-500/10 focus:border-green-500 transition-all duration-200 hover:border-green-300'
-                            disabled={isSavingDates}
-                            aria-label='Select start date'
-                            title='Select start date'
-                          />
-                          {selectedStartDate && (
-                            <button
-                              onClick={() => setSelectedStartDate('')}
-                              className='absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors'
-                              title='Clear start date'
-                            >
-                              <X className='w-4 h-4' />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Due Date */}
-                      <div className='group'>
-                        <label className='flex items-center gap-2 text-sm font-semibold text-foreground mb-3'>
-                          <div className='w-6 h-6 bg-red-100 text-red-600 rounded-lg flex items-center justify-center dark:bg-red-900/30 dark:text-red-400'>
-                            <Clock className='w-3 h-3' />
-                          </div>
-                          Due Date
-                          <span className='text-xs text-red-500 font-normal'>
-                            *Required
-                          </span>
-                        </label>
-                        <div className='relative'>
-                          <input
-                            type='date'
-                            value={formatDateForInput(selectedDueDate)}
-                            onChange={(e) => setSelectedDueDate(e.target.value)}
-                            min={selectedStartDate || getTodayDate()}
-                            className='w-full px-4 py-3 border-2 border-border rounded-xl text-sm bg-background focus:outline-none focus:ring-4 focus:ring-red-500/10 focus:border-red-500 transition-all duration-200 hover:border-red-300'
-                            disabled={isSavingDates}
-                            aria-label='Select due date'
-                            title='Select due date'
-                          />
-                          {selectedDueDate && (
-                            <button
-                              onClick={() => setSelectedDueDate('')}
-                              className='absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors'
-                              title='Clear due date'
-                            >
-                              <X className='w-4 h-4' />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Quick Date Options */}
-                      <div className='bg-muted/30 rounded-xl p-4 border border-border/50'>
-                        <p className='text-sm font-medium text-foreground mb-3'>
-                          Quick options:
-                        </p>
-                        <div className='grid grid-cols-2 gap-2'>
-                          <button
-                            onClick={() => setSelectedDueDate(getTodayDate())}
-                            className='px-3 py-2 bg-background hover:bg-muted border border-border rounded-lg text-xs font-medium transition-colors'
-                            disabled={isSavingDates}
-                          >
-                            Today
-                          </button>
-                          <button
-                            onClick={() => {
-                              const tomorrow = new Date();
-                              tomorrow.setDate(tomorrow.getDate() + 1);
-                              setSelectedDueDate(
-                                tomorrow.toISOString().split('T')[0]
-                              );
-                            }}
-                            className='px-3 py-2 bg-background hover:bg-muted border border-border rounded-lg text-xs font-medium transition-colors'
-                            disabled={isSavingDates}
-                          >
-                            Tomorrow
-                          </button>
-                          <button
-                            onClick={() => {
-                              const nextWeek = new Date();
-                              nextWeek.setDate(nextWeek.getDate() + 7);
-                              setSelectedDueDate(
-                                nextWeek.toISOString().split('T')[0]
-                              );
-                            }}
-                            className='px-3 py-2 bg-background hover:bg-muted border border-border rounded-lg text-xs font-medium transition-colors'
-                            disabled={isSavingDates}
-                          >
-                            Next Week
-                          </button>
-                          <button
-                            onClick={() => {
-                              const nextMonth = new Date();
-                              nextMonth.setMonth(nextMonth.getMonth() + 1);
-                              setSelectedDueDate(
-                                nextMonth.toISOString().split('T')[0]
-                              );
-                            }}
-                            className='px-3 py-2 bg-background hover:bg-muted border border-border rounded-lg text-xs font-medium transition-colors'
-                            disabled={isSavingDates}
-                          >
-                            Next Month
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Current dates display */}
-                      {(card.start_date || card.due_date) && (
-                        <div className='bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800'>
-                          <div className='flex items-center gap-2 mb-3'>
-                            <div className='w-6 h-6 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center dark:bg-blue-900/30 dark:text-blue-400'>
-                              <Calendar className='w-3 h-3' />
-                            </div>
-                            <p className='text-sm font-medium text-blue-800 dark:text-blue-200'>
-                              Current dates
-                            </p>
-                          </div>
-                          <div className='space-y-2'>
-                            {card.start_date && (
-                              <div className='flex items-center justify-between p-2 bg-white/50 dark:bg-white/5 rounded-lg'>
-                                <span className='text-sm text-foreground font-medium'>
-                                  Start Date
-                                </span>
-                                <span className='text-sm text-blue-600 dark:text-blue-400 font-mono'>
-                                  {formatDate(card.start_date)}
-                                </span>
-                              </div>
-                            )}
-                            {card.due_date && (
-                              <div className='flex items-center justify-between p-2 bg-white/50 dark:bg-white/5 rounded-lg'>
-                                <span className='text-sm text-foreground font-medium'>
-                                  Due Date
-                                </span>
-                                <span className='text-sm text-blue-600 dark:text-blue-400 font-mono'>
-                                  {formatDate(card.due_date)}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className='flex gap-3 justify-end'>
-                      {(card.start_date || card.due_date) && (
-                        <button
-                          onClick={handleClearDates}
-                          disabled={isSavingDates}
-                          className='px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-md transition-colors disabled:opacity-50'
-                        >
-                          Clear Dates
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setShowDatePicker(false)}
-                        disabled={isSavingDates}
-                        className='px-4 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-medium rounded-md transition-colors disabled:opacity-50'
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSaveDates}
-                        disabled={isSavingDates || !selectedDueDate}
-                        className='flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
-                      >
-                        {isSavingDates ? (
-                          <>
-                            <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
-                            Saving...
-                          </>
-                        ) : (
-                          <>
-                            <Save className='w-4 h-4' />
-                            Save Dates
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </>
+              <DateTimeRangePicker
+                startDate={selectedStartDate}
+                endDate={selectedDueDate}
+                startTime={selectedStartTime}
+                endTime={selectedDueTime}
+                onSaveDateTime={handleSaveDates}
+                onClose={() => setShowDatePicker(false)}
+                isLoading={isSavingDates}
+              />
             )}
 
             {/* Tab Design */}

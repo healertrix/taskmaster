@@ -5,6 +5,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Clock, CheckSquare, ArrowUp, Bug } from 'lucide-react';
 import { TaskActionsMenu } from './TaskActionsMenu';
+import { getRelativeDateTime } from '@/utils/dateTime';
 
 // Define Task type matching page.tsx
 interface Task {
@@ -53,22 +54,29 @@ export function TaskCard({
   // Format date for display
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    const today = new Date();
-    const diffTime = date.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // Check if the date has time (contains T)
+    if (dateString.includes('T')) {
+      // Import the utility function at the top of the file if not already imported
+      return getRelativeDateTime(dateString);
+    } else {
+      // Fallback for date-only strings
+      const date = new Date(dateString);
+      const today = new Date();
+      const diffTime = date.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Tomorrow';
-    if (diffDays === -1) return 'Yesterday';
-    if (diffDays > 1 && diffDays <= 7) return `${diffDays} days`;
-    if (diffDays < -1 && diffDays >= -7)
-      return `${Math.abs(diffDays)} days ago`;
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Tomorrow';
+      if (diffDays === -1) return 'Yesterday';
+      if (diffDays > 1 && diffDays <= 7) return `${diffDays} days`;
+      if (diffDays < -1 && diffDays >= -7)
+        return `${Math.abs(diffDays)} days ago`;
 
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    }
   };
   const {
     attributes,

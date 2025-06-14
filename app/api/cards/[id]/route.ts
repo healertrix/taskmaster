@@ -235,7 +235,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { title, description, due_date, due_status } = body;
+    const { title, description, start_date, due_date, due_status } = body;
 
     // Fetch the card to verify it exists and get board info
     const { data: card, error: cardError } = await supabase
@@ -267,6 +267,7 @@ export async function PUT(
     if (title !== undefined) updateData.title = title.trim();
     if (description !== undefined)
       updateData.description = description?.trim() || null;
+    if (start_date !== undefined) updateData.start_date = start_date;
     if (due_date !== undefined) updateData.due_date = due_date;
     if (due_status !== undefined) updateData.due_status = due_status;
 

@@ -979,6 +979,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   ...card,
                   title: data.card.title,
                   description: data.card.description,
+                  start_date: data.card.start_date,
+                  due_date: data.card.due_date,
+                  due_status: data.card.due_status,
                 }
               : card
           ),
@@ -989,6 +992,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       updateCard(cardId, {
         title: data.card.title,
         description: data.card.description,
+        start_date: data.card.start_date,
+        due_date: data.card.due_date,
+        due_status: data.card.due_status,
       });
 
       showSuccess('Card updated successfully');
