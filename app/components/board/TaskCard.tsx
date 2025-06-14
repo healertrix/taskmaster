@@ -244,28 +244,6 @@ export function TaskCard({
             </div>
           ))}
         </div>
-
-        {/* Stats: Comments and Attachments */}
-        <div className='flex items-center gap-3 text-muted-foreground'>
-          {task.comments && task.comments > 0 && (
-            <div
-              className='flex items-center gap-1 text-xs'
-              title={`${task.comments} comments`}
-            >
-              <MessageSquare className='w-3.5 h-3.5' />
-              <span className='font-medium'>{task.comments}</span>
-            </div>
-          )}
-          {task.attachments && task.attachments > 0 && (
-            <div
-              className='flex items-center gap-1 text-xs'
-              title={`${task.attachments} attachments`}
-            >
-              <Paperclip className='w-3.5 h-3.5' />
-              <span className='font-medium'>{task.attachments}</span>
-            </div>
-          )}
-        </div>
       </div>
     </>
   );

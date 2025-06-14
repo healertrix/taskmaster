@@ -242,8 +242,16 @@ export async function GET(request: NextRequest) {
       // Add counts to cards
       listsWithSortedCards.forEach((list) => {
         list.cards.forEach((card) => {
-          card.attachments = attachmentCountMap.get(card.id) || 0;
-          card.comments = commentCountMap.get(card.id) || 0;
+          const attachmentCount = attachmentCountMap.get(card.id);
+          const commentCount = commentCountMap.get(card.id);
+
+          // Only set the count if it's greater than 0
+          if (attachmentCount && attachmentCount > 0) {
+            card.attachments = attachmentCount;
+          }
+          if (commentCount && commentCount > 0) {
+            card.comments = commentCount;
+          }
         });
       });
     }
