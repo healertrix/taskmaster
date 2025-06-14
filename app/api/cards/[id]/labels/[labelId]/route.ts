@@ -76,7 +76,7 @@ export async function DELETE(
           card_id: cardId,
           action_type: 'label_removed',
           action_data: {
-            label_name: label.name || 'Label',
+            label_name: label.name,
             label_color: label.color,
           },
         });

@@ -792,7 +792,9 @@ export function CardModal({
 
       case 'label_added':
       case 'label_removed':
-        return actionData.label_name ? `Label: ${actionData.label_name}` : null;
+        return actionData.label_name && actionData.label_name.trim()
+          ? `Label: ${actionData.label_name}`
+          : 'Color label (no name)';
 
       case 'member_added':
       case 'member_removed':
@@ -2852,9 +2854,41 @@ export function CardModal({
                                         {detailedInfo && (
                                           <div className='p-3 bg-muted/30 rounded-md'>
                                             <div className='flex items-center gap-2 mb-2'>
-                                              <Calendar className='w-4 h-4 text-indigo-500 flex-shrink-0' />
+                                              {activity.action_type ===
+                                              'timeline_updated' ? (
+                                                <Calendar className='w-4 h-4 text-indigo-500 flex-shrink-0' />
+                                              ) : activity.action_type.includes(
+                                                  'label'
+                                                ) ? (
+                                                <Tag className='w-4 h-4 text-orange-500 flex-shrink-0' />
+                                              ) : activity.action_type.includes(
+                                                  'attachment'
+                                                ) ? (
+                                                <Paperclip className='w-4 h-4 text-blue-500 flex-shrink-0' />
+                                              ) : activity.action_type.includes(
+                                                  'checklist'
+                                                ) ? (
+                                                <CheckSquare className='w-4 h-4 text-teal-500 flex-shrink-0' />
+                                              ) : (
+                                                <Calendar className='w-4 h-4 text-indigo-500 flex-shrink-0' />
+                                              )}
                                               <span className='text-xs font-medium text-muted-foreground'>
-                                                Timeline Changes
+                                                {activity.action_type ===
+                                                'timeline_updated'
+                                                  ? 'Timeline Changes'
+                                                  : activity.action_type.includes(
+                                                      'label'
+                                                    )
+                                                  ? 'Label Details'
+                                                  : activity.action_type.includes(
+                                                      'attachment'
+                                                    )
+                                                  ? 'Attachment Details'
+                                                  : activity.action_type.includes(
+                                                      'checklist'
+                                                    )
+                                                  ? 'Checklist Details'
+                                                  : 'Details'}
                                               </span>
                                             </div>
                                             <div className='space-y-1'>

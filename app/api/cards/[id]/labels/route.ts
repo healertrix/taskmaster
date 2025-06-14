@@ -185,7 +185,7 @@ export async function POST(
         card_id: cardId,
         action_type: 'label_added',
         action_data: {
-          label_name: label.name || 'Label',
+          label_name: label.name,
           label_color: label.color,
         },
       });
