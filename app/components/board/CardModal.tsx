@@ -325,6 +325,9 @@ export function CardModal({
   const [isLoadingChecklists, setIsLoadingChecklists] = useState(false);
   const [showAddChecklistModal, setShowAddChecklistModal] = useState(false);
   const [isAddingChecklist, setIsAddingChecklist] = useState(false);
+  const [isAddingChecklistItem, setIsAddingChecklistItem] = useState(false);
+  const [isUpdatingChecklistItem, setIsUpdatingChecklistItem] = useState(false);
+  const [isDeletingChecklistItem, setIsDeletingChecklistItem] = useState(false);
   const [showLabelModal, setShowLabelModal] = useState(false);
   const [labelsRefreshKey, setLabelsRefreshKey] = useState(0);
 
@@ -340,6 +343,47 @@ export function CardModal({
   const [attachmentToDelete, setAttachmentToDelete] =
     useState<AttachmentData | null>(null);
   const [isDeletingAttachment, setIsDeletingAttachment] = useState(false);
+
+  // Save warning modal state
+  const [showSaveWarningModal, setShowSaveWarningModal] = useState(false);
+
+  // Check if there are any active save operations
+  const hasActiveSaveOperations = () => {
+    return (
+      isSaving || // Title/description saving
+      isSubmittingComment || // Comment being submitted
+      editingSavingCommentId !== null || // Comment being edited/saved
+      deletingCommentId !== null || // Comment being deleted
+      isSavingDates || // Dates being saved
+      isAddingChecklist || // Checklist being added
+      isAddingChecklistItem || // Checklist item being added
+      isUpdatingChecklistItem || // Checklist item being updated
+      isDeletingChecklistItem || // Checklist item being deleted
+      isAddingAttachment || // Attachment being added
+      isDeletingAttachment // Attachment being deleted
+    );
+  };
+
+  // Handle modal close with save operation check
+  const handleModalClose = () => {
+    if (hasActiveSaveOperations()) {
+      // Show custom warning modal
+      setShowSaveWarningModal(true);
+    } else {
+      onClose();
+    }
+  };
+
+  // Handle force close from warning modal
+  const handleForceClose = () => {
+    setShowSaveWarningModal(false);
+    onClose();
+  };
+
+  // Handle cancel from warning modal
+  const handleCancelClose = () => {
+    setShowSaveWarningModal(false);
+  };
 
   // Reset form when card changes
   useEffect(() => {
@@ -376,17 +420,26 @@ export function CardModal({
         } else if (showDeleteAttachmentModal) {
           e.stopPropagation();
           cancelDeleteAttachment();
+        } else if (showSaveWarningModal) {
+          e.stopPropagation();
+          handleCancelClose();
         } else {
-          onClose();
+          handleModalClose();
         }
       }
       if (e.key === 'Enter' && e.ctrlKey) {
         if (isEditingTitle) {
           handleSaveTitle();
-          onClose();
+          // Don't auto-close if there are other save operations
+          if (!hasActiveSaveOperations()) {
+            onClose();
+          }
         } else if (isEditingDescription) {
           handleSaveDescription();
-          onClose();
+          // Don't auto-close if there are other save operations
+          if (!hasActiveSaveOperations()) {
+            onClose();
+          }
         }
       }
     };
@@ -401,6 +454,7 @@ export function CardModal({
     showDeleteAttachmentModal,
     showAddChecklistModal,
     showAttachmentModal,
+    showSaveWarningModal,
     title,
     description,
   ]);
@@ -1057,6 +1111,8 @@ export function CardModal({
   ): Promise<boolean> => {
     if (!card) return false;
 
+    setIsAddingChecklistItem(true);
+
     // Create temporary item for optimistic update with a "saving" indicator
     const tempItem: ChecklistItem = {
       id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -1137,6 +1193,8 @@ export function CardModal({
         )
       );
       return false;
+    } finally {
+      setIsAddingChecklistItem(false);
     }
   };
 
@@ -1146,6 +1204,8 @@ export function CardModal({
     updates: Partial<ChecklistItem>
   ): Promise<boolean> => {
     if (!card) return false;
+
+    setIsUpdatingChecklistItem(true);
 
     // Store original values for rollback
     const originalValues: Partial<ChecklistItem> = {};
@@ -1237,6 +1297,8 @@ export function CardModal({
         )
       );
       return false;
+    } finally {
+      setIsUpdatingChecklistItem(false);
     }
   };
 
@@ -1245,6 +1307,8 @@ export function CardModal({
     itemId: string
   ): Promise<boolean> => {
     if (!card) return false;
+
+    setIsDeletingChecklistItem(true);
 
     // Store the item for potential restoration
     let deletedItem: ChecklistItem | null = null;
@@ -1310,6 +1374,8 @@ export function CardModal({
         );
       }
       return false;
+    } finally {
+      setIsDeletingChecklistItem(false);
     }
   };
 
@@ -1493,7 +1559,15 @@ export function CardModal({
   if (!isOpen) return null;
 
   return (
-    <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'>
+    <div
+      className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'
+      onClick={(e) => {
+        // Only close if clicking the backdrop (not the modal content)
+        if (e.target === e.currentTarget) {
+          handleModalClose();
+        }
+      }}
+    >
       <div className='bg-card rounded-xl shadow-2xl w-full max-w-7xl h-[90vh] border border-border overflow-hidden flex flex-col'>
         {/* Header */}
         <div className='flex items-start gap-4 p-6 border-b border-border bg-muted/30 flex-shrink-0'>
@@ -1501,26 +1575,34 @@ export function CardModal({
             {/* Card Title */}
             <div className='flex items-center gap-2 mb-2'>
               <Edit3 className='w-5 h-5 text-muted-foreground' />
-              {isEditingTitle ? (
-                <input
-                  type='text'
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  onBlur={handleSaveTitle}
-                  onKeyDown={handleTitleKeyPress}
-                  className='flex-1 text-lg font-semibold bg-background text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary'
-                  autoFocus
-                  disabled={isSaving}
-                  title='Edit card title'
-                />
-              ) : (
-                <h2
-                  className='text-lg font-semibold text-foreground cursor-pointer hover:bg-muted/50 rounded-md px-3 py-2 -mx-3 -my-2 transition-colors'
-                  onClick={() => setIsEditingTitle(true)}
-                >
-                  {card.title}
-                </h2>
-              )}
+              <div className='flex items-center gap-2 flex-1'>
+                {isEditingTitle ? (
+                  <input
+                    type='text'
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    onBlur={handleSaveTitle}
+                    onKeyDown={handleTitleKeyPress}
+                    className='flex-1 text-lg font-semibold bg-background text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary'
+                    autoFocus
+                    disabled={isSaving}
+                    title='Edit card title'
+                  />
+                ) : (
+                  <h2
+                    className='text-lg font-semibold text-foreground cursor-pointer hover:bg-muted/50 rounded-md px-3 py-2 -mx-3 -my-2 transition-colors'
+                    onClick={() => setIsEditingTitle(true)}
+                  >
+                    {card.title}
+                  </h2>
+                )}
+                {hasActiveSaveOperations() && (
+                  <div className='flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full border border-amber-200 whitespace-nowrap'>
+                    <div className='w-2 h-2 bg-amber-500 rounded-full animate-pulse'></div>
+                    Saving...
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Breadcrumb */}
@@ -1560,9 +1642,17 @@ export function CardModal({
 
           {/* Close Button */}
           <button
-            onClick={onClose}
-            className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors'
-            title='Close modal'
+            onClick={handleModalClose}
+            className={`p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors ${
+              hasActiveSaveOperations()
+                ? 'animate-pulse bg-amber-50 border border-amber-200'
+                : ''
+            }`}
+            title={
+              hasActiveSaveOperations()
+                ? 'Saving in progress...'
+                : 'Close modal'
+            }
           >
             <X className='w-5 h-5' />
           </button>
@@ -2862,6 +2952,51 @@ export function CardModal({
             setLabelsRefreshKey((prev) => prev + 1);
           }}
         />
+
+        {/* Save Warning Modal */}
+        {showSaveWarningModal && (
+          <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4'>
+            <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full'>
+              <div className='p-6'>
+                <div className='flex items-center gap-3 mb-4'>
+                  <div className='w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center'>
+                    <div className='w-3 h-3 bg-amber-500 rounded-full animate-pulse'></div>
+                  </div>
+                  <div>
+                    <h3 className='text-lg font-semibold text-foreground'>
+                      Saving in Progress
+                    </h3>
+                    <p className='text-sm text-muted-foreground'>
+                      Please wait for changes to save
+                    </p>
+                  </div>
+                </div>
+
+                <p className='text-sm text-foreground mb-6'>
+                  Some changes are still being saved. Closing now may result in
+                  data loss. Would you like to wait for the save operations to
+                  complete or close anyway?
+                </p>
+
+                <div className='flex gap-3 justify-end'>
+                  <button
+                    onClick={handleCancelClose}
+                    className='px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors'
+                  >
+                    Wait for Save
+                  </button>
+                  <button
+                    onClick={handleForceClose}
+                    className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors'
+                  >
+                    <X className='w-4 h-4' />
+                    Close Anyway
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Attachment Modal */}
         <AttachmentModal

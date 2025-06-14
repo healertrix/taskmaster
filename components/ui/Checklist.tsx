@@ -69,11 +69,6 @@ export function Checklist({
   );
   const [isDeletingChecklist, setIsDeletingChecklist] = useState(false);
 
-  // Item deletion confirmation
-  const [showItemDeleteConfirm, setShowItemDeleteConfirm] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<ChecklistItem | null>(null);
-  const [isDeletingItem, setIsDeletingItem] = useState(false);
-
   // New state for tracking saving items
   const [savingItemIds, setSavingItemIds] = useState<Set<string>>(new Set());
 
@@ -113,21 +108,6 @@ export function Checklist({
       return () => document.removeEventListener('keydown', handleKeyDown);
     }
   }, [showDeleteConfirm]);
-
-  // Handle ESC key for item delete confirmation modal
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showItemDeleteConfirm) {
-        e.stopPropagation(); // Prevent parent modal from closing
-        cancelDeleteItem();
-      }
-    };
-
-    if (showItemDeleteConfirm) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [showItemDeleteConfirm]);
 
   // Remove the global event listener - we'll only use inline handlers like AddListForm does
 
@@ -252,36 +232,18 @@ export function Checklist({
     }
   };
 
-  const handleDeleteItem = (item: ChecklistItem) => {
-    setItemToDelete(item);
-    setShowItemDeleteConfirm(true);
-  };
-
-  const confirmDeleteItem = async () => {
-    if (!itemToDelete) return;
-
-    setIsDeletingItem(true);
-
+  const handleDeleteItem = async (item: ChecklistItem) => {
     // Add visual feedback for deletion
-    setDeletingItemIds((prev) => new Set(prev).add(itemToDelete.id));
+    setDeletingItemIds((prev) => new Set(prev).add(item.id));
 
-    const success = await onDeleteItem(checklist.id, itemToDelete.id);
+    const success = await onDeleteItem(checklist.id, item.id);
 
     // Remove from deleting state regardless of success/failure
     setDeletingItemIds((prev) => {
       const newSet = new Set(prev);
-      newSet.delete(itemToDelete.id);
+      newSet.delete(item.id);
       return newSet;
     });
-
-    setIsDeletingItem(false);
-    setShowItemDeleteConfirm(false);
-    setItemToDelete(null);
-  };
-
-  const cancelDeleteItem = () => {
-    setShowItemDeleteConfirm(false);
-    setItemToDelete(null);
   };
 
   const handleDeleteChecklist = async () => {
@@ -639,62 +601,6 @@ export function Checklist({
                     <>
                       <Trash2 className='w-4 h-4' />
                       Delete Checklist
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Item Delete Confirmation Modal */}
-      {showItemDeleteConfirm && itemToDelete && (
-        <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4'>
-          <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full'>
-            <div className='p-6'>
-              <div className='flex items-center gap-3 mb-4'>
-                <div className='w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center'>
-                  <Trash2 className='w-5 h-5 text-red-600 dark:text-red-400' />
-                </div>
-                <div>
-                  <h3 className='text-lg font-semibold text-foreground'>
-                    Delete Item
-                  </h3>
-                  <p className='text-sm text-muted-foreground'>
-                    This action cannot be undone
-                  </p>
-                </div>
-              </div>
-
-              <p className='text-sm text-foreground mb-6'>
-                Are you sure you want to delete{' '}
-                <span className='font-medium'>"{itemToDelete.text}"</span>? This
-                will permanently remove the item from this checklist.
-              </p>
-
-              <div className='flex gap-3 justify-end'>
-                <button
-                  onClick={cancelDeleteItem}
-                  className='px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors'
-                  disabled={isDeletingItem}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDeleteItem}
-                  disabled={isDeletingItem}
-                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
-                >
-                  {isDeletingItem ? (
-                    <>
-                      <Loader2 className='w-4 h-4 animate-spin' />
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className='w-4 h-4' />
-                      Delete Item
                     </>
                   )}
                 </button>
