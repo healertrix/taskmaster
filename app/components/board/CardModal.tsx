@@ -1597,9 +1597,9 @@ export function CardModal({
           </div>
 
           {/* Right Side - Comments and Activities */}
-          <div className='w-96 space-y-6 flex-shrink-0 overflow-y-auto pr-2 border-l border-border pl-6'>
-            {/* Action Buttons */}
-            <div className='flex gap-2 mb-6'>
+          <div className='w-96 flex-shrink-0 border-l border-border pl-6 flex flex-col'>
+            {/* Sticky Action Buttons */}
+            <div className='flex gap-2 mb-4 sticky top-0 bg-card z-30 py-2'>
               {/* Add to Card Dropdown */}
               <div className='relative flex-1'>
                 <button
@@ -1774,8 +1774,8 @@ export function CardModal({
               />
             )}
 
-            {/* Tab Design */}
-            <div className='flex gap-1 mb-6 p-1 bg-muted rounded-lg'>
+            {/* Sticky Tab Design */}
+            <div className='flex gap-1 mb-4 p-1 bg-muted rounded-lg sticky top-16 bg-card z-20'>
               <button
                 onClick={() => setActiveTab('comments')}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
@@ -1807,9 +1807,9 @@ export function CardModal({
             </div>
 
             {activeTab === 'comments' && (
-              <div className='space-y-6'>
+              <div className='flex flex-col flex-1 overflow-hidden'>
                 {/* Enhanced Add comment form */}
-                <div className='bg-muted/30 rounded-xl p-4 border border-border/50'>
+                <div className='bg-muted/30 rounded-xl p-4 border border-border/50 mb-4'>
                   <div className='w-full'>
                     <form onSubmit={handleSubmitComment} className='space-y-3'>
                       <div className='relative'>
@@ -1883,265 +1883,272 @@ export function CardModal({
                   </div>
                 </div>
 
-                {/* Comment Filters and Search */}
-                {comments.length > 0 && (
-                  <div className='bg-background rounded-lg border border-border p-4 space-y-3'>
-                    <div className='flex items-center justify-between'>
-                      <div className='flex items-center gap-2'>
-                        <Filter className='w-4 h-4 text-muted-foreground' />
-                        <span className='text-sm font-medium text-foreground'>
-                          Filter & Search Comments
-                        </span>
-                        <span className='text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded'>
-                          {filteredAndSortedComments.length} of{' '}
-                          {comments.length}
-                        </span>
+                {/* Scrollable Content Area */}
+                <div className='flex-1 overflow-y-auto pr-2 space-y-4'>
+                  {/* Comment Filters and Search */}
+                  {comments.length > 0 && (
+                    <div className='bg-background rounded-lg border border-border p-4 space-y-3'>
+                      <div className='flex items-center justify-between'>
+                        <div className='flex items-center gap-2'>
+                          <Filter className='w-4 h-4 text-muted-foreground' />
+                          <span className='text-sm font-medium text-foreground'>
+                            Filter & Search Comments
+                          </span>
+                          <span className='text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded'>
+                            {filteredAndSortedComments.length} of{' '}
+                            {comments.length}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() =>
+                            setShowCommentFilters(!showCommentFilters)
+                          }
+                          className='text-xs text-primary hover:text-primary/80 transition-colors'
+                        >
+                          {showCommentFilters ? 'Hide filters' : 'Show filters'}
+                        </button>
                       </div>
-                      <button
-                        onClick={() =>
-                          setShowCommentFilters(!showCommentFilters)
-                        }
-                        className='text-xs text-primary hover:text-primary/80 transition-colors'
-                      >
-                        {showCommentFilters ? 'Hide filters' : 'Show filters'}
-                      </button>
-                    </div>
 
-                    {showCommentFilters && (
-                      <div className='space-y-3 pt-2 border-t border-border/50'>
-                        {/* Search Input */}
-                        <div className='relative'>
-                          <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground' />
-                          <input
-                            type='text'
-                            placeholder='Search comments by content or author...'
-                            value={commentSearchQuery}
-                            onChange={(e) =>
-                              handleCommentSearch(e.target.value)
-                            }
-                            className='w-full pl-10 pr-4 py-2 border border-border rounded-md text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all'
-                          />
-                          {commentSearchQuery && (
-                            <button
-                              onClick={() => handleCommentSearch('')}
-                              className='absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors'
-                              title='Clear search'
-                            >
-                              <X className='w-4 h-4' />
-                            </button>
+                      {showCommentFilters && (
+                        <div className='space-y-3 pt-2 border-t border-border/50'>
+                          {/* Search Input */}
+                          <div className='relative'>
+                            <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground' />
+                            <input
+                              type='text'
+                              placeholder='Search comments by content or author...'
+                              value={commentSearchQuery}
+                              onChange={(e) =>
+                                handleCommentSearch(e.target.value)
+                              }
+                              className='w-full pl-10 pr-4 py-2 border border-border rounded-md text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all'
+                            />
+                            {commentSearchQuery && (
+                              <button
+                                onClick={() => handleCommentSearch('')}
+                                className='absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors'
+                                title='Clear search'
+                              >
+                                <X className='w-4 h-4' />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Sort Options */}
+                          <div className='flex items-center gap-3'>
+                            <span className='text-xs font-medium text-muted-foreground'>
+                              Sort by:
+                            </span>
+                            <div className='flex gap-1'>
+                              <button
+                                onClick={() => setCommentSortOrder('newest')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-all ${
+                                  commentSortOrder === 'newest'
+                                    ? 'bg-primary text-primary-foreground shadow-sm'
+                                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                }`}
+                              >
+                                <SortDesc className='w-3 h-3' />
+                                Newest first
+                              </button>
+                              <button
+                                onClick={() => setCommentSortOrder('oldest')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-all ${
+                                  commentSortOrder === 'oldest'
+                                    ? 'bg-primary text-primary-foreground shadow-sm'
+                                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                }`}
+                              >
+                                <SortAsc className='w-3 h-3' />
+                                Oldest first
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Clear Filters */}
+                          {(commentSearchQuery ||
+                            commentSortOrder !== 'newest') && (
+                            <div className='flex justify-end'>
+                              <button
+                                onClick={clearCommentFilters}
+                                className='text-xs text-muted-foreground hover:text-foreground transition-colors'
+                              >
+                                Clear all filters
+                              </button>
+                            </div>
                           )}
                         </div>
+                      )}
+                    </div>
+                  )}
 
-                        {/* Sort Options */}
-                        <div className='flex items-center gap-3'>
-                          <span className='text-xs font-medium text-muted-foreground'>
-                            Sort by:
-                          </span>
-                          <div className='flex gap-1'>
-                            <button
-                              onClick={() => setCommentSortOrder('newest')}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-all ${
-                                commentSortOrder === 'newest'
-                                  ? 'bg-primary text-primary-foreground shadow-sm'
-                                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                              }`}
-                            >
-                              <SortDesc className='w-3 h-3' />
-                              Newest first
-                            </button>
-                            <button
-                              onClick={() => setCommentSortOrder('oldest')}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-all ${
-                                commentSortOrder === 'oldest'
-                                  ? 'bg-primary text-primary-foreground shadow-sm'
-                                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                              }`}
-                            >
-                              <SortAsc className='w-3 h-3' />
-                              Oldest first
-                            </button>
+                  {/* Comments List */}
+                  <div className='space-y-4'>
+                    {isLoadingComments ? (
+                      <div className='flex justify-center py-8'>
+                        <div className='w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin' />
+                      </div>
+                    ) : filteredAndSortedComments.length > 0 ? (
+                      filteredAndSortedComments.map((comment) => (
+                        <div
+                          key={comment.id}
+                          className='group bg-background rounded-xl border border-border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden'
+                        >
+                          <div className='p-4'>
+                            <div className='flex justify-between items-start mb-2'>
+                              <div className='flex items-center gap-2'>
+                                <UserAvatar
+                                  profile={comment.profiles}
+                                  size={24}
+                                />
+                                <span className='font-medium text-sm text-foreground'>
+                                  {comment.profiles.full_name || 'Unknown User'}
+                                </span>
+                                <span className='text-xs text-muted-foreground'>
+                                  {formatTimestamp(comment.created_at)}
+                                  {comment.is_edited && ' (edited)'}
+                                </span>
+                              </div>
+
+                              {/* Comment Actions */}
+                              <div className='flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
+                                <button
+                                  onClick={() => handleEditComment(comment)}
+                                  className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors'
+                                  title='Edit comment'
+                                >
+                                  <Edit className='w-3 h-3' />
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleDeleteComment(comment.id)
+                                  }
+                                  className='p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors'
+                                  title='Delete comment'
+                                >
+                                  <Trash2 className='w-3 h-3' />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Comment Content */}
+                            {editingCommentId === comment.id ? (
+                              <div className='space-y-3'>
+                                <textarea
+                                  value={editingCommentContent}
+                                  onChange={(e) =>
+                                    setEditingCommentContent(e.target.value)
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (
+                                      e.key === 'Enter' &&
+                                      e.ctrlKey &&
+                                      editingCommentContent.trim() &&
+                                      editingSavingCommentId !== comment.id
+                                    ) {
+                                      e.preventDefault();
+                                      handleSaveEditComment(comment.id);
+                                    }
+                                    if (e.key === 'Escape') {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setEditingCommentId(null);
+                                      setEditingCommentContent('');
+                                    }
+                                  }}
+                                  className='w-full p-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm bg-background min-h-[80px]'
+                                  disabled={
+                                    editingSavingCommentId === comment.id
+                                  }
+                                  aria-label='Edit comment'
+                                  placeholder='Edit your comment...'
+                                  autoFocus
+                                />
+                                <div className='flex justify-between items-center mb-2'>
+                                  <div className='text-xs text-muted-foreground'>
+                                    Press{' '}
+                                    <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                                      Ctrl
+                                    </kbd>{' '}
+                                    +{' '}
+                                    <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                                      Enter
+                                    </kbd>{' '}
+                                    to save or{' '}
+                                    <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
+                                      Esc
+                                    </kbd>{' '}
+                                    to cancel
+                                  </div>
+                                </div>
+                                <div className='flex gap-2'>
+                                  <button
+                                    onClick={() =>
+                                      handleSaveEditComment(comment.id)
+                                    }
+                                    disabled={
+                                      !editingCommentContent.trim() ||
+                                      editingSavingCommentId === comment.id
+                                    }
+                                    className='flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow disabled:hover:shadow-sm'
+                                  >
+                                    {editingSavingCommentId === comment.id ? (
+                                      <>
+                                        <div className='w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin' />
+                                        Saving...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Save className='w-3 h-3' />
+                                        Save
+                                      </>
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingCommentId(null);
+                                      setEditingCommentContent('');
+                                    }}
+                                    disabled={
+                                      editingSavingCommentId === comment.id
+                                    }
+                                    className='px-4 py-1.5 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm rounded-md transition-colors disabled:opacity-50'
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div
+                                className='group cursor-pointer hover:bg-muted/30 rounded-md p-2 -m-2 transition-colors'
+                                onClick={() => handleEditComment(comment)}
+                                title='Click to edit comment'
+                              >
+                                <p className='text-sm text-foreground whitespace-pre-wrap leading-relaxed'>
+                                  {comment.content}
+                                </p>
+                              </div>
+                            )}
                           </div>
                         </div>
-
-                        {/* Clear Filters */}
-                        {(commentSearchQuery ||
-                          commentSortOrder !== 'newest') && (
-                          <div className='flex justify-end'>
-                            <button
-                              onClick={clearCommentFilters}
-                              className='text-xs text-muted-foreground hover:text-foreground transition-colors'
-                            >
-                              Clear all filters
-                            </button>
-                          </div>
-                        )}
+                      ))
+                    ) : (
+                      <div className='text-center py-8'>
+                        <MessageSquare className='w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50' />
+                        <p className='text-sm text-muted-foreground'>
+                          {commentSearchQuery
+                            ? 'No comments match your search.'
+                            : 'No comments yet. Be the first to add one!'}
+                        </p>
                       </div>
                     )}
                   </div>
-                )}
-
-                {/* Comments List */}
-                <div className='space-y-4'>
-                  {isLoadingComments ? (
-                    <div className='flex justify-center py-8'>
-                      <div className='w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin' />
-                    </div>
-                  ) : filteredAndSortedComments.length > 0 ? (
-                    filteredAndSortedComments.map((comment) => (
-                      <div
-                        key={comment.id}
-                        className='group bg-background rounded-xl border border-border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden'
-                      >
-                        <div className='p-4'>
-                          <div className='flex justify-between items-start mb-2'>
-                            <div className='flex items-center gap-2'>
-                              <UserAvatar
-                                profile={comment.profiles}
-                                size={24}
-                              />
-                              <span className='font-medium text-sm text-foreground'>
-                                {comment.profiles.full_name || 'Unknown User'}
-                              </span>
-                              <span className='text-xs text-muted-foreground'>
-                                {formatTimestamp(comment.created_at)}
-                                {comment.is_edited && ' (edited)'}
-                              </span>
-                            </div>
-
-                            {/* Comment Actions */}
-                            <div className='flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
-                              <button
-                                onClick={() => handleEditComment(comment)}
-                                className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors'
-                                title='Edit comment'
-                              >
-                                <Edit className='w-3 h-3' />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteComment(comment.id)}
-                                className='p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors'
-                                title='Delete comment'
-                              >
-                                <Trash2 className='w-3 h-3' />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Comment Content */}
-                          {editingCommentId === comment.id ? (
-                            <div className='space-y-3'>
-                              <textarea
-                                value={editingCommentContent}
-                                onChange={(e) =>
-                                  setEditingCommentContent(e.target.value)
-                                }
-                                onKeyDown={(e) => {
-                                  if (
-                                    e.key === 'Enter' &&
-                                    e.ctrlKey &&
-                                    editingCommentContent.trim() &&
-                                    editingSavingCommentId !== comment.id
-                                  ) {
-                                    e.preventDefault();
-                                    handleSaveEditComment(comment.id);
-                                  }
-                                  if (e.key === 'Escape') {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setEditingCommentId(null);
-                                    setEditingCommentContent('');
-                                  }
-                                }}
-                                className='w-full p-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm bg-background min-h-[80px]'
-                                disabled={editingSavingCommentId === comment.id}
-                                aria-label='Edit comment'
-                                placeholder='Edit your comment...'
-                                autoFocus
-                              />
-                              <div className='flex justify-between items-center mb-2'>
-                                <div className='text-xs text-muted-foreground'>
-                                  Press{' '}
-                                  <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
-                                    Ctrl
-                                  </kbd>{' '}
-                                  +{' '}
-                                  <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
-                                    Enter
-                                  </kbd>{' '}
-                                  to save or{' '}
-                                  <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
-                                    Esc
-                                  </kbd>{' '}
-                                  to cancel
-                                </div>
-                              </div>
-                              <div className='flex gap-2'>
-                                <button
-                                  onClick={() =>
-                                    handleSaveEditComment(comment.id)
-                                  }
-                                  disabled={
-                                    !editingCommentContent.trim() ||
-                                    editingSavingCommentId === comment.id
-                                  }
-                                  className='flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow disabled:hover:shadow-sm'
-                                >
-                                  {editingSavingCommentId === comment.id ? (
-                                    <>
-                                      <div className='w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin' />
-                                      Saving...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Save className='w-3 h-3' />
-                                      Save
-                                    </>
-                                  )}
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setEditingCommentId(null);
-                                    setEditingCommentContent('');
-                                  }}
-                                  disabled={
-                                    editingSavingCommentId === comment.id
-                                  }
-                                  className='px-4 py-1.5 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm rounded-md transition-colors disabled:opacity-50'
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div
-                              className='group cursor-pointer hover:bg-muted/30 rounded-md p-2 -m-2 transition-colors'
-                              onClick={() => handleEditComment(comment)}
-                              title='Click to edit comment'
-                            >
-                              <p className='text-sm text-foreground whitespace-pre-wrap leading-relaxed'>
-                                {comment.content}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className='text-center py-8'>
-                      <MessageSquare className='w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50' />
-                      <p className='text-sm text-muted-foreground'>
-                        {commentSearchQuery
-                          ? 'No comments match your search.'
-                          : 'No comments yet. Be the first to add one!'}
-                      </p>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
 
             {activeTab === 'activities' && (
-              <div className='space-y-4'>
+              <div className='flex-1 overflow-y-auto pr-2 space-y-4'>
                 {isLoadingActivities ? (
                   <div className='flex justify-center py-8'>
                     <div className='w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin' />
