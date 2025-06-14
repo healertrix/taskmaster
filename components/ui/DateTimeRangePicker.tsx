@@ -28,6 +28,7 @@ interface DateTimeRangePickerProps {
   }) => void;
   onClose: () => void;
   isLoading?: boolean;
+  initialSelection?: 'start' | 'due'; // New prop to set initial selection
 }
 
 export function DateTimeRangePicker({
@@ -38,13 +39,16 @@ export function DateTimeRangePicker({
   onSaveDateTime,
   onClose,
   isLoading = false,
+  initialSelection = 'due',
 }: DateTimeRangePickerProps) {
   const [selectedStartDate, setSelectedStartDate] = useState(startDate || '');
   const [selectedEndDate, setSelectedEndDate] = useState(endDate || '');
   const [selectedStartTime, setSelectedStartTime] = useState(startTime || '');
   const [selectedDueTime, setSelectedDueTime] = useState(endTime || '');
   const [calendarView, setCalendarView] = useState(new Date());
-  const [isSelectingStart, setIsSelectingStart] = useState(false); // Default to Due Date
+  const [isSelectingStart, setIsSelectingStart] = useState(
+    initialSelection === 'start'
+  ); // Set based on prop
 
   // Generate calendar days
   const generateCalendarDays = (date: Date) => {
@@ -182,6 +186,24 @@ export function DateTimeRangePicker({
     return format(new Date(dateStr), 'MMM dd, yyyy');
   };
 
+  // Add keyboard shortcuts
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleSave();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true); // Use capture phase
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [selectedStartDate, selectedEndDate, selectedStartTime, selectedDueTime]);
+
   return (
     <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'>
       <div className='bg-card border border-border rounded-xl shadow-2xl w-full max-w-md h-[600px] flex flex-col overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'>
@@ -191,11 +213,22 @@ export function DateTimeRangePicker({
             <div className='flex items-center gap-2'>
               <CalendarDays className='w-5 h-5' />
               <h3 className='text-lg font-semibold'>Dates</h3>
+              <div className='hidden sm:flex items-center gap-1 ml-3 text-xs text-white/70'>
+                <kbd className='px-1.5 py-0.5 bg-white/20 rounded text-xs'>
+                  Ctrl+Enter
+                </kbd>
+                <span>to save</span>
+                <span className='mx-1'>•</span>
+                <kbd className='px-1.5 py-0.5 bg-white/20 rounded text-xs'>
+                  Esc
+                </kbd>
+                <span>to close</span>
+              </div>
             </div>
             <button
               onClick={onClose}
               className='p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200'
-              title='Close date picker'
+              title='Close date picker (Esc)'
               aria-label='Close date picker'
             >
               <X className='w-4 h-4' />
@@ -409,6 +442,7 @@ export function DateTimeRangePicker({
               onClick={onClose}
               className='px-3 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-medium rounded-md transition-colors'
               disabled={isLoading}
+              title='Cancel (Esc)'
             >
               Cancel
             </button>
@@ -416,6 +450,7 @@ export function DateTimeRangePicker({
               onClick={handleSave}
               disabled={isLoading || (!selectedStartDate && !selectedEndDate)}
               className='flex items-center gap-2 px-3 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+              title='Save dates (Ctrl+Enter)'
             >
               {isLoading ? (
                 <>
