@@ -416,14 +416,14 @@ export function CardModal({
     return getRelativeDateTime(dateString);
   };
 
-  // Fetch comments, activities, and checklists when modal opens
+  // Fetch comments, activities, and checklists only when modal first opens
   useEffect(() => {
     if (isOpen && card) {
       fetchComments();
       fetchActivities();
       fetchChecklists();
     }
-  }, [isOpen, card]);
+  }, [isOpen, card.id]); // Only depend on card.id, not the entire card object
 
   const fetchComments = async () => {
     if (!card) return;
@@ -498,9 +498,6 @@ export function CardModal({
     }
 
     try {
-      console.log('Submitting comment for card:', card.id);
-      console.log('Comment content:', newComment.trim());
-
       const response = await fetch(`/api/cards/${card.id}/comments`, {
         method: 'POST',
         headers: {
@@ -511,9 +508,7 @@ export function CardModal({
         }),
       });
 
-      console.log('Response status:', response.status);
       const data = await response.json();
-      console.log('Response data:', data);
 
       if (response.ok) {
         setComments((prev) => [data.comment, ...prev]);

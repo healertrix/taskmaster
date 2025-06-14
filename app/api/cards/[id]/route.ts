@@ -272,12 +272,14 @@ export async function PUT(
     if (due_date !== undefined) updateData.due_date = due_date;
     if (due_status !== undefined) updateData.due_status = due_status;
 
-    // Update the card
+    // Update the card - only select essential fields
     const { data: updatedCard, error: updateError } = await supabase
       .from('cards')
       .update(updateData)
       .eq('id', cardId)
-      .select('*')
+      .select(
+        'id, title, description, start_date, due_date, due_status, updated_at'
+      )
       .single();
 
     if (updateError) {
