@@ -26,6 +26,7 @@ import { useBoard } from '@/hooks/useBoard';
 import { useLists } from '@/hooks/useLists';
 import { AddListForm } from '../../components/board/AddListForm';
 import { CardModal } from '../../components/board/CardModal';
+import { BoardSkeleton } from '../../components/ui/skeletons';
 import {
   Star,
   User,
@@ -508,32 +509,8 @@ const DescriptionModal = ({
   );
 };
 
-// Loading component
-const BoardLoading = () => (
-  <div className='min-h-screen dot-pattern-dark'>
-    <DashboardHeader />
-    <div className='container mx-auto max-w-7xl px-4 pt-24 pb-16'>
-      <div className='flex items-center justify-between mb-8'>
-        <div className='flex items-center gap-4'>
-          <div className='w-8 h-8 bg-muted/50 rounded animate-pulse' />
-          <div className='space-y-2'>
-            <div className='h-8 w-48 bg-muted/50 rounded animate-pulse' />
-            <div className='h-4 w-32 bg-muted/50 rounded animate-pulse' />
-          </div>
-        </div>
-        <div className='flex items-center gap-2'>
-          <div className='w-9 h-9 bg-muted/50 rounded-lg animate-pulse' />
-          <div className='w-9 h-9 bg-muted/50 rounded-lg animate-pulse' />
-          <div className='w-9 h-9 bg-muted/50 rounded-lg animate-pulse' />
-        </div>
-      </div>
-      <div className='text-center py-12'>
-        <Loader2 className='w-8 h-8 animate-spin mx-auto text-primary' />
-        <p className='text-muted-foreground mt-2'>Loading board...</p>
-      </div>
-    </div>
-  </div>
-);
+// Loading component (kept for backward compatibility)
+const BoardLoading = () => <BoardSkeleton />;
 
 // Error component
 const BoardError = ({ error, backUrl }: { error: string; backUrl: string }) => (
@@ -1070,7 +1047,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
   // Show loading state
   if (loading || listsLoading) {
-    return <BoardLoading />;
+    return <BoardSkeleton />;
   }
 
   // Show error state
@@ -1185,7 +1162,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     }
   }
 
-  function handleDragEnd(event: DragEndEvent) {
+  async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
 
     // Create smooth transition for the DOM update by waiting for the animation frame
@@ -1219,14 +1196,21 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     // Check if over is a column or a task
     const isOverAColumn = columns.some((col) => col.id === overId);
 
-    // If over a column, find that column
+    let targetColumnId: string;
+    let newPosition: number;
+
     if (isOverAColumn) {
       // Handle dropping on a column
-      const targetColumnId = overId;
+      targetColumnId = overId;
 
       // If it's the same column, no need to move between columns
       if (targetColumnId === activeColumnId) return;
 
+      // Position at the end of the target column
+      const targetColumn = columns.find((col) => col.id === targetColumnId);
+      newPosition = targetColumn ? targetColumn.cards.length : 0;
+
+      // Update local state optimistically
       setColumns((prevColumns) => {
         return prevColumns.map((column) => {
           // Remove from source column
@@ -1254,19 +1238,22 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       if (!overTaskInfo) return;
 
       const { columnId: overColumnId } = overTaskInfo;
+      targetColumnId = overColumnId;
 
       if (activeColumnId === overColumnId) {
         // Same column - reorder tasks
+        const column = columns.find((col) => col.id === activeColumnId);
+        if (!column) return;
+
+        const oldIndex = column.cards.findIndex((card) => card.id === activeId);
+        const newIndex = column.cards.findIndex((card) => card.id === overId);
+
+        newPosition = newIndex;
+
+        // Update local state optimistically
         setColumns((prevColumns) => {
           return prevColumns.map((column) => {
             if (column.id !== activeColumnId) return column;
-
-            const oldIndex = column.cards.findIndex(
-              (card) => card.id === activeId
-            );
-            const newIndex = column.cards.findIndex(
-              (card) => card.id === overId
-            );
 
             return {
               ...column,
@@ -1276,6 +1263,15 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         });
       } else {
         // Different columns - move task
+        const targetColumn = columns.find((col) => col.id === overColumnId);
+        if (!targetColumn) return;
+
+        const insertIndex = targetColumn.cards.findIndex(
+          (card) => card.id === overId
+        );
+        newPosition = insertIndex;
+
+        // Update local state optimistically
         setColumns((prevColumns) => {
           return prevColumns.map((column) => {
             // Remove from source column
@@ -1289,9 +1285,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             // Add to target column at the position of the over task
             if (column.id === overColumnId) {
               const newCards = [...column.cards];
-              const insertIndex = newCards.findIndex(
-                (card) => card.id === overId
-              );
               newCards.splice(insertIndex, 0, activeTask);
               return {
                 ...column,
@@ -1302,6 +1295,40 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             return column;
           });
         });
+      }
+    }
+
+    // Only persist to database if the card actually moved to a different list
+    if (targetColumnId !== activeColumnId) {
+      try {
+        const response = await fetch(`/api/cards/${activeId}/move`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            target_list_id: targetColumnId,
+            new_position: newPosition,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to move card');
+        }
+
+        // No need to refetch - the optimistic update is already applied
+        // Success is implicit - user can see the card moved visually
+      } catch (error) {
+        console.error('Error moving card:', error);
+
+        // Revert the optimistic update on error by refetching
+        await refetch();
+
+        showError(
+          error instanceof Error ? error.message : 'Failed to move card'
+        );
       }
     }
   }
