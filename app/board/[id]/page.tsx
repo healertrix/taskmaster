@@ -63,7 +63,12 @@ interface Task {
   id: string;
   title: string;
   labels?: { color: string; text: string }[];
-  assignees?: { initials: string; color: string }[];
+  assignees?: {
+    initials: string;
+    color: string;
+    avatar_url?: string;
+    full_name?: string;
+  }[];
   attachments?: number;
   comments?: number;
   start_date?: string;
@@ -710,6 +715,8 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 return {
                   initials,
                   color: colors[colorIndex],
+                  avatar_url: member.profiles.avatar_url,
+                  full_name: fullName,
                 };
               })
             : [];
@@ -717,10 +724,15 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           return {
             id: card.id,
             title: card.title,
-            labels: [], // TODO: Add labels support when available
+            labels: card.card_labels
+              ? card.card_labels.map((cardLabel: any) => ({
+                  color: cardLabel.labels.color,
+                  text: cardLabel.labels.name || '',
+                }))
+              : [],
             assignees,
-            attachments: 0, // TODO: Add attachments support when available
-            comments: 0, // TODO: Add comments support when available
+            attachments: 0,
+            comments: 0,
             start_date: card.start_date,
             due_date: card.due_date,
             due_status: card.due_status,
@@ -884,20 +896,14 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
   // Task action handlers
   const handleEditTask = (taskId: string) => {
-    console.log('Edit task:', taskId);
-    // TODO: Implement task editing modal
     showSuccess('Task editing will be implemented soon');
   };
 
   const handleCopyTask = (taskId: string) => {
-    console.log('Copy task:', taskId);
-    // TODO: Implement task copying
     showSuccess('Task copying will be implemented soon');
   };
 
   const handleArchiveTask = async (taskId: string): Promise<boolean> => {
-    console.log('Archive task:', taskId);
-    // TODO: Implement task archiving
     showSuccess('Task archived successfully');
     return true;
   };
@@ -923,20 +929,14 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   };
 
   const handleManageLabels = (taskId: string) => {
-    console.log('Manage labels for task:', taskId);
-    // TODO: Implement label management modal
     showSuccess('Label management will be implemented soon');
   };
 
   const handleManageAssignees = (taskId: string) => {
-    console.log('Manage assignees for task:', taskId);
-    // TODO: Implement assignee management modal
     showSuccess('Assignee management will be implemented soon');
   };
 
   const handleManageDueDate = (taskId: string) => {
-    console.log('Manage due date for task:', taskId);
-    // TODO: Implement due date management modal
     showSuccess('Due date management will be implemented soon');
   };
 
@@ -1045,8 +1045,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     if (!cardTitle.trim()) return false;
 
     try {
-      console.log('Creating card in list:', columnId, 'with title:', cardTitle);
-
       // Use the hook's createCard function to save to database
       const newCard = await createCard(columnId, cardTitle.trim());
 
@@ -1059,7 +1057,12 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       const newTask: Task = {
         id: newCard.id,
         title: newCard.title,
-        labels: [], // TODO: Add labels support when available
+        labels: newCard.card_labels
+          ? newCard.card_labels.map((cardLabel: any) => ({
+              color: cardLabel.labels.color,
+              text: cardLabel.labels.name || '',
+            }))
+          : [],
         assignees: newCard.profiles
           ? [
               {
@@ -1072,8 +1075,8 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               },
             ]
           : [],
-        attachments: 0, // TODO: Add attachments support when available
-        comments: 0, // TODO: Add comments support when available
+        attachments: 0,
+        comments: 0,
         start_date: newCard.start_date,
         due_date: newCard.due_date,
         due_status: newCard.due_status,

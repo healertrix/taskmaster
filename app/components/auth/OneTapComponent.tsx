@@ -30,7 +30,6 @@ const OneTapComponent = () => {
 
   useEffect(() => {
     const initializeGoogleOneTap = async () => {
-      console.log('Initializing Google One Tap');
       setIsLoading(true);
 
       try {
@@ -46,18 +45,14 @@ const OneTapComponent = () => {
         }
 
         const [nonce, hashedNonce] = await generateNonce();
-        console.log('Nonce generated successfully');
 
         if (window.google) {
           window.google.accounts.id.initialize({
             client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
             callback: async (response: CredentialResponse) => {
               try {
-                console.log('Google One Tap response received');
-
                 // Prevent multiple simultaneous authentication attempts
                 if (workspaceCreated) {
-                  console.log('Workspace already created, skipping...');
                   return;
                 }
 
@@ -73,18 +68,10 @@ const OneTapComponent = () => {
                   throw error;
                 }
 
-                console.log('Successfully logged in with Google One Tap', data);
-
                 // Ensure user session is established
                 if (data.user) {
-                  console.log('User authenticated:', data.user.id);
-
                   // Set flag to prevent multiple workspace creations
                   setWorkspaceCreated(true);
-
-                  console.log(
-                    'User authenticated successfully, profile and workspace will be handled by auth callback'
-                  );
                 }
 
                 // Redirect to main app
@@ -137,7 +124,7 @@ const OneTapComponent = () => {
     <>
       <Script
         src='https://accounts.google.com/gsi/client'
-        onLoad={() => console.log('Google Identity Services script loaded')}
+        onLoad={() => {}}
         strategy='afterInteractive'
       />
       <div className='flex flex-col items-center justify-center w-full'>

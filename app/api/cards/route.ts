@@ -150,6 +150,10 @@ export async function GET(request: NextRequest) {
           id,
           created_at,
           profiles:profile_id(id, full_name, avatar_url, email)
+        ),
+        card_labels(
+          id,
+          labels(id, name, color)
         )
       `
       )

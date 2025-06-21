@@ -19,7 +19,12 @@ interface Task {
   id: string;
   title: string;
   labels?: { color: string; text: string }[];
-  assignees?: { initials: string; color: string }[];
+  assignees?: {
+    initials: string;
+    color: string;
+    avatar_url?: string;
+    full_name?: string;
+  }[];
   attachments?: number;
   comments?: number;
   start_date?: string;
@@ -114,8 +119,36 @@ export function TaskCard({
   };
 
   // Helper to get label colors based on the map
-  const getLabelClass = (colorKey: string) => {
-    return labelColors[colorKey] || 'bg-muted text-muted-foreground'; // Default fallback
+  const getLabelStyle = (colorKey: string) => {
+    // If it's a hex color (starts with #), use it directly
+    if (colorKey.startsWith('#')) {
+      return { backgroundColor: colorKey };
+    }
+
+    // If it's a Tailwind class, convert to hex
+    const colorMapping: Record<string, string> = {
+      'bg-red-500': '#ef4444',
+      'bg-purple-500': '#a855f7',
+      'bg-green-500': '#22c55e',
+      'bg-blue-500': '#3b82f6',
+      'bg-gray-500': '#6b7280',
+      'bg-red-600': '#dc2626',
+      'bg-blue-600': '#2563eb',
+      'bg-green-600': '#16a34a',
+      'bg-purple-600': '#9333ea',
+      'bg-yellow-600': '#ca8a04',
+      'bg-pink-600': '#db2777',
+      'bg-indigo-600': '#4f46e5',
+      'bg-orange-600': '#ea580c',
+      '#61bd4f': '#61bd4f', // Green
+      '#f2d600': '#f2d600', // Yellow
+      '#ff9f1a': '#ff9f1a', // Orange
+      '#eb5a46': '#eb5a46', // Red
+      '#c377e0': '#c377e0', // Purple
+      '#0079bf': '#0079bf', // Blue
+    };
+
+    return { backgroundColor: colorMapping[colorKey] || '#6b7280' }; // Default gray
   };
 
   // Check if any action handlers are provided to show the menu
@@ -134,26 +167,23 @@ export function TaskCard({
     <div className='w-full h-full border-dashed border-2 border-primary/30 rounded-lg bg-primary/5 min-h-[80px]' />
   ) : (
     <>
-      {/* Header with Labels and Actions */}
-      <div className='flex justify-between items-start mb-2'>
-        <div className='flex-1'>
-          {/* Labels */}
-          {task.labels && task.labels.length > 0 && (
-            <div className='flex flex-wrap gap-1.5 mb-2 overflow-hidden'>
-              {task.labels.map((label, index) => (
-                <span
-                  key={index}
-                  className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${getLabelClass(
-                    label.color
-                  )} whitespace-nowrap`}
-                >
-                  {label.text}
-                </span>
-              ))}
-            </div>
-          )}
+      {/* Labels as color bars at the top */}
+      {task.labels && task.labels.length > 0 && (
+        <div className='flex gap-0.5 mb-3'>
+          {task.labels.map((label, index) => (
+            <div
+              key={index}
+              className='h-1.5 flex-1 rounded-full'
+              style={getLabelStyle(label.color)}
+              title={label.text} // Show label text on hover
+            />
+          ))}
         </div>
+      )}
 
+      {/* Header with Actions */}
+      <div className='flex justify-between items-start mb-2'>
+        <div className='flex-1' />
         {/* Three-dot menu - Only show if there are actions */}
         {hasActions && (
           <div onClick={(e) => e.stopPropagation()}>
@@ -176,71 +206,82 @@ export function TaskCard({
         {task.title}
       </p>
 
-      {/* Dates Section */}
+      {/* Compact Dates Section */}
       {(task.start_date || task.due_date) && (
-        <div className='mb-3 space-y-1.5'>
+        <div className='mb-3 space-y-1'>
           {/* Start Date */}
           {task.start_date && (
-            <div className='flex items-center gap-1.5 text-xs'>
-              <div className='w-3 h-3 bg-green-100 text-green-600 rounded flex items-center justify-center dark:bg-green-900/40 dark:text-green-400'>
-                <div className='w-1.5 h-1.5 bg-current rounded-full'></div>
-              </div>
-              <span className='text-green-700 dark:text-green-400 font-medium'>
-                Start: {formatDate(task.start_date)}
-              </span>
+            <div className='flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400'>
+              <div className='w-2 h-2 bg-green-500 rounded-full' />
+              <span className='font-medium'>{formatDate(task.start_date)}</span>
             </div>
           )}
 
           {/* Due Date */}
           {task.due_date && (
             <div
-              className={`flex items-center gap-1.5 text-xs ${
+              className={`flex items-center gap-1.5 text-xs font-medium ${
                 task.due_status === 'complete'
-                  ? 'text-emerald-700 dark:text-emerald-400'
+                  ? 'text-emerald-600 dark:text-emerald-400'
                   : task.due_status === 'overdue'
-                  ? 'text-red-700 dark:text-red-400'
-                  : 'text-amber-700 dark:text-amber-400'
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-amber-600 dark:text-amber-400'
               }`}
             >
               <div
-                className={`w-3 h-3 rounded flex items-center justify-center ${
+                className={`w-2 h-2 rounded-full ${
                   task.due_status === 'complete'
-                    ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400'
+                    ? 'bg-emerald-500'
                     : task.due_status === 'overdue'
-                    ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400'
-                    : 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400'
+                    ? 'bg-red-500'
+                    : 'bg-amber-500'
                 }`}
-              >
-                <Clock className='w-2 h-2' />
-              </div>
-              <span className='font-medium'>
-                Due: {formatDate(task.due_date)}
-                {task.due_status && task.due_status !== 'complete' && (
-                  <span className='ml-1 capitalize'>
-                    ({task.due_status.replace('_', ' ')})
-                  </span>
-                )}
+              />
+              <span>
+                {formatDate(task.due_date)}
+                {task.due_status === 'overdue' && ' (overdue)'}
+                {task.due_status === 'due_soon' && ' (due soon)'}
               </span>
               {task.due_status === 'complete' && (
-                <div className='w-3 h-3 bg-emerald-500 text-white rounded-full flex items-center justify-center ml-auto'>
-                  <CheckSquare className='w-2 h-2' />
-                </div>
+                <CheckSquare className='w-3 h-3 ml-auto' />
               )}
             </div>
           )}
         </div>
       )}
 
-      {/* Footer: Assignees & Stats */}
+      {/* Footer: Assignees */}
       <div className='flex justify-between items-center mt-auto'>
         <div className='flex -space-x-2'>
           {task.assignees?.map((assignee, index) => (
             <div
               key={index}
-              className={`w-6 h-6 rounded-full ${assignee.color} flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-black/40`}
-              title={assignee.initials} // Add tooltip later if needed
+              className={`w-6 h-6 rounded-full ${
+                assignee.avatar_url ? 'bg-gray-200' : assignee.color
+              } flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-white/20 overflow-hidden`}
+              title={assignee.full_name || assignee.initials}
             >
-              {assignee.initials}
+              {assignee.avatar_url ? (
+                <img
+                  src={assignee.avatar_url}
+                  alt={assignee.full_name || assignee.initials}
+                  className='w-full h-full object-cover'
+                  onError={(e) => {
+                    // If image fails to load, hide it and show initials
+                    e.currentTarget.style.display = 'none';
+                    const parent = e.currentTarget.parentElement;
+                    if (parent) {
+                      parent.className = parent.className.replace(
+                        'bg-gray-200',
+                        assignee.color
+                      );
+                      parent.innerHTML = assignee.initials;
+                    }
+                  }}
+                />
+              ) : (
+                assignee.initials
+              )}
             </div>
           ))}
         </div>

@@ -26,6 +26,24 @@ export interface Card {
     full_name: string;
     avatar_url?: string;
   };
+  card_members?: Array<{
+    id: string;
+    created_at: string;
+    profiles: {
+      id: string;
+      full_name: string;
+      avatar_url?: string;
+      email: string;
+    };
+  }>;
+  card_labels?: Array<{
+    id: string;
+    labels: {
+      id: string;
+      name: string;
+      color: string;
+    };
+  }>;
 }
 
 export const useLists = (boardId: string) => {

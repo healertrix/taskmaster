@@ -160,9 +160,7 @@ export default function HomePage() {
   }, [fetchWorkspaceBoards]);
 
   // Debug: Log userWorkspaces state changes
-  useEffect(() => {
-    console.log('🔍 DEBUG: userWorkspaces state updated:', userWorkspaces);
-  }, [userWorkspaces]);
+  useEffect(() => {}, [userWorkspaces]);
 
   // Fetch user workspaces on component mount
   useEffect(() => {
@@ -316,10 +314,9 @@ export default function HomePage() {
     await refetchBoards();
     setIsCreateBoardModalOpen(false);
     setBoardModalContext(null);
-    console.log('Board created and data refreshed:', newBoardId);
   };
 
-  // TODO: Replace with actual user data
+  
   const currentUser = {
     name: 'Superhero User',
     avatar: '', // Leave empty for initial/icon display
@@ -536,11 +533,7 @@ export default function HomePage() {
 
             {/* Workspaces Section */}
             {(() => {
-              console.log(
-                '🔍 DEBUG: About to render workspaces. userWorkspaces.length:',
-                userWorkspaces.length,
-                userWorkspaces
-              );
+
               return userWorkspaces.map((workspace) => (
                 <section
                   key={workspace.id}

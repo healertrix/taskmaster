@@ -137,63 +137,37 @@ export async function POST(
       .eq('id', target_list_id)
       .single();
 
-    // Update positions in a transaction
-    const { data: updatedCard, error: updateError } = await supabase.rpc(
-      'move_card_to_list',
-      {
-        card_id: cardId,
-        new_list_id: target_list_id,
-        new_position: new_position,
-      }
-    );
+    // Direct update instead of using stored procedure
+    const { data: updatedCard, error: updateError } = await supabase
+      .from('cards')
+      .update({
+        list_id: target_list_id,
+        position: new_position,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', cardId)
+      .select('id, list_id, position');
 
     if (updateError) {
       console.error('Error moving card:', updateError);
-
-      // Fallback to simple update if stored procedure doesn't exist
-      const { data: fallbackCard, error: fallbackError } = await supabase
-        .from('cards')
-        .update({
-          list_id: target_list_id,
-          position: new_position,
-        })
-        .eq('id', cardId)
-        .select('id, list_id, position')
-        .single();
-
-      if (fallbackError) {
-        console.error('Fallback update also failed:', fallbackError);
-        return NextResponse.json(
-          { error: 'Failed to move card' },
-          { status: 500 }
-        );
-      }
-
-      // Create activity for card move (fallback case)
-      try {
-        await supabase.from('activities').insert({
-          profile_id: user.id,
-          board_id: card.board_id,
-          card_id: cardId,
-          action_type: 'card_moved',
-          action_data: {
-            from_list: fromList?.name || 'Unknown List',
-            to_list: toList?.name || 'Unknown List',
-            from_list_id: card.list_id,
-            to_list_id: target_list_id,
-          },
-        });
-      } catch (activityError) {
-        console.error('Failed to log move activity:', activityError);
-      }
-
-      return NextResponse.json({
-        message: 'Card moved successfully',
-        card: fallbackCard,
-      });
+      return NextResponse.json(
+        { error: 'Failed to move card' },
+        { status: 500 }
+      );
     }
 
-    // Create activity for card move (successful case)
+    // Check if any rows were updated
+    if (!updatedCard || updatedCard.length === 0) {
+      console.error(
+        'No card was updated - card might not exist or no permissions'
+      );
+      return NextResponse.json(
+        { error: 'Card not found or no permission to update' },
+        { status: 404 }
+      );
+    }
+
+    // Create activity for card move
     try {
       await supabase.from('activities').insert({
         profile_id: user.id,
@@ -213,7 +187,7 @@ export async function POST(
 
     return NextResponse.json({
       message: 'Card moved successfully',
-      card: updatedCard,
+      card: updatedCard[0],
     });
   } catch (error) {
     console.error('Error in card move:', error);
