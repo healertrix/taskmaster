@@ -1948,159 +1948,6 @@ export function CardModal({
 
             {/* Additional Card Information */}
             <div className='mt-8'>
-              {/* Card Dates Section - Compact Timeline */}
-              {(card.start_date || card.due_date) && (
-                <div className='mb-6'>
-                  <div className='flex items-center gap-2 mb-3'>
-                    <Calendar className='w-4 h-4 text-muted-foreground' />
-                    <h3 className='text-sm font-medium text-foreground'>
-                      Timeline
-                    </h3>
-                  </div>
-
-                  <div className='bg-muted/30 rounded-xl p-4 space-y-3'>
-                    {/* Compact Date Display */}
-                    <div className='flex items-center justify-between gap-4'>
-                      {/* Start Date */}
-                      {card.start_date ? (
-                        <div
-                          onClick={openDatePickerForStart}
-                          className='flex-1 flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors group'
-                        >
-                          <div className='w-6 h-6 bg-green-100 text-green-600 rounded-md flex items-center justify-center dark:bg-green-900/40 dark:text-green-400'>
-                            <Calendar className='w-3 h-3' />
-                          </div>
-                          <div className='flex-1 min-w-0'>
-                            <div className='text-xs font-medium text-green-800 dark:text-green-200'>
-                              Start
-                            </div>
-                            <div className='text-xs text-green-600 dark:text-green-400 truncate'>
-                              {formatDate(card.start_date)}
-                            </div>
-                          </div>
-                          <Edit2 className='w-3 h-3 text-green-600 dark:text-green-400 opacity-0 group-hover:opacity-100 transition-opacity' />
-                        </div>
-                      ) : (
-                        <div
-                          onClick={openDatePickerForStart}
-                          className='flex-1 flex items-center gap-2 p-2 border-2 border-dashed border-muted-foreground/30 rounded-lg cursor-pointer hover:border-green-400 hover:bg-green-50/50 dark:hover:bg-green-900/10 transition-colors group'
-                        >
-                          <div className='w-6 h-6 bg-muted text-muted-foreground rounded-md flex items-center justify-center'>
-                            <Calendar className='w-3 h-3' />
-                          </div>
-                          <div className='flex-1'>
-                            <div className='text-xs text-muted-foreground'>
-                              Add start date
-                            </div>
-                          </div>
-                          <Plus className='w-3 h-3 text-muted-foreground group-hover:text-green-600 transition-colors' />
-                        </div>
-                      )}
-
-                      {/* Timeline connector */}
-                      <div className='flex items-center'>
-                        <div className='w-8 h-px bg-gradient-to-r from-green-300 to-amber-300 dark:from-green-600 dark:to-amber-600'></div>
-                        <ChevronRight className='w-3 h-3 text-muted-foreground mx-1' />
-                      </div>
-
-                      {/* Due Date */}
-                      {card.due_date ? (
-                        <div
-                          onClick={openDatePickerForDue}
-                          className={`flex-1 flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:opacity-80 transition-all group ${
-                            card.due_status === 'complete'
-                              ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
-                              : card.due_status === 'overdue'
-                              ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30'
-                              : 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30'
-                          }`}
-                        >
-                          <div
-                            className={`w-6 h-6 rounded-md flex items-center justify-center ${
-                              card.due_status === 'complete'
-                                ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400'
-                                : card.due_status === 'overdue'
-                                ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400'
-                                : 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400'
-                            }`}
-                          >
-                            <Clock className='w-3 h-3' />
-                          </div>
-                          <div className='flex-1 min-w-0'>
-                            <div
-                              className={`text-xs font-medium flex items-center gap-1 ${
-                                card.due_status === 'complete'
-                                  ? 'text-emerald-800 dark:text-emerald-200'
-                                  : card.due_status === 'overdue'
-                                  ? 'text-red-800 dark:text-red-200'
-                                  : 'text-amber-800 dark:text-amber-200'
-                              }`}
-                            >
-                              Due
-                              {card.due_status === 'complete' && (
-                                <Check className='w-3 h-3 text-emerald-600' />
-                              )}
-                            </div>
-                            <div
-                              className={`text-xs truncate ${
-                                card.due_status === 'complete'
-                                  ? 'text-emerald-600 dark:text-emerald-400'
-                                  : card.due_status === 'overdue'
-                                  ? 'text-red-600 dark:text-red-400'
-                                  : 'text-amber-600 dark:text-amber-400'
-                              }`}
-                            >
-                              {formatDate(card.due_date)}
-                            </div>
-                          </div>
-                          <Edit2
-                            className={`w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity ${
-                              card.due_status === 'complete'
-                                ? 'text-emerald-600 dark:text-emerald-400'
-                                : card.due_status === 'overdue'
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-amber-600 dark:text-amber-400'
-                            }`}
-                          />
-                        </div>
-                      ) : (
-                        <div
-                          onClick={openDatePickerForDue}
-                          className='flex-1 flex items-center gap-2 p-2 border-2 border-dashed border-muted-foreground/30 rounded-lg cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-colors group'
-                        >
-                          <div className='w-6 h-6 bg-muted text-muted-foreground rounded-md flex items-center justify-center'>
-                            <Clock className='w-3 h-3' />
-                          </div>
-                          <div className='flex-1'>
-                            <div className='text-xs text-muted-foreground'>
-                              Add due date
-                            </div>
-                          </div>
-                          <Plus className='w-3 h-3 text-muted-foreground group-hover:text-amber-600 transition-colors' />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Status indicator */}
-                    {card.due_status && (
-                      <div className='flex justify-center'>
-                        <span
-                          className={`text-xs px-2 py-1 rounded-full font-medium ${
-                            card.due_status === 'complete'
-                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                              : card.due_status === 'overdue'
-                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                          }`}
-                        >
-                          {card.due_status.replace('_', ' ').toUpperCase()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {/* Members Section */}
               <div className='mb-6'>
                 <div className='flex items-center justify-between mb-4'>
@@ -2301,6 +2148,159 @@ export function CardModal({
                   </div>
                 )}
               </div>
+
+              {/* Card Dates Section - Compact Timeline */}
+              {(card.start_date || card.due_date) && (
+                <div className='mb-6'>
+                  <div className='flex items-center gap-2 mb-3'>
+                    <Calendar className='w-4 h-4 text-muted-foreground' />
+                    <h3 className='text-sm font-medium text-foreground'>
+                      Timeline
+                    </h3>
+                  </div>
+
+                  <div className='bg-muted/30 rounded-xl p-4 space-y-3'>
+                    {/* Compact Date Display */}
+                    <div className='flex items-center justify-between gap-4'>
+                      {/* Start Date */}
+                      {card.start_date ? (
+                        <div
+                          onClick={openDatePickerForStart}
+                          className='flex-1 flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors group'
+                        >
+                          <div className='w-6 h-6 bg-green-100 text-green-600 rounded-md flex items-center justify-center dark:bg-green-900/40 dark:text-green-400'>
+                            <Calendar className='w-3 h-3' />
+                          </div>
+                          <div className='flex-1 min-w-0'>
+                            <div className='text-xs font-medium text-green-800 dark:text-green-200'>
+                              Start
+                            </div>
+                            <div className='text-xs text-green-600 dark:text-green-400 truncate'>
+                              {formatDate(card.start_date)}
+                            </div>
+                          </div>
+                          <Edit2 className='w-3 h-3 text-green-600 dark:text-green-400 opacity-0 group-hover:opacity-100 transition-opacity' />
+                        </div>
+                      ) : (
+                        <div
+                          onClick={openDatePickerForStart}
+                          className='flex-1 flex items-center gap-2 p-2 border-2 border-dashed border-muted-foreground/30 rounded-lg cursor-pointer hover:border-green-400 hover:bg-green-50/50 dark:hover:bg-green-900/10 transition-colors group'
+                        >
+                          <div className='w-6 h-6 bg-muted text-muted-foreground rounded-md flex items-center justify-center'>
+                            <Calendar className='w-3 h-3' />
+                          </div>
+                          <div className='flex-1'>
+                            <div className='text-xs text-muted-foreground'>
+                              Add start date
+                            </div>
+                          </div>
+                          <Plus className='w-3 h-3 text-muted-foreground group-hover:text-green-600 transition-colors' />
+                        </div>
+                      )}
+
+                      {/* Timeline connector */}
+                      <div className='flex items-center'>
+                        <div className='w-8 h-px bg-gradient-to-r from-green-300 to-amber-300 dark:from-green-600 dark:to-amber-600'></div>
+                        <ChevronRight className='w-3 h-3 text-muted-foreground mx-1' />
+                      </div>
+
+                      {/* Due Date */}
+                      {card.due_date ? (
+                        <div
+                          onClick={openDatePickerForDue}
+                          className={`flex-1 flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:opacity-80 transition-all group ${
+                            card.due_status === 'complete'
+                              ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
+                              : card.due_status === 'overdue'
+                              ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30'
+                              : 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+                          }`}
+                        >
+                          <div
+                            className={`w-6 h-6 rounded-md flex items-center justify-center ${
+                              card.due_status === 'complete'
+                                ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400'
+                                : card.due_status === 'overdue'
+                                ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400'
+                                : 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400'
+                            }`}
+                          >
+                            <Clock className='w-3 h-3' />
+                          </div>
+                          <div className='flex-1 min-w-0'>
+                            <div
+                              className={`text-xs font-medium flex items-center gap-1 ${
+                                card.due_status === 'complete'
+                                  ? 'text-emerald-800 dark:text-emerald-200'
+                                  : card.due_status === 'overdue'
+                                  ? 'text-red-800 dark:text-red-200'
+                                  : 'text-amber-800 dark:text-amber-200'
+                              }`}
+                            >
+                              Due
+                              {card.due_status === 'complete' && (
+                                <Check className='w-3 h-3 text-emerald-600' />
+                              )}
+                            </div>
+                            <div
+                              className={`text-xs truncate ${
+                                card.due_status === 'complete'
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : card.due_status === 'overdue'
+                                  ? 'text-red-600 dark:text-red-400'
+                                  : 'text-amber-600 dark:text-amber-400'
+                              }`}
+                            >
+                              {formatDate(card.due_date)}
+                            </div>
+                          </div>
+                          <Edit2
+                            className={`w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity ${
+                              card.due_status === 'complete'
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : card.due_status === 'overdue'
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-amber-600 dark:text-amber-400'
+                            }`}
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          onClick={openDatePickerForDue}
+                          className='flex-1 flex items-center gap-2 p-2 border-2 border-dashed border-muted-foreground/30 rounded-lg cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-colors group'
+                        >
+                          <div className='w-6 h-6 bg-muted text-muted-foreground rounded-md flex items-center justify-center'>
+                            <Clock className='w-3 h-3' />
+                          </div>
+                          <div className='flex-1'>
+                            <div className='text-xs text-muted-foreground'>
+                              Add due date
+                            </div>
+                          </div>
+                          <Plus className='w-3 h-3 text-muted-foreground group-hover:text-amber-600 transition-colors' />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Status indicator */}
+                    {card.due_status && (
+                      <div className='flex justify-center'>
+                        <span
+                          className={`text-xs px-2 py-1 rounded-full font-medium ${
+                            card.due_status === 'complete'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              : card.due_status === 'overdue'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                          }`}
+                        >
+                          {card.due_status.replace('_', ' ').toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Checklists Section */}
               <div className='mb-6'>

@@ -36,34 +36,34 @@ export const CardSkeleton = ({ delay = 0 }: { delay?: number }) => (
 
 // List/Column skeleton component
 export const ListSkeleton = ({
-  cardCount = 3,
+  cardCount = 2,
   delay = 0,
 }: {
   cardCount?: number;
   delay?: number;
 }) => (
   <div
-    className='flex-shrink-0 w-80 animate-pulse'
+    className='flex-shrink-0 w-72 animate-pulse'
     style={{ animationDelay: `${delay}ms` }}
   >
-    <div className='bg-card rounded-xl border border-border/20 overflow-hidden'>
+    <div className='bg-card rounded-lg border border-border/20 overflow-hidden'>
       {/* List header */}
-      <div className='p-4 border-b border-border/20'>
+      <div className='p-3 border-b border-border/20'>
         <div className='flex items-center justify-between'>
-          <div className='h-6 bg-muted/50 rounded w-32' />
-          <div className='w-8 h-8 bg-muted/50 rounded-lg' />
+          <div className='h-5 bg-muted/50 rounded w-28' />
+          <div className='w-6 h-6 bg-muted/50 rounded-lg' />
         </div>
       </div>
 
       {/* List content */}
-      <div className='p-4 space-y-4 min-h-[200px]'>
+      <div className='p-3 space-y-3 min-h-[120px]'>
         {Array.from({ length: cardCount }).map((_, index) => (
-          <CardSkeleton key={index} delay={index * 100} />
+          <CompactCardSkeleton key={index} delay={index * 50} />
         ))}
 
         {/* Add card button skeleton */}
-        <div className='h-10 bg-muted/30 border-2 border-dashed border-muted/50 rounded-lg flex items-center justify-center'>
-          <div className='w-20 h-4 bg-muted/50 rounded' />
+        <div className='h-8 bg-muted/30 border-2 border-dashed border-muted/50 rounded-lg flex items-center justify-center'>
+          <div className='w-16 h-3 bg-muted/50 rounded' />
         </div>
       </div>
     </div>
@@ -72,53 +72,47 @@ export const ListSkeleton = ({
 
 // Board skeleton component
 export const BoardSkeleton = () => (
-  <div className='min-h-screen dot-pattern-dark flex flex-col'>
+  <div className='dot-pattern-dark flex flex-col h-auto'>
     {/* Header skeleton */}
-    <div className='container mx-auto max-w-full px-4 pt-24 pb-8'>
-      <div className='flex items-center justify-between mb-8 animate-pulse'>
+    <div className='container mx-auto max-w-full px-4 pt-24 pb-4'>
+      <div className='flex items-center justify-between mb-6 animate-pulse'>
         <div className='flex items-center gap-4'>
           <div className='w-9 h-9 bg-muted/50 rounded-lg' />
           <div className='flex items-center gap-3'>
             <div className='w-8 h-8 bg-muted/50 rounded-lg' />
             <div className='space-y-2'>
-              <div className='h-7 w-48 bg-muted/50 rounded' />
-              <div className='h-4 w-32 bg-muted/50 rounded' />
+              <div className='h-6 w-40 bg-muted/50 rounded' />
+              <div className='h-3 w-28 bg-muted/50 rounded' />
             </div>
           </div>
         </div>
-        <div className='flex items-center gap-4'>
-          <div className='w-9 h-9 bg-muted/50 rounded-lg' />
+        <div className='flex items-center gap-3'>
+          <div className='w-8 h-8 bg-muted/50 rounded-lg' />
           <div className='flex items-center gap-2'>
             <div className='w-4 h-4 bg-muted/50 rounded' />
-            <div className='w-24 h-4 bg-muted/50 rounded' />
+            <div className='w-20 h-3 bg-muted/50 rounded' />
           </div>
-          <div className='w-9 h-9 bg-muted/50 rounded-lg' />
-          <div className='w-9 h-9 bg-muted/50 rounded-lg' />
-          <div className='w-9 h-9 bg-muted/50 rounded-lg' />
+          <div className='w-8 h-8 bg-muted/50 rounded-lg' />
+          <div className='w-8 h-8 bg-muted/50 rounded-lg' />
         </div>
       </div>
     </div>
 
     {/* Board content skeleton */}
-    <div className='flex-1 overflow-x-auto px-4'>
-      <div className='flex gap-6 h-full min-w-max'>
+    <div className='overflow-x-auto px-4 pb-6'>
+      <div className='flex gap-4 min-w-max'>
         {/* List skeletons */}
-        {Array.from({ length: 4 }).map((_, index) => (
-          <ListSkeleton
-            key={index}
-            cardCount={Math.floor(Math.random() * 4) + 2}
-            delay={index * 150}
-          />
+        {Array.from({ length: 3 }).map((_, index) => (
+          <CompactListSkeleton key={index} cardCount={2} delay={index * 100} />
         ))}
 
         {/* Add list skeleton */}
         <div
-          className='flex-shrink-0 w-80 animate-pulse'
-          style={{ animationDelay: '600ms' }}
+          className='flex-shrink-0 w-72 animate-pulse'
+          style={{ animationDelay: '300ms' }}
         >
-          <div className='h-32 bg-card/30 border-2 border-dashed border-border/50 rounded-xl flex flex-col items-center justify-center'>
-            <div className='w-8 h-8 bg-muted/50 rounded-full mb-3' />
-            <div className='h-4 w-20 bg-muted/50 rounded mb-1' />
+          <div className='h-24 bg-card/30 border-2 border-dashed border-border/50 rounded-lg flex flex-col items-center justify-center'>
+            <div className='w-6 h-6 bg-muted/50 rounded-full mb-2' />
             <div className='h-3 w-16 bg-muted/50 rounded' />
           </div>
         </div>
