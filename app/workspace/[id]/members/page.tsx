@@ -21,6 +21,7 @@ import {
   AlertCircle,
   Trash2,
   UserMinus,
+  MoreHorizontal,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -84,6 +85,18 @@ export default function WorkspaceMembersPage() {
     null
   );
   const [isRemovingMember, setIsRemovingMember] = useState(false);
+
+  // Change role modal states
+  const [showChangeRoleModal, setShowChangeRoleModal] = useState(false);
+  const [memberToChangeRole, setMemberToChangeRole] =
+    useState<WorkspaceMember | null>(null);
+  const [newRole, setNewRole] = useState<'admin' | 'member'>('member');
+  const [isChangingRole, setIsChangingRole] = useState(false);
+
+  // Member actions dropdown states
+  const [openMemberActions, setOpenMemberActions] = useState<string | null>(
+    null
+  );
 
   // Notification states
   const [showSuccessToast, setShowSuccessToast] = useState(false);
@@ -253,6 +266,21 @@ export default function WorkspaceMembersPage() {
       fetchData();
     }
   }, [workspaceId, router]);
+
+  // Close member actions dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openMemberActions) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('[data-member-actions]')) {
+          setOpenMemberActions(null);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openMemberActions]);
 
   // Notification helper functions
   const showSuccess = (message: string) => {
@@ -491,6 +519,54 @@ export default function WorkspaceMembersPage() {
     }
   };
 
+  const handleChangeRole = async () => {
+    if (!memberToChangeRole) return;
+
+    setIsChangingRole(true);
+    try {
+      const response = await fetch(
+        `/api/workspaces/${workspaceId}/members/${memberToChangeRole.profile_id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            role: newRole,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        // Update the member's role in the local state
+        setMembers((prevMembers) =>
+          prevMembers.map((member) =>
+            member.profile_id === memberToChangeRole.profile_id
+              ? { ...member, role: newRole }
+              : member
+          )
+        );
+
+        showSuccess(
+          `${
+            memberToChangeRole.profile.full_name ||
+            memberToChangeRole.profile.email
+          }'s role changed to ${newRole}`
+        );
+        setShowChangeRoleModal(false);
+        setMemberToChangeRole(null);
+      } else {
+        const errorData = await response.json();
+        showError(errorData.error || 'Failed to change member role');
+      }
+    } catch (error) {
+      console.error('Error changing member role:', error);
+      showError('Failed to change member role');
+    } finally {
+      setIsChangingRole(false);
+    }
+  };
+
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'owner':
@@ -641,38 +717,69 @@ export default function WorkspaceMembersPage() {
                           {roleInfo.text}
                         </span>
                       </div>
+
+                      {/* Member Actions Dropdown */}
                       {canManageMembers &&
                         member.profile_id !== currentUser && (
-                          <div className='flex items-center gap-2'>
-                            {/* Don't show Change button for owners */}
-                            {member.role !== 'owner' && (
-                              <button className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'>
-                                Change
-                                <ChevronRight className='w-4 h-4' />
-                              </button>
+                          <div className='relative' data-member-actions>
+                            <button
+                              onClick={() =>
+                                setOpenMemberActions(
+                                  openMemberActions === member.id
+                                    ? null
+                                    : member.id
+                                )
+                              }
+                              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+                              title='Member actions'
+                            >
+                              <MoreHorizontal className='w-4 h-4' />
+                            </button>
+
+                            {/* Dropdown Menu */}
+                            {openMemberActions === member.id && (
+                              <div className='absolute right-0 top-full mt-1 w-36 bg-background border border-border rounded-lg shadow-lg z-10 py-1'>
+                                {/* Change Role Option - Don't show for owners */}
+                                {member.role !== 'owner' && (
+                                  <button
+                                    onClick={() => {
+                                      setMemberToChangeRole(member);
+                                      setNewRole(
+                                        member.role === 'admin'
+                                          ? 'member'
+                                          : 'admin'
+                                      );
+                                      setShowChangeRoleModal(true);
+                                      setOpenMemberActions(null);
+                                    }}
+                                    className='w-full text-left px-3 py-2 text-sm text-foreground hover:bg-muted/50 transition-colors flex items-center gap-2'
+                                  >
+                                    <Shield className='w-3 h-3' />
+                                    Change Role
+                                  </button>
+                                )}
+
+                                {/* Remove Option - Only show for owners/admins, and prevent removing last owner */}
+                                {['owner', 'admin'].includes(currentUserRole) &&
+                                  !(
+                                    member.role === 'owner' &&
+                                    members.filter((m) => m.role === 'owner')
+                                      .length <= 1
+                                  ) && (
+                                    <button
+                                      onClick={() => {
+                                        setMemberToRemove(member);
+                                        setShowRemoveConfirm(true);
+                                        setOpenMemberActions(null);
+                                      }}
+                                      className='w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2'
+                                    >
+                                      <UserMinus className='w-3 h-3' />
+                                      Remove
+                                    </button>
+                                  )}
+                              </div>
                             )}
-                            {/* Only show remove button for owners/admins, and prevent removing last owner */}
-                            {['owner', 'admin'].includes(currentUserRole) &&
-                              !(
-                                member.role === 'owner' &&
-                                members.filter((m) => m.role === 'owner')
-                                  .length <= 1
-                              ) && (
-                                <button
-                                  onClick={() => {
-                                    setMemberToRemove(member);
-                                    setShowRemoveConfirm(true);
-                                  }}
-                                  className='px-3 py-2 text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center gap-1'
-                                  title={`Remove ${
-                                    member.profile.full_name ||
-                                    member.profile.email
-                                  } from workspace (ID: ${member.profile_id})`}
-                                >
-                                  <UserMinus className='w-4 h-4' />
-                                  Remove
-                                </button>
-                              )}
                           </div>
                         )}
                     </div>
@@ -1248,15 +1355,178 @@ export default function WorkspaceMembersPage() {
         </div>
       )}
 
+      {/* Change Role Modal */}
+      {showChangeRoleModal && memberToChangeRole && (
+        <div className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4'>
+          <div className='bg-gradient-to-br from-background via-background to-background/95 border border-border/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden'>
+            {/* Header */}
+            <div className='relative bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 border-b border-border/50'>
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-3'>
+                  <div className='w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center'>
+                    <Shield className='w-5 h-5 text-primary' />
+                  </div>
+                  <div>
+                    <h3 className='text-xl font-semibold text-foreground'>
+                      Change Role
+                    </h3>
+                    <p className='text-sm text-muted-foreground'>
+                      Update member permissions
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowChangeRoleModal(false);
+                    setMemberToChangeRole(null);
+                  }}
+                  className='w-8 h-8 rounded-full bg-muted/50 hover:bg-muted/80 flex items-center justify-center transition-colors'
+                  aria-label='Close modal'
+                >
+                  <X className='w-4 h-4' />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className='p-6 space-y-4'>
+              {/* Member Info */}
+              <div className='flex items-center gap-3 p-4 bg-muted/30 rounded-xl'>
+                <div className='w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground font-medium text-lg'>
+                  {memberToChangeRole.profile.full_name
+                    ?.charAt(0)
+                    .toUpperCase() ||
+                    memberToChangeRole.profile.email.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div className='font-medium text-foreground'>
+                    {memberToChangeRole.profile.full_name ||
+                      memberToChangeRole.profile.email}
+                  </div>
+                  <div className='text-sm text-muted-foreground'>
+                    {memberToChangeRole.profile.email}
+                  </div>
+                  <div className='text-xs text-muted-foreground mt-1'>
+                    Current role: {getRoleDisplay(memberToChangeRole.role).text}
+                  </div>
+                </div>
+              </div>
+
+              {/* Role Selection */}
+              <div className='space-y-3'>
+                <label className='text-sm font-medium text-foreground'>
+                  Select new role:
+                </label>
+                <div className='space-y-2'>
+                  {(['admin', 'member'] as const).map((role) => (
+                    <label
+                      key={role}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                        newRole === role
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:bg-muted/50'
+                      }`}
+                    >
+                      <input
+                        type='radio'
+                        name='role'
+                        value={role}
+                        checked={newRole === role}
+                        onChange={(e) =>
+                          setNewRole(e.target.value as 'admin' | 'member')
+                        }
+                        className='w-4 h-4 text-primary'
+                      />
+                      <div className='flex items-center gap-2'>
+                        {getRoleIcon(role)}
+                        <span className='font-medium text-foreground'>
+                          {role === 'admin' ? 'Admin' : 'Member'}
+                        </span>
+                      </div>
+                      <div className='text-xs text-muted-foreground ml-auto'>
+                        {role === 'admin'
+                          ? 'Can manage members and boards'
+                          : 'Can view and edit boards'}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Warning if changing to admin */}
+              {newRole === 'admin' && memberToChangeRole.role === 'member' && (
+                <div className='bg-blue-50 border border-blue-200 rounded-xl p-4 dark:bg-blue-900/20 dark:border-blue-800'>
+                  <div className='flex items-start gap-3'>
+                    <Shield className='w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5' />
+                    <div className='text-sm'>
+                      <p className='font-medium text-blue-800 dark:text-blue-200 mb-1'>
+                        Promoting to Admin
+                      </p>
+                      <p className='text-blue-700 dark:text-blue-300'>
+                        This user will be able to add/remove members and manage
+                        workspace settings.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className='bg-gradient-to-r from-muted/20 to-transparent p-6 border-t border-border/50'>
+              <div className='flex justify-end gap-3'>
+                <button
+                  onClick={() => {
+                    setShowChangeRoleModal(false);
+                    setMemberToChangeRole(null);
+                  }}
+                  disabled={isChangingRole}
+                  className='px-6 py-2.5 text-muted-foreground hover:text-foreground transition-colors font-medium disabled:opacity-50'
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleChangeRole}
+                  disabled={
+                    isChangingRole || newRole === memberToChangeRole.role
+                  }
+                  className={`px-6 py-2.5 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground font-medium rounded-lg flex items-center gap-2 transition-all duration-200 ${
+                    isChangingRole || newRole === memberToChangeRole.role
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:from-primary/90 hover:to-primary hover:shadow-lg hover:shadow-primary/25 active:scale-95'
+                  }`}
+                >
+                  {isChangingRole ? (
+                    <>
+                      <Loader2 className='w-4 h-4 animate-spin' />
+                      <span>Changing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Shield className='w-4 h-4' />
+                      <span>Change Role</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Global Loading Overlay for Critical Actions */}
-      {(isAddingMember || isRemovingMember) && (
+      {(isAddingMember || isRemovingMember || isChangingRole) && (
         <div className='fixed inset-0 bg-black/10 backdrop-blur-sm z-[90] flex items-center justify-center'>
           <div className='bg-background/90 backdrop-blur border border-border rounded-lg p-6 shadow-xl'>
             <div className='flex items-center gap-4'>
               <Loader2 className='w-8 h-8 animate-spin' />
               <div>
                 <p className='font-medium text-foreground'>
-                  {isAddingMember ? 'Adding member...' : 'Removing member...'}
+                  {isAddingMember
+                    ? 'Adding member...'
+                    : isRemovingMember
+                    ? 'Removing member...'
+                    : 'Changing role...'}
                 </p>
                 <p className='text-sm text-muted-foreground'>
                   This will only take a moment

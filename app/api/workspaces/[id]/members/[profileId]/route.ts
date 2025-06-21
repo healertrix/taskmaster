@@ -13,9 +13,9 @@ export async function PATCH(
     const body = await request.json();
     const { role } = body;
 
-    if (!role || !['admin', 'member', 'guest'].includes(role)) {
+    if (!role || !['admin', 'member'].includes(role)) {
       return NextResponse.json(
-        { error: 'Valid role is required' },
+        { error: 'Valid role is required (admin or member)' },
         { status: 400 }
       );
     }
@@ -32,23 +32,43 @@ export async function PATCH(
 
     const user = session.user;
 
-    // Check current user's role in workspace
-    const { data: currentUserMembership, error: currentUserError } =
-      await supabase
-        .from('workspace_members')
-        .select('role')
-        .eq('workspace_id', workspaceId)
-        .eq('profile_id', user.id)
-        .single();
+    // Check if user is workspace owner or has admin role
+    const { data: workspace, error: workspaceError } = await supabase
+      .from('workspaces')
+      .select('owner_id')
+      .eq('id', workspaceId)
+      .single();
 
-    if (currentUserError || !currentUserMembership) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    if (workspaceError) {
+      return NextResponse.json(
+        { error: 'Workspace not found' },
+        { status: 404 }
+      );
     }
 
-    // Only admins can change roles
-    if (currentUserMembership.role !== 'admin') {
+    const isOwner = workspace.owner_id === user.id;
+    let isAdmin = false;
+
+    if (!isOwner) {
+      const { data: currentUserMembership, error: currentUserError } =
+        await supabase
+          .from('workspace_members')
+          .select('role')
+          .eq('workspace_id', workspaceId)
+          .eq('profile_id', user.id)
+          .single();
+
+      if (currentUserError || !currentUserMembership) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      }
+
+      isAdmin = currentUserMembership.role === 'admin';
+    }
+
+    // Only owners and admins can change roles
+    if (!isOwner && !isAdmin) {
       return NextResponse.json(
-        { error: 'Only admins can update member roles' },
+        { error: 'Only workspace owners and admins can update member roles' },
         { status: 403 }
       );
     }
@@ -72,6 +92,14 @@ export async function PATCH(
     if (user.id === targetProfileId) {
       return NextResponse.json(
         { error: 'You cannot change your own role' },
+        { status: 400 }
+      );
+    }
+
+    // Prevent changing workspace owner's role
+    if (targetProfileId === workspace.owner_id) {
+      return NextResponse.json(
+        { error: "Cannot change the workspace owner's role" },
         { status: 400 }
       );
     }
