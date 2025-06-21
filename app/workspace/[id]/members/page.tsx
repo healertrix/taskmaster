@@ -387,10 +387,7 @@ export default function WorkspaceMembersPage() {
 
   // Search for profiles
   const handleSearch = async (query: string) => {
-    console.log('handleSearch called with query:', query);
-
     if (!query || query.length < 2) {
-      console.log('Query too short, clearing results');
       setSearchResults([]);
       return;
     }
@@ -400,27 +397,31 @@ export default function WorkspaceMembersPage() {
       const searchUrl = `/api/profiles/search?q=${encodeURIComponent(
         query
       )}&workspace_id=${workspaceId}`;
-      console.log('Making request to:', searchUrl);
 
       const response = await fetch(searchUrl);
-      console.log('Response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Search response data:', data);
         setSearchResults(data.profiles || []);
       } else {
-        const errorText = await response.text();
-        console.error(
-          'Failed to search profiles. Status:',
-          response.status,
-          'Error:',
-          errorText
-        );
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: 'Unknown error' }));
+
+        // Show specific error messages to help debug
+        if (response.status === 403) {
+          showError(
+            'Permission denied. You may not have access to search members.'
+          );
+        } else if (response.status === 404) {
+          showError('Workspace not found.');
+        } else {
+          showError(`Search failed: ${errorData.error || 'Unknown error'}`);
+        }
         setSearchResults([]);
       }
     } catch (error) {
-      console.error('Error searching profiles:', error);
+      showError('Network error while searching profiles');
       setSearchResults([]);
     } finally {
       setIsSearching(false);
