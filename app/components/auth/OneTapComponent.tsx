@@ -82,65 +82,9 @@ const OneTapComponent = () => {
                   // Set flag to prevent multiple workspace creations
                   setWorkspaceCreated(true);
 
-                  // Simple profile creation/update (backup if trigger fails)
-                  const { error: profileError } = await supabase
-                    .from('profiles')
-                    .upsert(
-                      {
-                        id: data.user.id,
-                        email: data.user.email,
-                        full_name:
-                          data.user.user_metadata?.full_name ||
-                          data.user.user_metadata?.name ||
-                          '',
-                        avatar_url:
-                          data.user.user_metadata?.avatar_url ||
-                          data.user.user_metadata?.picture ||
-                          '',
-                        updated_at: new Date().toISOString(),
-                        last_active_at: new Date().toISOString(),
-                      },
-                      {
-                        onConflict: 'id',
-                        ignoreDuplicates: false,
-                      }
-                    );
-
-                  if (profileError) {
-                    console.error('Profile error:', profileError);
-                  } else {
-                    console.log('Profile backup upsert successful');
-                  }
-
-                  // Create default workspace via API (only once)
-                  try {
-                    console.log('🏢 Creating default workspace...');
-                    const workspaceResponse = await fetch(
-                      '/api/create-workspace',
-                      {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                        },
-                      }
-                    );
-
-                    const workspaceResult = await workspaceResponse.json();
-
-                    if (workspaceResult.success) {
-                      console.log(
-                        '✅ Workspace ready:',
-                        workspaceResult.message
-                      );
-                    } else {
-                      console.error(
-                        '❌ Workspace creation failed:',
-                        workspaceResult.error
-                      );
-                    }
-                  } catch (workspaceError) {
-                    console.error('❌ Workspace API error:', workspaceError);
-                  }
+                  console.log(
+                    'User authenticated successfully, profile and workspace will be handled by auth callback'
+                  );
                 }
 
                 // Redirect to main app
