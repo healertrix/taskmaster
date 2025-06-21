@@ -15,7 +15,6 @@ export async function POST() {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    console.log('Cleaning up workspaces for user:', user.id);
 
     // Find all workspaces owned by this user
     const { data: userWorkspaces, error: fetchError } = await supabase
@@ -59,7 +58,6 @@ export async function POST() {
         const toDelete = workspaces.slice(1);
 
         for (const workspace of toDelete) {
-          console.log(
             `Deleting duplicate workspace: ${workspace.name} (${workspace.id})`
           );
 

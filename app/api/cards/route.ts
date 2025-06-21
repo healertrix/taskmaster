@@ -145,7 +145,12 @@ export async function GET(request: NextRequest) {
       .select(
         `
         *,
-        profiles:created_by(id, email, full_name)
+        profiles:created_by(id, email, full_name),
+        card_members(
+          id,
+          created_at,
+          profiles:profile_id(id, full_name, avatar_url, email)
+        )
       `
       )
       .order('position', { ascending: true });

@@ -681,28 +681,51 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       const convertedColumns: Column[] = lists.map((list) => ({
         id: list.id,
         title: list.name,
-        cards: list.cards.map((card) => ({
-          id: card.id,
-          title: card.title,
-          labels: [], // TODO: Add labels support when available
-          assignees: card.profiles
-            ? [
-                {
-                  initials: card.profiles.full_name
-                    .split(' ')
-                    .map((n) => n[0])
-                    .join('')
-                    .toUpperCase(),
-                  color: 'bg-blue-500',
-                },
-              ]
-            : [],
-          attachments: 0, // TODO: Add attachments support when available
-          comments: 0, // TODO: Add comments support when available
-          start_date: card.start_date,
-          due_date: card.due_date,
-          due_status: card.due_status,
-        })),
+        cards: list.cards.map((card) => {
+          // Generate assignees from card members
+          const assignees = card.card_members
+            ? card.card_members.map((member: any) => {
+                const fullName = member.profiles.full_name || 'Unknown User';
+                const initials = fullName
+                  .split(' ')
+                  .map((n: string) => n[0])
+                  .join('')
+                  .toUpperCase()
+                  .substring(0, 2); // Limit to 2 characters
+
+                // Generate a consistent color based on the user's ID
+                const colors = [
+                  'bg-blue-500',
+                  'bg-green-500',
+                  'bg-purple-500',
+                  'bg-red-500',
+                  'bg-yellow-500',
+                  'bg-indigo-500',
+                  'bg-pink-500',
+                  'bg-teal-500',
+                ];
+                const colorIndex =
+                  member.profiles.id.charCodeAt(0) % colors.length;
+
+                return {
+                  initials,
+                  color: colors[colorIndex],
+                };
+              })
+            : [];
+
+          return {
+            id: card.id,
+            title: card.title,
+            labels: [], // TODO: Add labels support when available
+            assignees,
+            attachments: 0, // TODO: Add attachments support when available
+            comments: 0, // TODO: Add comments support when available
+            start_date: card.start_date,
+            due_date: card.due_date,
+            due_status: card.due_status,
+          };
+        }),
       }));
       setColumns(convertedColumns);
     }

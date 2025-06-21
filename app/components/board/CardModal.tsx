@@ -55,6 +55,7 @@ import { AddChecklistModal } from '@/components/ui/AddChecklistModal';
 import { AttachmentModal } from './AttachmentModal';
 import LabelModal from './LabelModal';
 import CardLabels from './CardLabels';
+import { CardMemberPicker } from './CardMemberPicker';
 import {
   combineDateAndTime,
   extractDate,
@@ -146,6 +147,17 @@ interface ChecklistData {
   items: ChecklistItem[];
   created_at: string;
   updated_at: string;
+}
+
+interface CardMemberData {
+  id: string;
+  created_at: string;
+  profiles: {
+    id: string;
+    full_name: string | null;
+    avatar_url: string | null;
+    email: string;
+  };
 }
 
 interface CardModalProps {
@@ -349,6 +361,12 @@ export function CardModal({
   const [attachmentToDelete, setAttachmentToDelete] =
     useState<AttachmentData | null>(null);
   const [isDeletingAttachment, setIsDeletingAttachment] = useState(false);
+
+  // Member state
+  const [cardMembers, setCardMembers] = useState<CardMemberData[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [showMemberPicker, setShowMemberPicker] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState<string>('');
 
   // Save warning modal state
   const [showSaveWarningModal, setShowSaveWarningModal] = useState(false);
@@ -582,13 +600,15 @@ export function CardModal({
     return details.length > 0 ? details.join('\n') : null;
   };
 
-  // Fetch comments, activities, checklists, and attachments only when modal first opens
+  // Fetch comments, activities, checklists, attachments, and members only when modal first opens
   useEffect(() => {
     if (isOpen && card) {
       fetchComments();
       fetchActivities();
       fetchChecklists();
       fetchAttachments();
+      fetchCardMembers();
+      fetchWorkspaceId();
     }
   }, [isOpen, card.id]); // Only depend on card.id, not the entire card object
 
@@ -677,6 +697,43 @@ export function CardModal({
       console.error('Error fetching attachments:', error);
     } finally {
       setIsLoadingAttachments(false);
+    }
+  };
+
+  const fetchCardMembers = async () => {
+    if (!card) return;
+
+    setIsLoadingMembers(true);
+    try {
+      const response = await fetch(`/api/cards/${card.id}/members`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setCardMembers(data.members || []);
+      } else {
+        console.error('Failed to fetch card members:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching card members:', error);
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  };
+
+  const fetchWorkspaceId = async () => {
+    if (!card) return;
+
+    try {
+      const response = await fetch(`/api/boards/${card.board_id}`);
+      const data = await response.json();
+
+      if (response.ok && data.board) {
+        setWorkspaceId(data.board.workspace_id);
+      } else {
+        console.error('Failed to fetch board info:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching board info:', error);
     }
   };
 
@@ -1651,6 +1708,38 @@ export function CardModal({
     setShowAttachmentModal(true);
   };
 
+  const handleMemberAdded = (member: CardMemberData) => {
+    setCardMembers((prev) => [...prev, member]);
+    // Refresh activities to show the member addition
+    fetchActivities();
+  };
+
+  const handleRemoveMember = async (profileId: string) => {
+    try {
+      const response = await fetch(
+        `/api/cards/${card.id}/members/${profileId}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (response.ok) {
+        setCardMembers((prev) =>
+          prev.filter((member) => member.profiles.id !== profileId)
+        );
+        // Refresh activities to show the member removal
+        fetchActivities();
+      } else {
+        const data = await response.json();
+        console.error('Failed to remove member:', data.error);
+        alert(`Failed to remove member: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error removing member:', error);
+      alert('Failed to remove member. Please try again.');
+    }
+  };
+
   const getActivityIcon = (actionType: string) => {
     switch (actionType) {
       case 'comment_added':
@@ -2018,6 +2107,66 @@ export function CardModal({
                 </div>
               )}
 
+              {/* Members Section */}
+              <div className='mb-6'>
+                <div className='flex items-center justify-between mb-4'>
+                  <div className='flex items-center gap-2'>
+                    <User className='w-4 h-4 text-muted-foreground' />
+                    <h3 className='text-sm font-medium text-foreground'>
+                      Members
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowMemberPicker(true)}
+                    className='flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors'
+                    title='Add member'
+                  >
+                    <Plus className='w-3 h-3' />
+                    Add
+                  </button>
+                </div>
+
+                {isLoadingMembers ? (
+                  <div className='flex items-center justify-center py-8'>
+                    <div className='w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
+                  </div>
+                ) : cardMembers.length > 0 ? (
+                  <div className='grid grid-cols-1 gap-2'>
+                    {cardMembers.map((member) => (
+                      <div
+                        key={member.id}
+                        className='flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border/50 hover:bg-muted/50 transition-colors group'
+                      >
+                        <UserAvatar profile={member.profiles} size={32} />
+                        <div className='flex-1 min-w-0'>
+                          <p className='text-sm font-medium text-foreground truncate'>
+                            {member.profiles.full_name || 'Unknown User'}
+                          </p>
+                          <p className='text-xs text-muted-foreground truncate'>
+                            {member.profiles.email}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveMember(member.profiles.id)}
+                          className='p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors opacity-0 group-hover:opacity-100'
+                          title='Remove member'
+                        >
+                          <X className='w-3 h-3' />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className='text-center py-8 text-muted-foreground'>
+                    <User className='w-8 h-8 mx-auto mb-2 opacity-50' />
+                    <p className='text-sm'>No members assigned to this card</p>
+                    <p className='text-xs'>
+                      Click "Add" to assign workspace members
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Checklists Section */}
               <div className='mb-6'>
                 <div className='flex items-center justify-between mb-4'>
@@ -2216,7 +2365,13 @@ export function CardModal({
                     <div className='absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-xl z-20 py-2'>
                       <div className='px-3 py-2'>
                         <div className='space-y-1'>
-                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                          <button
+                            onClick={() => {
+                              setShowMemberPicker(true);
+                              setIsAddToCardDropdownOpen(false);
+                            }}
+                            className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'
+                          >
                             <User className='w-4 h-4 text-muted-foreground' />
                             Members
                           </button>
@@ -3188,6 +3343,17 @@ export function CardModal({
             </div>
           </div>
         )}
+
+        {/* Card Member Picker Modal */}
+        <CardMemberPicker
+          isOpen={showMemberPicker}
+          onClose={() => setShowMemberPicker(false)}
+          workspaceId={workspaceId}
+          boardId={card.board_id}
+          cardId={card.id}
+          currentMembers={cardMembers}
+          onMemberAdded={handleMemberAdded}
+        />
 
         {/* Attachment Modal */}
         <AttachmentModal

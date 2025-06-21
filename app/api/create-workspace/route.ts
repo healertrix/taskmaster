@@ -19,7 +19,6 @@ export async function POST(request: Request) {
     const userName =
       user.user_metadata?.name || user.user_metadata?.full_name || 'User';
 
-    console.log('Creating workspace for user:', user.id);
 
     // Check if user already has a workspace
     const { data: existingWorkspaces, error: checkError } = await supabase
@@ -37,7 +36,6 @@ export async function POST(request: Request) {
     }
 
     if (existingWorkspaces && existingWorkspaces.length > 0) {
-      console.log('User already has workspace:', existingWorkspaces[0].id);
       return NextResponse.json({
         success: true,
         workspace: existingWorkspaces[0],
@@ -66,7 +64,6 @@ export async function POST(request: Request) {
       throw workspaceError;
     }
 
-    console.log('✅ Workspace created:', workspace.id);
 
     // Ensure the workspace creator is added as an admin member
     // Check if the database trigger worked
@@ -78,7 +75,6 @@ export async function POST(request: Request) {
       .single();
 
     if (!memberCheck) {
-      console.log(
         '⚠️ Database trigger failed, manually adding workspace member'
       );
       const { error: memberError } = await supabase
@@ -94,10 +90,8 @@ export async function POST(request: Request) {
         console.error('❌ Failed to add workspace member:', memberError);
         // Don't fail the whole request, but log the issue
       } else {
-        console.log('✅ Workspace member added manually');
       }
     } else {
-      console.log(
         '✅ Workspace member exists via trigger, role:',
         memberCheck.role
       );

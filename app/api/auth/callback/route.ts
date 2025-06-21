@@ -7,7 +7,6 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get('code');
   const next = requestUrl.searchParams.get('next') || '/';
 
-  console.log('Auth callback received:', { code: !!code, next });
 
   if (code) {
     const supabase = createClient();
@@ -24,7 +23,6 @@ export async function GET(request: Request) {
         );
       }
 
-      console.log('Session exchange successful:', {
         userId: data.session?.user?.id,
       });
 
@@ -44,7 +42,6 @@ export async function GET(request: Request) {
       if (user) {
         const { id, email, user_metadata } = user;
 
-        console.log('Processing user login:', {
           id,
           email,
           metadata: user_metadata,
@@ -68,7 +65,6 @@ export async function GET(request: Request) {
 
           if (existingProfile) {
             profileExists = true;
-            console.log(
               'Profile found/created by trigger:',
               existingProfile.id
             );
@@ -82,10 +78,8 @@ export async function GET(request: Request) {
             if (updateError) {
               console.error('Profile update error:', updateError);
             } else {
-              console.log('Profile last_active_at updated');
             }
           } else {
-            console.log(
               `Profile not found yet, retry ${retries + 1}/${maxRetries}`
             );
             retries++;
@@ -123,7 +117,6 @@ export async function GET(request: Request) {
           if (profileError) {
             console.error('Manual profile creation failed:', profileError);
           } else {
-            console.log('Manual profile creation successful:', profileData);
           }
         }
 
@@ -138,6 +131,5 @@ export async function GET(request: Request) {
     }
   }
 
-  console.log('Redirecting to:', `${requestUrl.origin}${next}`);
   return NextResponse.redirect(`${requestUrl.origin}${next}`);
 }
