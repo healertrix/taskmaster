@@ -721,7 +721,11 @@ export default function WorkspaceMembersPage() {
 
                       {/* Member Actions Dropdown */}
                       {canManageMembers &&
-                        member.profile_id !== currentUser && (
+                        member.profile_id !== currentUser &&
+                        member.role !== 'owner' &&
+                        (currentUserRole === 'owner' ||
+                          (currentUserRole === 'admin' &&
+                            member.role === 'member')) && (
                           <div className='relative' data-member-actions>
                             <button
                               onClick={() =>
@@ -740,28 +744,33 @@ export default function WorkspaceMembersPage() {
                             {/* Dropdown Menu */}
                             {openMemberActions === member.id && (
                               <div className='absolute right-0 top-full mt-1 w-36 bg-background border border-border rounded-lg shadow-lg z-10 py-1'>
-                                {/* Change Role Option - Don't show for owners */}
-                                {member.role !== 'owner' && (
-                                  <button
-                                    onClick={() => {
-                                      setMemberToChangeRole(member);
-                                      setNewRole(
-                                        member.role === 'admin'
-                                          ? 'member'
-                                          : 'admin'
-                                      );
-                                      setShowChangeRoleModal(true);
-                                      setOpenMemberActions(null);
-                                    }}
-                                    className='w-full text-left px-3 py-2 text-sm text-foreground hover:bg-muted/50 transition-colors flex items-center gap-2'
-                                  >
-                                    <Shield className='w-3 h-3' />
-                                    Change Role
-                                  </button>
-                                )}
+                                {/* Change Role Option - Frontend permission check */}
+                                {member.role !== 'owner' &&
+                                  (currentUserRole === 'owner' ||
+                                    (currentUserRole === 'admin' &&
+                                      member.role === 'member')) && (
+                                    <button
+                                      onClick={() => {
+                                        setMemberToChangeRole(member);
+                                        setNewRole(
+                                          member.role === 'admin'
+                                            ? 'member'
+                                            : 'admin'
+                                        );
+                                        setShowChangeRoleModal(true);
+                                        setOpenMemberActions(null);
+                                      }}
+                                      className='w-full text-left px-3 py-2 text-sm text-foreground hover:bg-muted/50 transition-colors flex items-center gap-2'
+                                    >
+                                      <Shield className='w-3 h-3' />
+                                      Change Role
+                                    </button>
+                                  )}
 
-                                {/* Remove Option - Only show for owners/admins, and prevent removing last owner */}
-                                {['owner', 'admin'].includes(currentUserRole) &&
+                                {/* Remove Option - Frontend permission check */}
+                                {(currentUserRole === 'owner' ||
+                                  (currentUserRole === 'admin' &&
+                                    member.role === 'member')) &&
                                   !(
                                     member.role === 'owner' &&
                                     members.filter((m) => m.role === 'owner')
