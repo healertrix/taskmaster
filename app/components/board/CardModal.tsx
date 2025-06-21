@@ -21,15 +21,12 @@ import {
   Copy,
   Move,
   Share2,
-  MoreHorizontal,
-  Bookmark,
-  ExternalLink,
   Activity,
   Send,
   Edit,
   Save,
-  MoreVertical,
   ChevronDown,
+  ChevronUp,
   ChevronRight,
   Calendar as CalendarIcon,
   AlertCircle,
@@ -44,8 +41,6 @@ import {
   Link as LinkIcon,
   Play,
   Flag,
-  CalendarPlus,
-  CalendarX,
   Timer,
   Target,
 } from 'lucide-react';
@@ -223,49 +218,6 @@ const UserAvatar = ({
   );
 };
 
-const CurrentUserAvatar = ({
-  user,
-  size = 32,
-}: {
-  user: any;
-  size?: number;
-}) => {
-  const [imageError, setImageError] = useState(false);
-  const sizeClass =
-    size === 32 ? 'w-8 h-8' : size === 24 ? 'w-6 h-6' : 'w-10 h-10';
-
-  if (user?.user_metadata?.avatar_url && !imageError) {
-    return (
-      <Image
-        src={user.user_metadata.avatar_url}
-        alt={user.user_metadata?.full_name || 'You'}
-        width={size}
-        height={size}
-        className={`${sizeClass} rounded-full object-cover`}
-        onError={() => setImageError(true)}
-      />
-    );
-  }
-
-  const getInitials = () => {
-    if (!user?.user_metadata?.full_name) return 'Y';
-    return user.user_metadata.full_name
-      .split(' ')
-      .map((n: string) => n[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 2);
-  };
-
-  return (
-    <div
-      className={`${sizeClass} rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold shadow-sm`}
-    >
-      {getInitials()}
-    </div>
-  );
-};
-
 export function CardModal({
   card,
   isOpen,
@@ -367,6 +319,10 @@ export function CardModal({
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [showMemberPicker, setShowMemberPicker] = useState(false);
   const [workspaceId, setWorkspaceId] = useState<string>('');
+  const [isSavingMember, setIsSavingMember] = useState(false);
+  const [showDetailedMembers, setShowDetailedMembers] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [showMemberSearch, setShowMemberSearch] = useState(false);
 
   // Save warning modal state
   const [showSaveWarningModal, setShowSaveWarningModal] = useState(false);
@@ -384,7 +340,8 @@ export function CardModal({
       isUpdatingChecklistItem || // Checklist item being updated
       isDeletingChecklistItem || // Checklist item being deleted
       isAddingAttachment || // Attachment being added
-      isDeletingAttachment // Attachment being deleted
+      isDeletingAttachment || // Attachment being deleted
+      isSavingMember // Member being added/removed
     );
   };
 
@@ -1123,6 +1080,18 @@ export function CardModal({
     setCommentSortOrder('newest');
   };
 
+  // Filter members based on search query
+  const filteredCardMembers = React.useMemo(() => {
+    if (!memberSearchQuery.trim()) return cardMembers;
+
+    const query = memberSearchQuery.toLowerCase();
+    return cardMembers.filter((member) => {
+      const name = (member.profiles.full_name || '').toLowerCase();
+      const email = (member.profiles.email || '').toLowerCase();
+      return name.includes(query) || email.includes(query);
+    });
+  }, [cardMembers, memberSearchQuery]);
+
   // Date handling functions
   const handleSaveDates = (dates: {
     startDate?: string;
@@ -1709,12 +1678,33 @@ export function CardModal({
   };
 
   const handleMemberAdded = (member: CardMemberData) => {
+    // Set saving state
+    setIsSavingMember(true);
+
+    // Optimistic update - add member immediately
     setCardMembers((prev) => [...prev, member]);
     // Refresh activities to show the member addition
     fetchActivities();
+
+    // Clear saving state after a short delay (will be cleared properly when API responds)
+    setTimeout(() => setIsSavingMember(false), 1000);
   };
 
   const handleRemoveMember = async (profileId: string) => {
+    // Find the member being removed for potential rollback
+    const memberToRemove = cardMembers.find(
+      (member) => member.profiles.id === profileId
+    );
+    if (!memberToRemove) return;
+
+    // Set saving state
+    setIsSavingMember(true);
+
+    // Optimistic update - remove member immediately
+    setCardMembers((prev) =>
+      prev.filter((member) => member.profiles.id !== profileId)
+    );
+
     try {
       const response = await fetch(
         `/api/cards/${card.id}/members/${profileId}`,
@@ -1724,19 +1714,23 @@ export function CardModal({
       );
 
       if (response.ok) {
-        setCardMembers((prev) =>
-          prev.filter((member) => member.profiles.id !== profileId)
-        );
-        // Refresh activities to show the member removal
+        // Success - refresh activities to show the member removal
         fetchActivities();
       } else {
+        // Rollback on failure
+        setCardMembers((prev) => [...prev, memberToRemove]);
         const data = await response.json();
         console.error('Failed to remove member:', data.error);
         alert(`Failed to remove member: ${data.error}`);
       }
     } catch (error) {
+      // Rollback on error
+      setCardMembers((prev) => [...prev, memberToRemove]);
       console.error('Error removing member:', error);
       alert('Failed to remove member. Please try again.');
+    } finally {
+      // Clear saving state
+      setIsSavingMember(false);
     }
   };
 
@@ -2127,40 +2121,181 @@ export function CardModal({
                 </div>
 
                 {isLoadingMembers ? (
-                  <div className='flex items-center justify-center py-8'>
+                  <div className='flex items-center justify-center py-6'>
                     <div className='w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
                   </div>
                 ) : cardMembers.length > 0 ? (
-                  <div className='grid grid-cols-1 gap-2'>
-                    {cardMembers.map((member) => (
-                      <div
-                        key={member.id}
-                        className='flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border/50 hover:bg-muted/50 transition-colors group'
-                      >
-                        <UserAvatar profile={member.profiles} size={32} />
-                        <div className='flex-1 min-w-0'>
-                          <p className='text-sm font-medium text-foreground truncate'>
-                            {member.profiles.full_name || 'Unknown User'}
-                          </p>
-                          <p className='text-xs text-muted-foreground truncate'>
-                            {member.profiles.email}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveMember(member.profiles.id)}
-                          className='p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors opacity-0 group-hover:opacity-100'
-                          title='Remove member'
-                        >
-                          <X className='w-3 h-3' />
-                        </button>
+                  <div className='space-y-3'>
+                    {/* Stacked Avatars Display */}
+                    <div className='flex items-center gap-2'>
+                      <div className='flex -space-x-2'>
+                        {cardMembers.slice(0, 5).map((member, index) => (
+                          <div
+                            key={member.id}
+                            className='relative group/avatar'
+                            style={{
+                              zIndex: cardMembers.length - index,
+                              animationDelay: `${index * 100}ms`,
+                            }}
+                          >
+                            <div className='relative'>
+                              <UserAvatar profile={member.profiles} size={40} />
+                              <div className='absolute inset-0 rounded-full border-2 border-white dark:border-gray-800 group-hover/avatar:border-primary transition-colors'></div>
+                            </div>
+
+                            {/* Hover Tooltip - Simple right positioning */}
+                            <div className='absolute left-full top-1/2 transform -translate-y-1/2 ml-3 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-xl opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200 pointer-events-none z-[100] whitespace-nowrap'>
+                              <div className='font-medium'>
+                                {member.profiles.full_name || 'Unknown User'}
+                              </div>
+                              <div className='text-xs text-gray-300'>
+                                {member.profiles.email}
+                              </div>
+                              {/* Left arrow pointing to avatar */}
+                              <div className='absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900'></div>
+                            </div>
+                          </div>
+                        ))}
+                        {cardMembers.length > 5 && (
+                          <div className='w-10 h-10 rounded-full bg-muted border-2 border-white dark:border-gray-800 flex items-center justify-center text-xs font-medium text-muted-foreground'>
+                            +{cardMembers.length - 5}
+                          </div>
+                        )}
                       </div>
-                    ))}
+                      <span className='text-sm text-muted-foreground ml-2'>
+                        {cardMembers.length} member
+                        {cardMembers.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+
+                    {/* Detailed Member List (Initially Hidden) */}
+                    <div className='space-y-2'>
+                      <div className='flex items-center justify-between'>
+                        <button
+                          onClick={() => {
+                            setShowDetailedMembers(!showDetailedMembers);
+                            // Clear search when hiding details
+                            if (showDetailedMembers) {
+                              setMemberSearchQuery('');
+                              setShowMemberSearch(false);
+                            }
+                          }}
+                          className='flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors'
+                        >
+                          {showDetailedMembers ? (
+                            <>
+                              <ChevronUp className='w-4 h-4' />
+                              Hide details
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className='w-4 h-4' />
+                              Show details
+                            </>
+                          )}
+                        </button>
+
+                        {showDetailedMembers && cardMembers.length > 0 && (
+                          <button
+                            onClick={() => {
+                              setShowMemberSearch(!showMemberSearch);
+                              // Clear search when toggling search off
+                              if (showMemberSearch) {
+                                setMemberSearchQuery('');
+                              }
+                            }}
+                            className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all duration-200'
+                            title='Search members'
+                          >
+                            <Search className='w-4 h-4' />
+                          </button>
+                        )}
+                      </div>
+
+                      {showDetailedMembers && (
+                        <div className='space-y-2 animate-in slide-in-from-top-2 duration-200'>
+                          {/* Search Input */}
+                          {showMemberSearch && (
+                            <div className='relative'>
+                              <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground' />
+                              <input
+                                type='text'
+                                placeholder='Search by name or email...'
+                                value={memberSearchQuery}
+                                onChange={(e) =>
+                                  setMemberSearchQuery(e.target.value)
+                                }
+                                className='w-full pl-10 pr-4 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary'
+                                autoFocus
+                              />
+                              {memberSearchQuery && (
+                                <button
+                                  onClick={() => setMemberSearchQuery('')}
+                                  className='absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground'
+                                  title='Clear search'
+                                >
+                                  <X className='w-4 h-4' />
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Members List */}
+                          {filteredCardMembers.length > 0 ? (
+                            filteredCardMembers.map((member, index) => (
+                              <div
+                                key={member.id}
+                                className='flex items-center gap-3 p-2.5 bg-gradient-to-r from-muted/20 to-muted/30 rounded-xl border border-border/30 hover:border-border/60 hover:from-muted/30 hover:to-muted/40 transition-all duration-200 group animate-slide-in-left'
+                                style={{
+                                  animationDelay: `${index * 50}ms`,
+                                }}
+                              >
+                                <UserAvatar
+                                  profile={member.profiles}
+                                  size={36}
+                                />
+                                <div className='flex-1 min-w-0'>
+                                  <p className='text-sm font-semibold text-foreground truncate'>
+                                    {member.profiles.full_name ||
+                                      'Unknown User'}
+                                  </p>
+                                  <p className='text-xs text-muted-foreground truncate opacity-80'>
+                                    {member.profiles.email}
+                                  </p>
+                                </div>
+                                <div className='flex items-center gap-1'>
+                                  <button
+                                    onClick={() =>
+                                      handleRemoveMember(member.profiles.id)
+                                    }
+                                    className='p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100'
+                                    title='Remove member'
+                                  >
+                                    <X className='w-3.5 h-3.5' />
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className='text-center py-4 text-muted-foreground'>
+                              <Search className='w-8 h-8 mx-auto mb-2 opacity-50' />
+                              <p className='text-sm'>No members found</p>
+                              <p className='text-xs opacity-75'>
+                                Try adjusting your search terms
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className='text-center py-8 text-muted-foreground'>
-                    <User className='w-8 h-8 mx-auto mb-2 opacity-50' />
-                    <p className='text-sm'>No members assigned to this card</p>
-                    <p className='text-xs'>
+                    <div className='w-12 h-12 mx-auto mb-3 bg-muted/30 rounded-full flex items-center justify-center'>
+                      <User className='w-6 h-6 opacity-60' />
+                    </div>
+                    <p className='text-sm font-medium'>No members assigned</p>
+                    <p className='text-xs opacity-70 mt-1'>
                       Click "Add" to assign workspace members
                     </p>
                   </div>
@@ -3353,6 +3488,8 @@ export function CardModal({
           cardId={card.id}
           currentMembers={cardMembers}
           onMemberAdded={handleMemberAdded}
+          autoCloseAfterAdd={false}
+          allowMultipleSelections={true}
         />
 
         {/* Attachment Modal */}

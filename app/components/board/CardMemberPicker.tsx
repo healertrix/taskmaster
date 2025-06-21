@@ -35,6 +35,8 @@ interface CardMemberPickerProps {
   currentMembers: CardMemberData[];
   onMemberAdded: (member: CardMemberData) => void;
   isLoading?: boolean;
+  autoCloseAfterAdd?: boolean;
+  allowMultipleSelections?: boolean;
 }
 
 const UserAvatar = ({
@@ -88,11 +90,15 @@ export function CardMemberPicker({
   currentMembers,
   onMemberAdded,
   isLoading = false,
+  autoCloseAfterAdd = false,
+  allowMultipleSelections = true,
 }: CardMemberPickerProps) {
   const [availableMembers, setAvailableMembers] = useState<MemberData[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [addingMemberIds, setAddingMemberIds] = useState<Set<string>>(
+    new Set()
+  );
 
   // Get current member IDs for filtering
   const currentMemberIds = new Set(
@@ -158,7 +164,29 @@ export function CardMemberPicker({
   };
 
   const handleAddMember = async (profileId: string) => {
-    setIsAddingMember(true);
+    // Find the member being added for optimistic update
+    const memberToAdd = availableMembers.find(
+      (member) => member.profiles.id === profileId
+    );
+    if (!memberToAdd) return;
+
+    // Optimistic update - remove from available list immediately
+    setAvailableMembers((prev) =>
+      prev.filter((member) => member.profiles.id !== profileId)
+    );
+
+    // Create optimistic member data
+    const optimisticMember = {
+      id: `temp-${Date.now()}`, // Temporary ID
+      created_at: new Date().toISOString(),
+      profiles: memberToAdd.profiles,
+    };
+
+    // Add this member ID to the adding set
+    setAddingMemberIds((prev) => new Set(prev).add(profileId));
+
+    // Add to current members optimistically
+    onMemberAdded(optimisticMember);
     try {
       const response = await fetch(`/api/cards/${cardId}/members`, {
         method: 'POST',
@@ -173,20 +201,31 @@ export function CardMemberPicker({
       const data = await response.json();
 
       if (response.ok) {
-        onMemberAdded(data.member);
-        // Remove the added member from available members
-        setAvailableMembers((prev) =>
-          prev.filter((member) => member.profiles.id !== profileId)
-        );
+        // Replace optimistic member with real data
+        // This will be handled by the parent component
+
+        // Auto-close modal after successful addition (only if not allowing multiple selections)
+        if (autoCloseAfterAdd && !allowMultipleSelections) {
+          setTimeout(() => onClose(), 300); // Small delay for better UX
+        }
       } else {
+        // Rollback optimistic updates
+        setAvailableMembers((prev) => [...prev, memberToAdd]);
         console.error('Failed to add member:', data.error);
         alert(`Failed to add member: ${data.error}`);
       }
     } catch (error) {
+      // Rollback optimistic updates
+      setAvailableMembers((prev) => [...prev, memberToAdd]);
       console.error('Error adding member:', error);
       alert('Failed to add member. Please try again.');
     } finally {
-      setIsAddingMember(false);
+      // Remove this member ID from the adding set
+      setAddingMemberIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(profileId);
+        return newSet;
+      });
     }
   };
 
@@ -203,20 +242,34 @@ export function CardMemberPicker({
                 <User className='w-4 h-4' />
               </div>
               <div>
-                <h3 className='text-lg font-semibold'>Add Card Member</h3>
+                <h3 className='text-lg font-semibold'>Add Card Members</h3>
                 <p className='text-sm text-white/80'>
-                  Assign workspace members to this card
+                  {allowMultipleSelections
+                    ? 'Select multiple members, then click "Done"'
+                    : 'Assign workspace members to this card'}
                 </p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className='p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200'
-              title='Close modal'
-              disabled={isLoading || isAddingMember}
-            >
-              <X className='w-5 h-5' />
-            </button>
+            <div className='flex items-center gap-2'>
+              {allowMultipleSelections && (
+                <button
+                  onClick={onClose}
+                  className='px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all duration-200 font-medium text-sm backdrop-blur-sm'
+                  title='Finish adding members'
+                  disabled={isLoading || addingMemberIds.size > 0}
+                >
+                  Done
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className='p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200'
+                title='Close modal'
+                disabled={isLoading || addingMemberIds.size > 0}
+              >
+                <X className='w-5 h-5' />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -231,7 +284,7 @@ export function CardMemberPicker({
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder='Search members...'
               className='w-full bg-background border border-border rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200'
-              disabled={isLoadingMembers || isAddingMember}
+              disabled={isLoadingMembers || addingMemberIds.size > 0}
             />
           </div>
 
@@ -242,35 +295,53 @@ export function CardMemberPicker({
                 <div className='w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
               </div>
             ) : filteredMembers.length > 0 ? (
-              filteredMembers.map((member) => (
+              filteredMembers.map((member, index) => (
                 <div
                   key={member.profiles.id}
-                  className='flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border/50 hover:bg-muted/50 transition-colors group'
+                  className='flex items-center gap-3 p-3 bg-gradient-to-r from-background to-muted/20 rounded-xl border border-border/30 hover:border-border/60 hover:from-muted/20 hover:to-muted/30 transition-all duration-200 group animate-slide-in-right'
+                  style={{
+                    animationDelay: `${index * 30}ms`,
+                  }}
                 >
-                  <UserAvatar profile={member.profiles} size={32} />
+                  <UserAvatar profile={member.profiles} size={40} />
                   <div className='flex-1 min-w-0'>
-                    <p className='text-sm font-medium text-foreground truncate'>
+                    <p className='text-sm font-semibold text-foreground truncate'>
                       {member.profiles.full_name || 'Unknown User'}
                     </p>
-                    <p className='text-xs text-muted-foreground truncate'>
+                    <p className='text-xs text-muted-foreground truncate opacity-80'>
                       {member.profiles.email}
                     </p>
-                    <p className='text-xs text-muted-foreground capitalize'>
-                      {member.role}
-                    </p>
+                    <div className='flex items-center gap-2 mt-1'>
+                      <span className='text-xs px-2 py-0.5 bg-secondary/60 text-secondary-foreground rounded-full font-medium capitalize'>
+                        {member.role}
+                      </span>
+                    </div>
                   </div>
                   <button
                     onClick={() => handleAddMember(member.profiles.id)}
-                    disabled={isAddingMember}
-                    className='flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-primary hover:text-primary-foreground hover:bg-primary rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
-                    title='Add to card'
+                    disabled={addingMemberIds.has(member.profiles.id)}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-all duration-200 disabled:cursor-not-allowed transform ${
+                      addingMemberIds.has(member.profiles.id)
+                        ? 'bg-green-500 scale-95 shadow-lg'
+                        : 'bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary hover:scale-105 active:scale-95'
+                    }`}
+                    title={
+                      addingMemberIds.has(member.profiles.id)
+                        ? 'Adding member...'
+                        : 'Add to card'
+                    }
                   >
-                    {isAddingMember ? (
-                      <div className='w-3 h-3 border border-current border-t-transparent rounded-full animate-spin' />
+                    {addingMemberIds.has(member.profiles.id) ? (
+                      <>
+                        <div className='w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                        Added!
+                      </>
                     ) : (
-                      <Plus className='w-3 h-3' />
+                      <>
+                        <Plus className='w-4 h-4' />
+                        Add
+                      </>
                     )}
-                    Add
                   </button>
                 </div>
               ))
