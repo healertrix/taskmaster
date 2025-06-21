@@ -19,7 +19,6 @@ import {
   Check,
   CheckCircle2,
   AlertCircle,
-  Bug,
   Trash2,
   UserMinus,
 } from 'lucide-react';
@@ -79,7 +78,7 @@ export default function WorkspaceMembersPage() {
   );
   const [isSearching, setIsSearching] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState(false);
-  const [showDebugInfo, setShowDebugInfo] = useState(false);
+
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<WorkspaceMember | null>(
     null
@@ -155,17 +154,11 @@ export default function WorkspaceMembersPage() {
           .eq('workspace_id', workspaceId)
           .order('created_at', { ascending: true });
 
-        console.log('=== MEMBERS FETCH DEBUG ===');
-        console.log('Members query error:', membersError);
-        console.log('Members query data:', membersData);
-        console.log('Workspace owner_id:', workspaceData.owner_id);
-
         if (membersError) {
           console.error('Error fetching members:', membersError);
           setMembers([]); // Set empty array on error
         } else {
           let allMembers = membersData || [];
-          console.log('Raw members from DB:', allMembers);
 
           // Fetch all profiles for the members
           if (allMembers.length > 0) {
@@ -174,9 +167,6 @@ export default function WorkspaceMembersPage() {
               .from('profiles')
               .select('*')
               .in('id', profileIds);
-
-            console.log('Profiles fetch error:', profilesError);
-            console.log('Profiles data:', profilesData);
 
             if (!profilesError && profilesData) {
               // Attach profiles to members
@@ -203,7 +193,35 @@ export default function WorkspaceMembersPage() {
               : member
           );
 
-          console.log('Final members list with profiles:', allMembers);
+          // Ensure workspace owner is always included in the members list
+          const ownerExists = allMembers.some(
+            (member) => member.profile_id === workspaceData.owner_id
+          );
+
+          if (!ownerExists) {
+            // Fetch owner's profile
+            const { data: ownerProfile, error: ownerProfileError } =
+              await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', workspaceData.owner_id)
+                .single();
+
+            if (!ownerProfileError && ownerProfile) {
+              // Add owner to members list
+              const ownerMember: WorkspaceMember = {
+                id: `owner-${workspaceData.owner_id}`, // synthetic ID
+                workspace_id: workspaceId,
+                profile_id: workspaceData.owner_id,
+                role: 'owner',
+                created_at:
+                  workspaceData.created_at || new Date().toISOString(),
+                profile: ownerProfile,
+              };
+              allMembers.unshift(ownerMember); // Add owner at the beginning
+            }
+          }
+
           setMembers(allMembers);
         }
 
@@ -473,33 +491,6 @@ export default function WorkspaceMembersPage() {
     }
   };
 
-  const handleDebugInfo = () => {
-    setShowDebugInfo(!showDebugInfo);
-
-    if (!showDebugInfo) {
-      console.log('=== WORKSPACE DEBUG INFO ===');
-      console.log('Workspace ID:', workspaceId);
-      console.log('Workspace Data:', workspace);
-      console.log('Current User ID:', currentUser);
-      console.log('Current User Role:', currentUserRole);
-      console.log('Members Count:', members.length);
-      console.log(
-        'Members:',
-        members.map((m) => ({
-          id: m.id,
-          profile_id: m.profile_id,
-          role: m.role,
-          email: m.profile.email,
-          name: m.profile.full_name,
-        }))
-      );
-      console.log('Invitations:', invitations);
-      console.log('Can Add Members:', canAddMembers);
-      console.log('Can Manage Members:', canManageMembers);
-      console.log('=== END DEBUG INFO ===');
-    }
-  };
-
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'owner':
@@ -577,18 +568,6 @@ export default function WorkspaceMembersPage() {
           </div>
 
           <div className='flex items-center gap-3'>
-            {/* Debug Button */}
-            <button
-              onClick={handleDebugInfo}
-              className={`btn ${
-                showDebugInfo ? 'btn-secondary' : 'btn-ghost'
-              } flex items-center gap-2`}
-              title='Debug workspace members info'
-            >
-              <Bug className='w-4 h-4' />
-              Debug
-            </button>
-
             {canAddMembers && (
               <button
                 onClick={() => setShowAddMemberModal(true)}
@@ -617,76 +596,6 @@ export default function WorkspaceMembersPage() {
         </div>
 
         <div className='space-y-6'>
-          {/* Debug Info Panel */}
-          {showDebugInfo && (
-            <div className='card p-6 bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800'>
-              <h2 className='text-lg font-semibold mb-4 text-yellow-800 dark:text-yellow-200 flex items-center gap-2'>
-                <Bug className='w-5 h-5' />
-                Debug Information
-              </h2>
-              <div className='grid grid-cols-1 md:grid-cols-2 gap-4 text-sm'>
-                <div>
-                  <strong>Workspace:</strong>
-                  <pre className='bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded mt-1 text-xs overflow-auto'>
-                    {JSON.stringify(
-                      {
-                        id: workspace?.id,
-                        name: workspace?.name,
-                        owner_id: workspace?.owner_id,
-                        color: workspace?.color,
-                      },
-                      null,
-                      2
-                    )}
-                  </pre>
-                </div>
-                <div>
-                  <strong>Current User:</strong>
-                  <pre className='bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded mt-1 text-xs overflow-auto'>
-                    {JSON.stringify(
-                      {
-                        user_id: currentUser,
-                        role: currentUserRole,
-                        can_add_members: canAddMembers,
-                        can_manage: canManageMembers,
-                      },
-                      null,
-                      2
-                    )}
-                  </pre>
-                </div>
-                <div className='md:col-span-2'>
-                  <strong>Members ({members.length}):</strong>
-                  <pre className='bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded mt-1 text-xs overflow-auto max-h-40'>
-                    {JSON.stringify(
-                      members.map((m) => ({
-                        id: m.id,
-                        profile_id: m.profile_id,
-                        role: m.role,
-                        email: m.profile.email,
-                        name: m.profile.full_name,
-                        created_at: m.created_at,
-                      })),
-                      null,
-                      2
-                    )}
-                  </pre>
-                </div>
-                {invitations.length > 0 && (
-                  <div className='md:col-span-2'>
-                    <strong>Invitations ({invitations.length}):</strong>
-                    <pre className='bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded mt-1 text-xs overflow-auto max-h-32'>
-                      {JSON.stringify(invitations, null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </div>
-              <p className='text-xs text-yellow-700 dark:text-yellow-300 mt-4'>
-                💡 Check the browser console for detailed logs
-              </p>
-            </div>
-          )}
-
           {/* Members List */}
           <div className='card p-6'>
             <h2 className='text-lg font-semibold mb-4'>
@@ -735,10 +644,13 @@ export default function WorkspaceMembersPage() {
                       {canManageMembers &&
                         member.profile_id !== currentUser && (
                           <div className='flex items-center gap-2'>
-                            <button className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'>
-                              Change
-                              <ChevronRight className='w-4 h-4' />
-                            </button>
+                            {/* Don't show Change button for owners */}
+                            {member.role !== 'owner' && (
+                              <button className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'>
+                                Change
+                                <ChevronRight className='w-4 h-4' />
+                              </button>
+                            )}
                             {/* Only show remove button for owners/admins, and prevent removing last owner */}
                             {['owner', 'admin'].includes(currentUserRole) &&
                               !(
@@ -748,10 +660,6 @@ export default function WorkspaceMembersPage() {
                               ) && (
                                 <button
                                   onClick={() => {
-                                    console.log(
-                                      'Setting member to remove:',
-                                      member
-                                    );
                                     setMemberToRemove(member);
                                     setShowRemoveConfirm(true);
                                   }}

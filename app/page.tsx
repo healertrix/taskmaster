@@ -91,44 +91,65 @@ export default function HomePage() {
         }
 
         if (workspaceData) {
-          // Fetch boards for all workspaces
-          const workspaceIds = workspaceData.map((wm) => wm.workspaces.id);
-          const { data: boardsData, error: boardsError } = await supabase
-            .from('boards')
-            .select('id, name, color, workspace_id')
-            .in('workspace_id', workspaceIds);
+          // Query workspaces directly using workspace IDs from memberships
+          // This avoids RLS circular dependency issues
+          const workspaceIds = workspaceData.map((wm) => wm.workspace_id);
 
-          if (boardsError) {
-            console.error('Error fetching boards:', boardsError);
-          }
+          // Query workspaces directly (this will work with the simplified RLS policies)
+          const { data: directWorkspaceData, error: directWorkspaceError } =
+            await supabase
+              .from('workspaces')
+              .select('id, name, color, owner_id, visibility')
+              .in('id', workspaceIds);
 
-          // Group boards by workspace
-          const boardsByWorkspace = (boardsData || []).reduce((acc, board) => {
-            if (!acc[board.workspace_id]) {
-              acc[board.workspace_id] = [];
-            }
-            acc[board.workspace_id].push({
-              id: board.id,
-              name: board.name,
-              color: board.color,
+          if (directWorkspaceError) {
+            console.error(
+              'Error fetching workspaces directly:',
+              directWorkspaceError
+            );
+            // Fall back to the original approach
+            const validWorkspaceData = workspaceData.filter(
+              (wm) => wm.workspaces !== null
+            );
+            const workspaceIds = validWorkspaceData.map(
+              (wm) => wm.workspaces.id
+            );
+
+            const mappedWorkspaces = validWorkspaceData.map((wm) => ({
+              id: wm.workspaces.id,
+              name: wm.workspaces.name,
+              initial: wm.workspaces.name.charAt(0).toUpperCase(),
+              color: wm.workspaces.color,
+              boards: [],
+              members: [],
+            }));
+
+            setUserWorkspaces(mappedWorkspaces);
+            await fetchWorkspaceBoards(workspaceIds);
+          } else {
+            // SUCCESS: Use direct workspace data
+            const mappedWorkspaces = directWorkspaceData.map((workspace) => {
+              // Find the corresponding membership data
+              const membership = workspaceData.find(
+                (wm) => wm.workspace_id === workspace.id
+              );
+              return {
+                id: workspace.id,
+                name: workspace.name,
+                initial: workspace.name.charAt(0).toUpperCase(),
+                color: workspace.color,
+                role: membership?.role || 'member',
+                boards: [],
+                members: [],
+              };
             });
-            return acc;
-          }, {} as Record<string, any[]>);
 
-          // Map the data to match our workspace structure
-          const mappedWorkspaces = workspaceData.map((wm) => ({
-            id: wm.workspaces.id,
-            name: wm.workspaces.name,
-            initial: wm.workspaces.name.charAt(0).toUpperCase(),
-            color: wm.workspaces.color,
-            boards: boardsByWorkspace[wm.workspaces.id] || [],
-            members: [], // Simplified - no member count display
-          }));
+            setUserWorkspaces(mappedWorkspaces);
 
-          setUserWorkspaces(mappedWorkspaces);
-
-          // Fetch workspace boards with starred status (reuse existing workspaceIds)
-          await fetchWorkspaceBoards(workspaceIds);
+            // Fetch boards for all workspaces
+            const workspaceIds = directWorkspaceData.map((w) => w.id);
+            await fetchWorkspaceBoards(workspaceIds);
+          }
         }
       }
     } catch (error) {
@@ -137,6 +158,11 @@ export default function HomePage() {
       setIsLoading(false);
     }
   }, [fetchWorkspaceBoards]);
+
+  // Debug: Log userWorkspaces state changes
+  useEffect(() => {
+    console.log('🔍 DEBUG: userWorkspaces state updated:', userWorkspaces);
+  }, [userWorkspaces]);
 
   // Fetch user workspaces on component mount
   useEffect(() => {
@@ -509,178 +535,185 @@ export default function HomePage() {
             </section>
 
             {/* Workspaces Section */}
-            {userWorkspaces.map((workspace) => (
-              <section
-                key={workspace.id}
-                id={`workspace-${workspace.id}`}
-                className='mb-12 scroll-mt-24 pt-4'
-                style={{ scrollMarginTop: '6rem' }}
-              >
-                <div className='flex items-center justify-between mb-5'>
-                  <Link
-                    href={`/boards/${workspace.id}`}
-                    className='flex items-center gap-2.5 text-xl font-semibold text-foreground hover:text-primary transition-colors group'
-                  >
-                    <div
-                      className={`w-6 h-6 ${
-                        getColorDisplay(workspace.color).isCustom
-                          ? ''
-                          : getColorDisplay(workspace.color).className
-                      } rounded-lg text-white flex items-center justify-center text-xs font-bold shadow-md group-hover:scale-105 transition-transform`}
-                      style={getColorDisplay(workspace.color).style}
+            {(() => {
+              console.log(
+                '🔍 DEBUG: About to render workspaces. userWorkspaces.length:',
+                userWorkspaces.length,
+                userWorkspaces
+              );
+              return userWorkspaces.map((workspace) => (
+                <section
+                  key={workspace.id}
+                  id={`workspace-${workspace.id}`}
+                  className='mb-12 scroll-mt-24 pt-4'
+                  style={{ scrollMarginTop: '6rem' }}
+                >
+                  <div className='flex items-center justify-between mb-5'>
+                    <Link
+                      href={`/boards/${workspace.id}`}
+                      className='flex items-center gap-2.5 text-xl font-semibold text-foreground hover:text-primary transition-colors group'
                     >
-                      {workspace.initial}
-                    </div>
-                    {workspace.name}
-                  </Link>
-                  <div className='flex items-center gap-2'>
-                    {(workspaceBoards[workspace.id] || workspace.boards)
-                      .length > 6 && (
-                      <Link
-                        href={`/boards/${workspace.id}`}
-                        className='text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 mr-2'
+                      <div
+                        className={`w-6 h-6 ${
+                          getColorDisplay(workspace.color).isCustom
+                            ? ''
+                            : getColorDisplay(workspace.color).className
+                        } rounded-lg text-white flex items-center justify-center text-xs font-bold shadow-md group-hover:scale-105 transition-transform`}
+                        style={getColorDisplay(workspace.color).style}
                       >
-                        View all boards
-                        <ChevronRight className='w-3 h-3' />
-                      </Link>
-                    )}
-                    <Link
-                      href={`/workspace/${workspace.id}/members`}
-                      className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
-                      aria-label='Workspace members'
-                      title='Workspace members'
-                    >
-                      <Users className='w-4 h-4' />
+                        {workspace.initial}
+                      </div>
+                      {workspace.name}
                     </Link>
-                    <Link
-                      href={`/workspace/${workspace.id}/settings`}
-                      className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
-                      aria-label='Workspace settings'
-                      title='Workspace settings'
-                    >
-                      <Settings className='w-4 h-4' />
-                    </Link>
-                  </div>
-                </div>
-
-                <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
-                  {(() => {
-                    const allBoards =
-                      workspaceBoards[workspace.id] || workspace.boards;
-                    // If more than 6 boards, sort by latest (updated_at) and take first 5
-                    // Otherwise, show all boards
-                    const boardsToShow =
-                      allBoards.length > 6
-                        ? [...allBoards]
-                            .sort(
-                              (a, b) =>
-                                new Date(b.updated_at || '').getTime() -
-                                new Date(a.updated_at || '').getTime()
-                            )
-                            .slice(0, 5)
-                        : allBoards;
-
-                    return boardsToShow.map((board) => {
-                      // Always ensure we have starred status - prefer workspaceBoards data
-                      let boardForCard = board;
-
-                      // If we're using fallback data, try to find starred status
-                      if (
-                        !workspaceBoards[workspace.id] &&
-                        !board.hasOwnProperty('starred')
-                      ) {
-                        // Check if this board is in starred boards to get starred status
-                        const starredBoard = starredBoards.find(
-                          (sb) => sb.id === board.id
-                        );
-                        boardForCard = {
-                          id: board.id,
-                          name: board.name,
-                          color: board.color,
-                          starred: starredBoard ? true : false,
-                        };
-                      }
-                      return (
+                    <div className='flex items-center gap-2'>
+                      {(workspaceBoards[workspace.id] || workspace.boards)
+                        .length > 6 && (
                         <Link
-                          key={board.id}
-                          href={`/board/${board.id}?from=workspace&workspaceId=${workspace.id}`}
-                          className='group relative block p-5 rounded-xl card card-hover h-32 overflow-hidden transition-all duration-200'
+                          href={`/boards/${workspace.id}`}
+                          className='text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 mr-2'
                         >
-                          {/* Color bar at top */}
-                          <div
-                            className={`absolute top-0 left-0 right-0 h-1.5 ${board.color}`}
-                          ></div>
-
-                          {/* Content */}
-                          <div className='relative z-10 flex flex-col justify-between h-full'>
-                            <div>
-                              <h3 className='font-semibold text-foreground truncate pr-8'>
-                                {board.name}
-                              </h3>
-                            </div>
-
-                            {/* Star button */}
-                            <div className='flex justify-end relative z-20'>
-                              <button
-                                className={`relative z-30 p-2 rounded-full transition-all duration-200 ${
-                                  boardForCard.starred
-                                    ? 'text-yellow-400 hover:text-yellow-500'
-                                    : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100 hover:text-yellow-400'
-                                } hover:bg-yellow-400/10`}
-                                onClick={async (e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  // Use the main toggleBoardStar function to ensure all sections sync
-                                  await toggleBoardStar(board.id);
-                                  // Always refetch workspace boards to update local state
-                                  await fetchWorkspaceBoards([workspace.id]);
-                                  // Also refetch main board data to keep everything in sync
-                                  await refetchBoards();
-                                }}
-                                aria-label={
-                                  boardForCard.starred
-                                    ? 'Unstar board'
-                                    : 'Star board'
-                                }
-                                title={
-                                  boardForCard.starred
-                                    ? 'Unstar board'
-                                    : 'Star board'
-                                }
-                                style={{ pointerEvents: 'auto' }}
-                              >
-                                <Star
-                                  className='w-4 h-4'
-                                  fill={
-                                    boardForCard.starred
-                                      ? 'currentColor'
-                                      : 'none'
-                                  }
-                                  stroke='currentColor'
-                                />
-                              </button>
-                            </div>
-                          </div>
+                          View all boards
+                          <ChevronRight className='w-3 h-3' />
                         </Link>
-                      );
-                    });
-                  })()}
-
-                  {/* Create New Board (in workspace) */}
-                  <button
-                    onClick={() => handleCreateBoardInWorkspace(workspace)}
-                    className='h-32 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
-                  >
-                    <div className='w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors'>
-                      <Plus className='w-5 h-5 text-primary' />
+                      )}
+                      <Link
+                        href={`/workspace/${workspace.id}/members`}
+                        className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+                        aria-label='Workspace members'
+                        title='Workspace members'
+                      >
+                        <Users className='w-4 h-4' />
+                      </Link>
+                      <Link
+                        href={`/workspace/${workspace.id}/settings`}
+                        className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+                        aria-label='Workspace settings'
+                        title='Workspace settings'
+                      >
+                        <Settings className='w-4 h-4' />
+                      </Link>
                     </div>
-                    <span className='font-medium text-sm'>
-                      Create New Board
-                    </span>
-                  </button>
-                </div>
-              </section>
-            ))}
+                  </div>
+
+                  <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
+                    {(() => {
+                      const allBoards =
+                        workspaceBoards[workspace.id] || workspace.boards;
+                      // If more than 6 boards, sort by latest (updated_at) and take first 5
+                      // Otherwise, show all boards
+                      const boardsToShow =
+                        allBoards.length > 6
+                          ? [...allBoards]
+                              .sort(
+                                (a, b) =>
+                                  new Date(b.updated_at || '').getTime() -
+                                  new Date(a.updated_at || '').getTime()
+                              )
+                              .slice(0, 5)
+                          : allBoards;
+
+                      return boardsToShow.map((board) => {
+                        // Always ensure we have starred status - prefer workspaceBoards data
+                        let boardForCard = board;
+
+                        // If we're using fallback data, try to find starred status
+                        if (
+                          !workspaceBoards[workspace.id] &&
+                          !board.hasOwnProperty('starred')
+                        ) {
+                          // Check if this board is in starred boards to get starred status
+                          const starredBoard = starredBoards.find(
+                            (sb) => sb.id === board.id
+                          );
+                          boardForCard = {
+                            id: board.id,
+                            name: board.name,
+                            color: board.color,
+                            starred: starredBoard ? true : false,
+                          };
+                        }
+                        return (
+                          <Link
+                            key={board.id}
+                            href={`/board/${board.id}?from=workspace&workspaceId=${workspace.id}`}
+                            className='group relative block p-5 rounded-xl card card-hover h-32 overflow-hidden transition-all duration-200'
+                          >
+                            {/* Color bar at top */}
+                            <div
+                              className={`absolute top-0 left-0 right-0 h-1.5 ${board.color}`}
+                            ></div>
+
+                            {/* Content */}
+                            <div className='relative z-10 flex flex-col justify-between h-full'>
+                              <div>
+                                <h3 className='font-semibold text-foreground truncate pr-8'>
+                                  {board.name}
+                                </h3>
+                              </div>
+
+                              {/* Star button */}
+                              <div className='flex justify-end relative z-20'>
+                                <button
+                                  className={`relative z-30 p-2 rounded-full transition-all duration-200 ${
+                                    boardForCard.starred
+                                      ? 'text-yellow-400 hover:text-yellow-500'
+                                      : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100 hover:text-yellow-400'
+                                  } hover:bg-yellow-400/10`}
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    // Use the main toggleBoardStar function to ensure all sections sync
+                                    await toggleBoardStar(board.id);
+                                    // Always refetch workspace boards to update local state
+                                    await fetchWorkspaceBoards([workspace.id]);
+                                    // Also refetch main board data to keep everything in sync
+                                    await refetchBoards();
+                                  }}
+                                  aria-label={
+                                    boardForCard.starred
+                                      ? 'Unstar board'
+                                      : 'Star board'
+                                  }
+                                  title={
+                                    boardForCard.starred
+                                      ? 'Unstar board'
+                                      : 'Star board'
+                                  }
+                                  style={{ pointerEvents: 'auto' }}
+                                >
+                                  <Star
+                                    className='w-4 h-4'
+                                    fill={
+                                      boardForCard.starred
+                                        ? 'currentColor'
+                                        : 'none'
+                                    }
+                                    stroke='currentColor'
+                                  />
+                                </button>
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                      });
+                    })()}
+
+                    {/* Create New Board (in workspace) */}
+                    <button
+                      onClick={() => handleCreateBoardInWorkspace(workspace)}
+                      className='h-32 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
+                    >
+                      <div className='w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors'>
+                        <Plus className='w-5 h-5 text-primary' />
+                      </div>
+                      <span className='font-medium text-sm'>
+                        Create New Board
+                      </span>
+                    </button>
+                  </div>
+                </section>
+              ));
+            })()}
           </div>
         </div>
       </main>

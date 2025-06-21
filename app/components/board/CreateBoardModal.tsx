@@ -625,8 +625,25 @@ export function CreateBoardModal({
                   isLoading ||
                   !name.trim() ||
                   !selectedWorkspaceId ||
-                  workspacesLoading
+                  workspacesLoading ||
+                  (() => {
+                    const selectedWorkspace = availableWorkspaces.find(
+                      (w) => w.id === selectedWorkspaceId
+                    );
+                    return (
+                      selectedWorkspace && !selectedWorkspace.canCreateBoards
+                    );
+                  })()
                 }
+                title={(() => {
+                  const selectedWorkspace = availableWorkspaces.find(
+                    (w) => w.id === selectedWorkspaceId
+                  );
+                  if (selectedWorkspace && !selectedWorkspace.canCreateBoards) {
+                    return `You don't have permission to create boards in this workspace. ${selectedWorkspace.boardCreationInfo.reason}`;
+                  }
+                  return '';
+                })()}
               >
                 {isLoading ? (
                   <div className='flex items-center gap-2'>
