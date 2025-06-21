@@ -42,18 +42,57 @@ export async function PUT(
       return NextResponse.json({ error: 'Card not found' }, { status: 404 });
     }
 
-    // Check if user is a board member
-    const { data: membership, error: membershipError } = await supabase
-      .from('board_members')
-      .select('id')
-      .eq('board_id', card.board_id)
-      .eq('profile_id', user.id)
+    // Get board details to check visibility and workspace
+    const { data: board, error: boardError } = await supabase
+      .from('boards')
+      .select('id, workspace_id, visibility, owner_id')
+      .eq('id', card.board_id)
       .single();
 
-    if (membershipError || !membership) {
-      console.log('Access denied - not a board member:', membershipError);
+    if (boardError || !board) {
+      return NextResponse.json({ error: 'Board not found' }, { status: 404 });
+    }
+
+    // Check access permissions (board membership OR workspace membership for workspace-visible boards)
+    let hasAccess = false;
+
+    // Check if user is board owner
+    if (board.owner_id === user.id) {
+      hasAccess = true;
+    } else {
+      // Check if user is a direct board member
+      const { data: boardMembership, error: boardMemberError } = await supabase
+        .from('board_members')
+        .select('id')
+        .eq('board_id', card.board_id)
+        .eq('profile_id', user.id)
+        .single();
+
+      if (!boardMemberError && boardMembership) {
+        hasAccess = true;
+      } else if (board.visibility === 'workspace') {
+        // Check if user is a workspace member for workspace-visible boards
+        const { data: workspaceMembership, error: workspaceMemberError } =
+          await supabase
+            .from('workspace_members')
+            .select('id')
+            .eq('workspace_id', board.workspace_id)
+            .eq('profile_id', user.id)
+            .single();
+
+        if (!workspaceMemberError && workspaceMembership) {
+          hasAccess = true;
+        }
+      }
+    }
+
+    if (!hasAccess) {
+      console.log('Access denied - not a board or workspace member');
       return NextResponse.json(
-        { error: 'Access denied: You must be a board member to edit comments' },
+        {
+          error:
+            'Access denied: You must be a board member or workspace member to edit comments',
+        },
         { status: 403 }
       );
     }

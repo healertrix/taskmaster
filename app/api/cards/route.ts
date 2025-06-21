@@ -69,21 +69,6 @@ export async function POST(request: NextRequest) {
       cardPosition = (positionData?.position || 0) + 1;
     }
 
-    // Debug: Check user's board membership before creating card
-    const { data: membershipCheck, error: membershipError } = await supabase
-      .from('board_members')
-      .select('role, joined_at')
-      .eq('board_id', board_id)
-      .eq('profile_id', user.id)
-      .single();
-
-    console.log('Debug - User membership check:', {
-      user_id: user.id,
-      board_id,
-      membership: membershipCheck,
-      membershipError,
-    });
-
     // Create the card
     const { data: cardData, error: cardError } = await supabase
       .from('cards')
@@ -100,13 +85,6 @@ export async function POST(request: NextRequest) {
 
     if (cardError) {
       console.error('Card creation error:', cardError);
-      console.error('Card creation context:', {
-        user_id: user.id,
-        board_id,
-        list_id,
-        title: title.trim(),
-        position: cardPosition,
-      });
 
       // Return more specific error message
       if (cardError.code === '42501') {

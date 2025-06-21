@@ -1,6 +1,58 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
+// Helper function to check board access
+async function checkBoardAccess(supabase: any, boardId: string, userId: string) {
+  // Get board details to check visibility and workspace
+  const { data: board, error: boardError } = await supabase
+    .from('boards')
+    .select('id, workspace_id, visibility, owner_id')
+    .eq('id', boardId)
+    .single();
+
+  if (boardError || !board) {
+    return { hasAccess: false, error: 'Board not found', userRole: null };
+  }
+
+  // Check access permissions
+  let hasAccess = false;
+  let userRole = null;
+
+  // Check if user is board owner
+  if (board.owner_id === userId) {
+    hasAccess = true;
+    userRole = 'owner';
+  } else {
+    // Check if user is a direct board member
+    const { data: boardMembership, error: boardMemberError } = await supabase
+      .from('board_members')
+      .select('id, role')
+      .eq('board_id', boardId)
+      .eq('profile_id', userId)
+      .single();
+
+    if (!boardMemberError && boardMembership) {
+      hasAccess = true;
+      userRole = boardMembership.role;
+    } else if (board.visibility === 'workspace') {
+      // Check if user is a workspace member for workspace-visible boards
+      const { data: workspaceMembership, error: workspaceMemberError } = await supabase
+        .from('workspace_members')
+        .select('id, role')
+        .eq('workspace_id', board.workspace_id)
+        .eq('profile_id', userId)
+        .single();
+
+      if (!workspaceMemberError && workspaceMembership) {
+        hasAccess = true;
+        userRole = workspaceMembership.role;
+      }
+    }
+  }
+
+  return { hasAccess, error: null, userRole };
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string; attachmentId: string } }
@@ -64,17 +116,16 @@ export async function PUT(
       return NextResponse.json({ error: 'Card not found' }, { status: 404 });
     }
 
-    // Verify user has access to the board (either they created the attachment or they are a board member)
-    const { data: boardAccess, error: boardError } = await supabase
-      .from('board_members')
-      .select('id, role')
-      .eq('board_id', card.board_id)
-      .eq('profile_id', user.id)
-      .single();
+    // Check access using helper function
+    const {
+      hasAccess,
+      error: accessError,
+      userRole,
+    } = await checkBoardAccess(supabase, card.board_id, user.id);
 
-    if (boardError || !boardAccess) {
+    if (!hasAccess) {
       return NextResponse.json(
-        { error: 'Board not found or access denied' },
+        { error: accessError || 'Access denied' },
         { status: 403 }
       );
     }
@@ -82,7 +133,7 @@ export async function PUT(
     // Only allow editing if user created the attachment or is admin/owner
     if (
       attachment.created_by !== user.id &&
-      !['admin', 'owner'].includes(boardAccess.role)
+      !['admin', 'owner'].includes(userRole)
     ) {
       return NextResponse.json(
         { error: 'You can only edit your own attachments' },
@@ -191,17 +242,16 @@ export async function DELETE(
       return NextResponse.json({ error: 'Card not found' }, { status: 404 });
     }
 
-    // Verify user has access to the board (either they created the attachment or they are a board member)
-    const { data: boardAccess, error: boardError } = await supabase
-      .from('board_members')
-      .select('id, role')
-      .eq('board_id', card.board_id)
-      .eq('profile_id', user.id)
-      .single();
+    // Check access using helper function
+    const {
+      hasAccess,
+      error: accessError,
+      userRole,
+    } = await checkBoardAccess(supabase, card.board_id, user.id);
 
-    if (boardError || !boardAccess) {
+    if (!hasAccess) {
       return NextResponse.json(
-        { error: 'Board not found or access denied' },
+        { error: accessError || 'Access denied' },
         { status: 403 }
       );
     }
@@ -209,7 +259,7 @@ export async function DELETE(
     // Only allow deletion if user created the attachment or is admin/owner
     if (
       attachment.created_by !== user.id &&
-      !['admin', 'owner'].includes(boardAccess.role)
+      !['admin', 'owner'].includes(userRole)
     ) {
       return NextResponse.json(
         { error: 'You can only delete your own attachments' },
