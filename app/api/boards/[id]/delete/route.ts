@@ -51,66 +51,113 @@ export async function DELETE(
     }
 
     // Check if user has permission to delete this board
-    // User can delete if they are:
-    // 1. Board owner
-    // 2. Workspace owner
-    // 3. Board admin member (with proper workspace permissions)
+    // This is purely based on workspace settings - no exceptions
 
     let canDelete = false;
     let userRole = null;
 
-    // Check if user is board owner
-    if (board.owner_id === user.id) {
-      canDelete = true;
-      userRole = 'board_owner';
-    } else {
-      // Check workspace ownership
-      const { data: workspace, error: workspaceError } = await supabase
-        .from('workspaces')
-        .select('owner_id')
-        .eq('id', board.workspace_id)
+    // Get workspace info and user's workspace role
+    const { data: workspace, error: workspaceError } = await supabase
+      .from('workspaces')
+      .select('owner_id')
+      .eq('id', board.workspace_id)
+      .single();
+
+    const { data: workspaceMember, error: workspaceMemberError } =
+      await supabase
+        .from('workspace_members')
+        .select('role')
+        .eq('workspace_id', board.workspace_id)
+        .eq('profile_id', user.id)
         .single();
 
-      if (!workspaceError && workspace && workspace.owner_id === user.id) {
-        canDelete = true;
-        userRole = 'workspace_owner';
+    if (workspaceMemberError || !workspaceMember) {
+      return NextResponse.json(
+        { error: 'You are not a member of this workspace' },
+        { status: 403 }
+      );
+    }
+
+    // Determine user's role in workspace
+    let userWorkspaceRole = workspaceMember.role;
+    if (!workspaceError && workspace && workspace.owner_id === user.id) {
+      userWorkspaceRole = 'owner'; // Workspace owner
+    }
+
+    // Get workspace deletion settings
+    const { data: settings, error: settingsError } = await supabase
+      .from('workspace_settings')
+      .select('setting_value, setting_type')
+      .eq('workspace_id', board.workspace_id)
+      .in('setting_type', [
+        'board_deletion_simplified',
+        'board_deletion_restriction',
+      ]);
+
+    let boardDeletionPermission = 'any_member'; // default
+
+    if (!settingsError && settings) {
+      // Look for new simplified format first
+      const simplifiedSetting = settings.find(
+        (s) => s.setting_type === 'board_deletion_simplified'
+      );
+      if (simplifiedSetting) {
+        try {
+          boardDeletionPermission =
+            typeof simplifiedSetting.setting_value === 'string'
+              ? JSON.parse(simplifiedSetting.setting_value)
+              : simplifiedSetting.setting_value;
+        } catch (error) {
+          boardDeletionPermission = 'any_member';
+        }
       } else {
-        // Check board membership and workspace permissions
-        const { data: boardMember, error: memberError } = await supabase
-          .from('board_members')
-          .select('role')
-          .eq('board_id', boardId)
-          .eq('profile_id', user.id)
-          .single();
-
-        if (!memberError && boardMember && boardMember.role === 'admin') {
-          // Check workspace deletion restrictions
-          const { data: workspaceSettings, error: settingsError } =
-            await supabase
-              .from('workspace_settings')
-              .select('setting_value')
-              .eq('workspace_id', board.workspace_id)
-              .eq('setting_type', 'board_deletion_restriction')
-              .single();
-
-          const deletionRestrictions = workspaceSettings?.setting_value || {
-            public_boards: 'any_member',
-            workspace_visible_boards: 'any_member',
-            private_boards: 'any_member',
-          };
-
-          // For simplicity, assuming workspace_visible boards for now
-          // In a full implementation, you'd check board visibility
-          const restriction =
-            deletionRestrictions.workspace_visible_boards || 'any_member';
-
-          if (restriction === 'any_member') {
-            canDelete = true;
-            userRole = 'board_admin';
+        // Fallback to old format
+        const oldSetting = settings.find(
+          (s) => s.setting_type === 'board_deletion_restriction'
+        );
+        if (oldSetting) {
+          try {
+            const oldValue =
+              typeof oldSetting.setting_value === 'string'
+                ? JSON.parse(oldSetting.setting_value)
+                : oldSetting.setting_value;
+            boardDeletionPermission =
+              oldValue?.workspace_visible_boards || 'any_member';
+          } catch (error) {
+            boardDeletionPermission = 'any_member';
           }
         }
       }
     }
+
+    // Check permission based on setting - NO EXCEPTIONS
+    console.log('Delete permission debug:', {
+      userWorkspaceRole,
+      boardDeletionPermission,
+      workspaceMemberRole: workspaceMember.role,
+      isWorkspaceOwner: workspace?.owner_id === user.id,
+    });
+
+    switch (boardDeletionPermission) {
+      case 'owner_only':
+        canDelete = userWorkspaceRole === 'owner';
+        userRole = userWorkspaceRole;
+        break;
+      case 'admins_only':
+        canDelete =
+          userWorkspaceRole === 'admin' || userWorkspaceRole === 'owner';
+        userRole = userWorkspaceRole;
+        break;
+      case 'any_member':
+        canDelete = ['admin', 'member', 'owner'].includes(userWorkspaceRole);
+        userRole = userWorkspaceRole;
+        break;
+      default:
+        canDelete = ['admin', 'member', 'owner'].includes(userWorkspaceRole);
+        userRole = userWorkspaceRole;
+    }
+
+    console.log('Final permission result:', { canDelete, userRole });
 
     if (!canDelete) {
       return NextResponse.json(

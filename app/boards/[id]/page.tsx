@@ -300,6 +300,11 @@ export default function WorkspaceBoardsPage() {
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
 
+  // Permission states
+  const [userRole, setUserRole] = useState<string>('');
+  const [isWorkspaceOwner, setIsWorkspaceOwner] = useState(false);
+  const [canCreateBoards, setCanCreateBoards] = useState(true);
+
   // Use the workspace hook for workspace management
   const {
     workspace: workspaceData,
@@ -447,23 +452,120 @@ export default function WorkspaceBoardsPage() {
     }
   }, [isDescriptionModalOpen]);
 
-  // Check authentication
+  // Fetch workspace permissions
   useEffect(() => {
-    const checkAuth = async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
+    const fetchWorkspacePermissions = async () => {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
 
-      if (authError || !user) {
-        router.push('/auth/login');
-        return;
+        if (authError || !user) {
+          router.push('/auth/login');
+          return;
+        }
+
+        // Check if user is workspace owner
+        if (workspace) {
+          const isOwner = workspace.owner_id === user.id;
+          setIsWorkspaceOwner(isOwner);
+
+          // Get user's workspace membership role
+          const { data: membership, error: membershipError } = await supabase
+            .from('workspace_members')
+            .select('role')
+            .eq('workspace_id', workspaceId)
+            .eq('profile_id', user.id)
+            .single();
+
+          if (!membershipError && membership) {
+            setUserRole(membership.role);
+
+            // If workspace owner, can always create boards
+            if (isOwner) {
+              setCanCreateBoards(true);
+              return;
+            }
+
+            // Get workspace board creation settings
+            const { data: settings, error: settingsError } = await supabase
+              .from('workspace_settings')
+              .select('setting_value, setting_type')
+              .eq('workspace_id', workspaceId)
+              .in('setting_type', [
+                'board_creation_simplified',
+                'board_creation_restriction',
+              ]);
+
+            let boardCreationPermission = 'any_member'; // default
+
+            if (!settingsError && settings) {
+              // Look for new simplified format first
+              const simplifiedSetting = settings.find(
+                (s) => s.setting_type === 'board_creation_simplified'
+              );
+              if (simplifiedSetting) {
+                try {
+                  boardCreationPermission =
+                    typeof simplifiedSetting.setting_value === 'string'
+                      ? JSON.parse(simplifiedSetting.setting_value)
+                      : simplifiedSetting.setting_value;
+                } catch (error) {
+                  boardCreationPermission = 'any_member';
+                }
+              } else {
+                // Fallback to old format
+                const oldSetting = settings.find(
+                  (s) => s.setting_type === 'board_creation_restriction'
+                );
+                if (oldSetting) {
+                  try {
+                    const oldValue =
+                      typeof oldSetting.setting_value === 'string'
+                        ? JSON.parse(oldSetting.setting_value)
+                        : oldSetting.setting_value;
+                    boardCreationPermission =
+                      oldValue?.workspace_visible_boards || 'any_member';
+                  } catch (error) {
+                    boardCreationPermission = 'any_member';
+                  }
+                }
+              }
+            }
+
+            // Check permissions based on setting
+            let canCreate = false;
+            switch (boardCreationPermission) {
+              case 'any_member':
+                canCreate = ['admin', 'member'].includes(membership.role);
+                break;
+              case 'admins_only':
+                canCreate = membership.role === 'admin';
+                break;
+              case 'owner_only':
+                canCreate = false; // Only workspace owner can create
+                break;
+              default:
+                canCreate = ['admin', 'member'].includes(membership.role);
+            }
+
+            setCanCreateBoards(canCreate);
+          } else {
+            setCanCreateBoards(false);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching workspace permissions:', error);
+        setCanCreateBoards(false);
       }
     };
 
-    checkAuth();
-  }, [router]);
+    if (workspace) {
+      fetchWorkspacePermissions();
+    }
+  }, [workspace, workspaceId, router]);
 
   const handleBoardCreated = async (newBoardId: string) => {
     // Refresh the boards data
@@ -590,19 +692,21 @@ export default function WorkspaceBoardsPage() {
 
         {/* Boards Grid */}
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'>
-          {/* Create New Board */}
-          <button
-            onClick={() => setIsCreateBoardModalOpen(true)}
-            className='h-40 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
-          >
-            <div className='w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 group-hover:bg-primary/20 transition-colors'>
-              <Plus className='w-6 h-6 text-primary' />
-            </div>
-            <span className='font-semibold text-sm'>Create New Board</span>
-            <span className='text-xs text-muted-foreground mt-1'>
-              Add a board to this workspace
-            </span>
-          </button>
+          {/* Create New Board - Only show if user has permission */}
+          {canCreateBoards && (
+            <button
+              onClick={() => setIsCreateBoardModalOpen(true)}
+              className='h-40 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
+            >
+              <div className='w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 group-hover:bg-primary/20 transition-colors'>
+                <Plus className='w-6 h-6 text-primary' />
+              </div>
+              <span className='font-semibold text-sm'>Create New Board</span>
+              <span className='text-xs text-muted-foreground mt-1'>
+                Add a board to this workspace
+              </span>
+            </button>
+          )}
 
           {/* Board Cards */}
           {boards.map((board) => (
@@ -626,16 +730,19 @@ export default function WorkspaceBoardsPage() {
               No boards yet
             </h3>
             <p className='text-muted-foreground mb-4 max-w-md'>
-              Get started by creating your first board in this workspace. Boards
-              help you organize your projects and tasks.
+              {canCreateBoards
+                ? 'Get started by creating your first board in this workspace. Boards help you organize your projects and tasks.'
+                : "This workspace doesn't have any boards yet. Contact an admin to create boards in this workspace."}
             </p>
-            <button
-              onClick={() => setIsCreateBoardModalOpen(true)}
-              className='btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center gap-2'
-            >
-              <Plus className='w-4 h-4' />
-              Create Board
-            </button>
+            {canCreateBoards && (
+              <button
+                onClick={() => setIsCreateBoardModalOpen(true)}
+                className='btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center gap-2'
+              >
+                <Plus className='w-4 h-4' />
+                Create Board
+              </button>
+            )}
           </div>
         )}
       </main>

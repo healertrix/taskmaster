@@ -39,17 +39,8 @@ const workspaceColors = [
 
 type WorkspaceSettings = {
   membership_restriction: 'anyone' | 'admins_only' | 'owner_only';
-  board_creation_restriction: {
-    public_boards: 'any_member' | 'admins_only' | 'owner_only';
-    workspace_visible_boards: 'any_member' | 'admins_only' | 'owner_only';
-    private_boards: 'any_member' | 'admins_only' | 'owner_only';
-  };
-  board_deletion_restriction: {
-    public_boards: 'any_member' | 'admins_only' | 'owner_only';
-    workspace_visible_boards: 'any_member' | 'admins_only' | 'owner_only';
-    private_boards: 'any_member' | 'admins_only' | 'owner_only';
-  };
-  board_sharing_restriction: 'anyone' | 'admins_only' | 'owner_only';
+  board_creation_simplified: 'any_member' | 'admins_only' | 'owner_only';
+  board_deletion_simplified: 'any_member' | 'admins_only' | 'owner_only';
 };
 
 type WorkspaceData = {
@@ -57,7 +48,6 @@ type WorkspaceData = {
   name: string;
   color: string;
   owner_id: string;
-  visibility: 'private' | 'public';
 };
 
 export default function WorkspaceSettingsPage() {
@@ -65,42 +55,24 @@ export default function WorkspaceSettingsPage() {
   const router = useRouter();
   const workspaceId = params.id as string;
 
-
-
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceData | null>(null);
   const [settings, setSettings] = useState<WorkspaceSettings>({
     membership_restriction: 'anyone',
-    board_creation_restriction: {
-      public_boards: 'any_member',
-      workspace_visible_boards: 'any_member',
-      private_boards: 'any_member',
-    },
-    board_deletion_restriction: {
-      public_boards: 'any_member',
-      workspace_visible_boards: 'any_member',
-      private_boards: 'any_member',
-    },
-    board_sharing_restriction: 'anyone',
+    board_creation_simplified: 'any_member',
+    board_deletion_simplified: 'any_member',
   });
 
   // Modal states
-  const [showVisibilityModal, setShowVisibilityModal] = useState(false);
   const [showMembershipModal, setShowMembershipModal] = useState(false);
   const [showCreationModal, setShowCreationModal] = useState(false);
   const [showDeletionModal, setShowDeletionModal] = useState(false);
-  const [showSharingModal, setShowSharingModal] = useState(false);
   const [showWorkspaceEditModal, setShowWorkspaceEditModal] = useState(false);
   const [showWorkspaceDeletionModal, setShowWorkspaceDeletionModal] =
     useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-
-  // Board restriction modal states
-  const [currentBoardType, setCurrentBoardType] = useState<
-    'public_boards' | 'workspace_visible_boards' | 'private_boards' | null
-  >(null);
 
   // Workspace deletion states
   const [deletionConfirmName, setDeletionConfirmName] = useState('');
@@ -258,17 +230,15 @@ export default function WorkspaceSettingsPage() {
           throw new Error(settingsError.message);
         }
 
-        // Process settings data
+        // Process settings data with backward compatibility
         const processedSettings = { ...settings };
 
         if (settingsData && settingsData.length > 0) {
           settingsData.forEach((setting) => {
-            const settingType = setting.setting_type as keyof WorkspaceSettings;
+            const settingType = setting.setting_type;
 
-            if (
-              settingType === 'membership_restriction' ||
-              settingType === 'board_sharing_restriction'
-            ) {
+            // Handle membership restriction (unchanged)
+            if (settingType === 'membership_restriction') {
               let value;
               try {
                 if (typeof setting.setting_value === 'string') {
@@ -277,25 +247,70 @@ export default function WorkspaceSettingsPage() {
                   value = setting.setting_value;
                 }
               } catch (error) {
-                value = processedSettings[settingType];
+                value = processedSettings.membership_restriction;
               }
-              processedSettings[settingType] = value;
-            } else if (
-              settingType === 'board_creation_restriction' ||
-              settingType === 'board_deletion_restriction'
-            ) {
-              let value;
-              try {
-                if (typeof setting.setting_value === 'string') {
-                  value = JSON.parse(setting.setting_value);
-                } else {
-                  value = setting.setting_value;
-                }
-              } catch (error) {
-                value = processedSettings[settingType];
-              }
-              processedSettings[settingType] = value;
+              processedSettings.membership_restriction = value;
             }
+
+            // Handle new simplified format
+            else if (settingType === 'board_creation_simplified') {
+              let value;
+              try {
+                if (typeof setting.setting_value === 'string') {
+                  value = JSON.parse(setting.setting_value);
+                } else {
+                  value = setting.setting_value;
+                }
+              } catch (error) {
+                value = processedSettings.board_creation_simplified;
+              }
+              processedSettings.board_creation_simplified = value;
+            } else if (settingType === 'board_deletion_simplified') {
+              let value;
+              try {
+                if (typeof setting.setting_value === 'string') {
+                  value = JSON.parse(setting.setting_value);
+                } else {
+                  value = setting.setting_value;
+                }
+              } catch (error) {
+                value = processedSettings.board_deletion_simplified;
+              }
+              processedSettings.board_deletion_simplified = value;
+            }
+
+            // Backward compatibility: Handle old complex format
+            else if (settingType === 'board_creation_restriction') {
+              let oldValue;
+              try {
+                if (typeof setting.setting_value === 'string') {
+                  oldValue = JSON.parse(setting.setting_value);
+                } else {
+                  oldValue = setting.setting_value;
+                }
+                // Extract workspace visible boards setting from old format
+                processedSettings.board_creation_simplified =
+                  oldValue?.workspace_visible_boards || 'any_member';
+              } catch (error) {
+                processedSettings.board_creation_simplified = 'any_member';
+              }
+            } else if (settingType === 'board_deletion_restriction') {
+              let oldValue;
+              try {
+                if (typeof setting.setting_value === 'string') {
+                  oldValue = JSON.parse(setting.setting_value);
+                } else {
+                  oldValue = setting.setting_value;
+                }
+                // Extract workspace visible boards setting from old format
+                processedSettings.board_deletion_simplified =
+                  oldValue?.workspace_visible_boards || 'any_member';
+              } catch (error) {
+                processedSettings.board_deletion_simplified = 'any_member';
+              }
+            }
+
+            // Ignore old board_sharing_restriction - no longer used
           });
         }
 
@@ -332,35 +347,6 @@ export default function WorkspaceSettingsPage() {
 
   const canUpdateSettings = userRole === 'admin' || userRole === 'owner';
 
-  // Function to update workspace visibility
-  const updateWorkspaceVisibility = async (
-    newVisibility: 'private' | 'public'
-  ) => {
-    if (!canUpdateSettings) return;
-
-    setIsUpdating(true);
-    try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('workspaces')
-        .update({ visibility: newVisibility })
-        .eq('id', workspaceId);
-
-      if (error) throw error;
-
-      setWorkspace((prev) =>
-        prev ? { ...prev, visibility: newVisibility } : null
-      );
-      setShowVisibilityModal(false);
-      showSuccess(`Workspace visibility updated to ${newVisibility}`);
-    } catch (error) {
-      console.error('Error updating workspace visibility:', error);
-      showError('Failed to update workspace visibility');
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
   // Function to update workspace settings
   const updateWorkspaceSetting = async (
     settingType: keyof WorkspaceSettings,
@@ -395,14 +381,12 @@ export default function WorkspaceSettingsPage() {
       setShowMembershipModal(false);
       setShowCreationModal(false);
       setShowDeletionModal(false);
-      setShowSharingModal(false);
 
       // Show success message based on setting type
       const settingDisplayNames = {
         membership_restriction: 'Membership restrictions',
-        board_creation_restriction: 'Board creation permissions',
-        board_deletion_restriction: 'Board deletion permissions',
-        board_sharing_restriction: 'Board sharing permissions',
+        board_creation_simplified: 'Board creation permissions',
+        board_deletion_simplified: 'Board deletion permissions',
       };
       showSuccess(`${settingDisplayNames[settingType]} updated successfully`);
     } catch (error) {
@@ -483,30 +467,18 @@ export default function WorkspaceSettingsPage() {
 
   // Function to update board creation restriction
   const updateBoardCreationRestriction = async (
-    boardType: 'public_boards' | 'workspace_visible_boards' | 'private_boards',
     newValue: 'any_member' | 'admins_only' | 'owner_only'
   ) => {
-    const newSettings = {
-      ...settings.board_creation_restriction,
-      [boardType]: newValue,
-    };
-    await updateWorkspaceSetting('board_creation_restriction', newSettings);
+    await updateWorkspaceSetting('board_creation_simplified', newValue);
     setShowCreationModal(false);
-    setCurrentBoardType(null);
   };
 
   // Function to update board deletion restriction
   const updateBoardDeletionRestriction = async (
-    boardType: 'public_boards' | 'workspace_visible_boards' | 'private_boards',
     newValue: 'any_member' | 'admins_only' | 'owner_only'
   ) => {
-    const newSettings = {
-      ...settings.board_deletion_restriction,
-      [boardType]: newValue,
-    };
-    await updateWorkspaceSetting('board_deletion_restriction', newSettings);
+    await updateWorkspaceSetting('board_deletion_simplified', newValue);
     setShowDeletionModal(false);
-    setCurrentBoardType(null);
   };
 
   const getRoleDisplay = (role: string) => {
@@ -526,23 +498,6 @@ export default function WorkspaceSettingsPage() {
       default:
         return { icon: User, text: 'Any member', color: 'text-gray-500' };
     }
-  };
-
-  const getVisibilityDisplay = (visibility: string) => {
-    return visibility === 'public'
-      ? {
-          icon: Globe,
-          text: 'Public',
-          description: 'This workspace is public. Anyone can view boards.',
-          color: 'text-green-500',
-        }
-      : {
-          icon: Lock,
-          text: 'Private',
-          description:
-            'This workspace is private. Only invited members can access.',
-          color: 'text-gray-500',
-        };
   };
 
   // Beautiful loading component
@@ -733,7 +688,6 @@ export default function WorkspaceSettingsPage() {
     );
   }
 
-  const visibilityInfo = getVisibilityDisplay(workspace.visibility);
   const membershipInfo = getRoleDisplay(settings.membership_restriction);
 
   return (
@@ -916,49 +870,6 @@ export default function WorkspaceSettingsPage() {
             </div>
           </div>
 
-          {/* Workspace Visibility */}
-          <div className='card p-6'>
-            <h2 className='text-lg font-semibold mb-4'>Workspace visibility</h2>
-
-            <button
-              onClick={
-                canUpdateSettings
-                  ? () => setShowVisibilityModal(true)
-                  : undefined
-              }
-              className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                canUpdateSettings
-                  ? 'hover:bg-muted/50 cursor-pointer'
-                  : 'cursor-default'
-              }`}
-              disabled={!canUpdateSettings}
-            >
-              <div className='flex items-center gap-3'>
-                <div
-                  className={`w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center`}
-                >
-                  {React.createElement(visibilityInfo.icon, {
-                    className: `w-4 h-4 ${visibilityInfo.color}`,
-                  })}
-                </div>
-                <div>
-                  <div className='font-medium text-foreground flex items-center gap-2'>
-                    {visibilityInfo.text}
-                  </div>
-                  <div className='text-sm text-muted-foreground'>
-                    {visibilityInfo.description}
-                  </div>
-                </div>
-              </div>
-              {canUpdateSettings && (
-                <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
-                  Change
-                  <ChevronRight className='w-4 h-4' />
-                </div>
-              )}
-            </button>
-          </div>
-
           {/* Workspace Membership Restrictions */}
           <div className='card p-6'>
             <h2 className='text-lg font-semibold mb-4'>
@@ -1010,279 +921,9 @@ export default function WorkspaceSettingsPage() {
               Board creation restrictions
             </h2>
 
-            <div className='space-y-2'>
-              {/* Public Boards */}
-              <button
-                onClick={
-                  canUpdateSettings
-                    ? () => {
-                        setCurrentBoardType('public_boards');
-                        setShowCreationModal(true);
-                      }
-                    : undefined
-                }
-                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                  canUpdateSettings
-                    ? 'hover:bg-muted/50 cursor-pointer'
-                    : 'cursor-default'
-                }`}
-                disabled={!canUpdateSettings}
-              >
-                <div className='flex items-center gap-3'>
-                  <div className='w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center'>
-                    <Globe className='w-4 h-4 text-green-600 dark:text-green-400' />
-                  </div>
-                  <div>
-                    <div className='font-medium text-foreground'>
-                      {
-                        getRoleDisplay(
-                          settings.board_creation_restriction.public_boards
-                        ).text
-                      }{' '}
-                      can create public boards
-                    </div>
-                    <div className='text-sm text-muted-foreground'>
-                      Public boards can be viewed by anyone, even without a
-                      login
-                    </div>
-                  </div>
-                </div>
-                {canUpdateSettings && (
-                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
-                    Change
-                    <ChevronRight className='w-4 h-4' />
-                  </div>
-                )}
-              </button>
-
-              {/* Workspace Visible Boards */}
-              <button
-                onClick={
-                  canUpdateSettings
-                    ? () => {
-                        setCurrentBoardType('workspace_visible_boards');
-                        setShowCreationModal(true);
-                      }
-                    : undefined
-                }
-                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                  canUpdateSettings
-                    ? 'hover:bg-muted/50 cursor-pointer'
-                    : 'cursor-default'
-                }`}
-                disabled={!canUpdateSettings}
-              >
-                <div className='flex items-center gap-3'>
-                  <div className='w-8 h-8 rounded-full bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center'>
-                    <Users className='w-4 h-4 text-yellow-600 dark:text-yellow-400' />
-                  </div>
-                  <div>
-                    <div className='font-medium text-foreground'>
-                      {
-                        getRoleDisplay(
-                          settings.board_creation_restriction
-                            .workspace_visible_boards
-                        ).text
-                      }{' '}
-                      can create workspace visible boards
-                    </div>
-                    <div className='text-sm text-muted-foreground'>
-                      Workspace visible boards can be viewed by all members
-                    </div>
-                  </div>
-                </div>
-                {canUpdateSettings && (
-                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
-                    Change
-                    <ChevronRight className='w-4 h-4' />
-                  </div>
-                )}
-              </button>
-
-              {/* Private Boards */}
-              <button
-                onClick={
-                  canUpdateSettings
-                    ? () => {
-                        setCurrentBoardType('private_boards');
-                        setShowCreationModal(true);
-                      }
-                    : undefined
-                }
-                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                  canUpdateSettings
-                    ? 'hover:bg-muted/50 cursor-pointer'
-                    : 'cursor-default'
-                }`}
-                disabled={!canUpdateSettings}
-              >
-                <div className='flex items-center gap-3'>
-                  <div className='w-8 h-8 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center'>
-                    <Lock className='w-4 h-4 text-red-600 dark:text-red-400' />
-                  </div>
-                  <div>
-                    <div className='font-medium text-foreground'>
-                      {
-                        getRoleDisplay(
-                          settings.board_creation_restriction.private_boards
-                        ).text
-                      }{' '}
-                      can create private boards
-                    </div>
-                    <div className='text-sm text-muted-foreground'>
-                      Private boards can only be viewed by specific members
-                    </div>
-                  </div>
-                </div>
-                {canUpdateSettings && (
-                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
-                    Change
-                    <ChevronRight className='w-4 h-4' />
-                  </div>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Board Deletion Restrictions */}
-          <div className='card p-6'>
-            <h2 className='text-lg font-semibold mb-4'>
-              Board deletion restrictions
-            </h2>
-
-            <div className='space-y-2'>
-              {/* Public Boards Deletion */}
-              <button
-                onClick={
-                  canUpdateSettings
-                    ? () => {
-                        setCurrentBoardType('public_boards');
-                        setShowDeletionModal(true);
-                      }
-                    : undefined
-                }
-                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                  canUpdateSettings
-                    ? 'hover:bg-muted/50 cursor-pointer'
-                    : 'cursor-default'
-                }`}
-                disabled={!canUpdateSettings}
-              >
-                <div className='flex items-center gap-3'>
-                  <div className='w-8 h-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center'>
-                    <Trash2 className='w-4 h-4 text-green-600 dark:text-green-400' />
-                  </div>
-                  <div>
-                    <div className='font-medium text-foreground'>
-                      {
-                        getRoleDisplay(
-                          settings.board_deletion_restriction.public_boards
-                        ).text
-                      }{' '}
-                      can delete public boards
-                    </div>
-                  </div>
-                </div>
-                {canUpdateSettings && (
-                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
-                    Change
-                    <ChevronRight className='w-4 h-4' />
-                  </div>
-                )}
-              </button>
-
-              {/* Workspace Visible Boards Deletion */}
-              <button
-                onClick={
-                  canUpdateSettings
-                    ? () => {
-                        setCurrentBoardType('workspace_visible_boards');
-                        setShowDeletionModal(true);
-                      }
-                    : undefined
-                }
-                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                  canUpdateSettings
-                    ? 'hover:bg-muted/50 cursor-pointer'
-                    : 'cursor-default'
-                }`}
-                disabled={!canUpdateSettings}
-              >
-                <div className='flex items-center gap-3'>
-                  <div className='w-8 h-8 rounded-full bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center'>
-                    <Trash2 className='w-4 h-4 text-yellow-600 dark:text-yellow-400' />
-                  </div>
-                  <div>
-                    <div className='font-medium text-foreground'>
-                      {
-                        getRoleDisplay(
-                          settings.board_deletion_restriction
-                            .workspace_visible_boards
-                        ).text
-                      }{' '}
-                      can delete workspace visible boards
-                    </div>
-                  </div>
-                </div>
-                {canUpdateSettings && (
-                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
-                    Change
-                    <ChevronRight className='w-4 h-4' />
-                  </div>
-                )}
-              </button>
-
-              {/* Private Boards Deletion */}
-              <button
-                onClick={
-                  canUpdateSettings
-                    ? () => {
-                        setCurrentBoardType('private_boards');
-                        setShowDeletionModal(true);
-                      }
-                    : undefined
-                }
-                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                  canUpdateSettings
-                    ? 'hover:bg-muted/50 cursor-pointer'
-                    : 'cursor-default'
-                }`}
-                disabled={!canUpdateSettings}
-              >
-                <div className='flex items-center gap-3'>
-                  <div className='w-8 h-8 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center'>
-                    <Trash2 className='w-4 h-4 text-red-600 dark:text-red-400' />
-                  </div>
-                  <div>
-                    <div className='font-medium text-foreground'>
-                      {
-                        getRoleDisplay(
-                          settings.board_deletion_restriction.private_boards
-                        ).text
-                      }{' '}
-                      can delete private boards
-                    </div>
-                  </div>
-                </div>
-                {canUpdateSettings && (
-                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
-                    Change
-                    <ChevronRight className='w-4 h-4' />
-                  </div>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Board Sharing Restrictions */}
-          <div className='card p-6'>
-            <h2 className='text-lg font-semibold mb-4'>
-              Board sharing restrictions
-            </h2>
-
             <button
               onClick={
-                canUpdateSettings ? () => setShowSharingModal(true) : undefined
+                canUpdateSettings ? () => setShowCreationModal(true) : undefined
               }
               className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
                 canUpdateSettings
@@ -1292,23 +933,57 @@ export default function WorkspaceSettingsPage() {
               disabled={!canUpdateSettings}
             >
               <div className='flex items-center gap-3'>
-                <div
-                  className={`w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center`}
-                >
-                  <Share2
-                    className={`w-4 h-4 ${
-                      getRoleDisplay(settings.board_sharing_restriction).color
-                    }`}
-                  />
+                <div className='w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center'>
+                  <LayoutGrid className='w-4 h-4 text-blue-600 dark:text-blue-400' />
                 </div>
                 <div>
                   <div className='font-medium text-foreground'>
-                    {getRoleDisplay(settings.board_sharing_restriction).text}{' '}
-                    can share boards with external users
+                    {getRoleDisplay(settings.board_creation_simplified).text}{' '}
+                    can create boards
                   </div>
                   <div className='text-sm text-muted-foreground'>
-                    Controls who can share boards with people outside this
-                    workspace
+                    All boards are workspace visible and can be viewed by all
+                    members
+                  </div>
+                </div>
+              </div>
+              {canUpdateSettings && (
+                <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
+                  Change
+                  <ChevronRight className='w-4 h-4' />
+                </div>
+              )}
+            </button>
+          </div>
+
+          {/* Board Deletion Restrictions */}
+          <div className='card p-6'>
+            <h2 className='text-lg font-semibold mb-4'>
+              Board deletion restrictions
+            </h2>
+
+            <button
+              onClick={
+                canUpdateSettings ? () => setShowDeletionModal(true) : undefined
+              }
+              className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
+                canUpdateSettings
+                  ? 'hover:bg-muted/50 cursor-pointer'
+                  : 'cursor-default'
+              }`}
+              disabled={!canUpdateSettings}
+            >
+              <div className='flex items-center gap-3'>
+                <div className='w-8 h-8 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center'>
+                  <Trash2 className='w-4 h-4 text-red-600 dark:text-red-400' />
+                </div>
+                <div>
+                  <div className='font-medium text-foreground'>
+                    {getRoleDisplay(settings.board_deletion_simplified).text}{' '}
+                    can delete boards
+                  </div>
+                  <div className='text-sm text-muted-foreground'>
+                    Controls who can permanently delete workspace boards
                   </div>
                 </div>
               </div>
@@ -1389,7 +1064,7 @@ export default function WorkspaceSettingsPage() {
                     className='px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2'
                   >
                     <Trash2 className='w-4 h-4' />
-                    Delete workspace
+                    Delete workspace permanently
                   </button>
                 </div>
               </div>
@@ -1565,65 +1240,6 @@ export default function WorkspaceSettingsPage() {
         </div>
       )}
 
-      {/* Workspace Visibility Modal */}
-      {showVisibilityModal && (
-        <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
-          <div className='bg-background border border-border rounded-lg p-6 w-full max-w-md mx-4'>
-            <h3 className='text-lg font-semibold mb-4'>
-              Change Workspace Visibility
-            </h3>
-
-            <div className='space-y-3'>
-              <button
-                onClick={() => updateWorkspaceVisibility('private')}
-                disabled={isUpdating}
-                className={`w-full p-3 text-left rounded-lg border ${
-                  workspace?.visibility === 'private'
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border hover:bg-muted/50'
-                } transition-colors flex items-center gap-3`}
-              >
-                <Lock className='w-4 h-4 text-gray-500' />
-                <div>
-                  <div className='font-medium'>Private</div>
-                  <div className='text-sm text-muted-foreground'>
-                    Only invited members can access
-                  </div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => updateWorkspaceVisibility('public')}
-                disabled={isUpdating}
-                className={`w-full p-3 text-left rounded-lg border ${
-                  workspace?.visibility === 'public'
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border hover:bg-muted/50'
-                } transition-colors flex items-center gap-3`}
-              >
-                <Globe className='w-4 h-4 text-green-500' />
-                <div>
-                  <div className='font-medium'>Public</div>
-                  <div className='text-sm text-muted-foreground'>
-                    Anyone can view boards
-                  </div>
-                </div>
-              </button>
-            </div>
-
-            <div className='flex justify-end gap-3 mt-6'>
-              <button
-                onClick={() => setShowVisibilityModal(false)}
-                disabled={isUpdating}
-                className='px-4 py-2 text-muted-foreground hover:text-foreground disabled:opacity-50'
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Membership Restriction Modal */}
       {showMembershipModal && (
         <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
@@ -1680,69 +1296,12 @@ export default function WorkspaceSettingsPage() {
         </div>
       )}
 
-      {/* Board Sharing Restriction Modal */}
-      {showSharingModal && (
-        <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
-          <div className='bg-background border border-border rounded-lg p-6 w-full max-w-md mx-4'>
-            <h3 className='text-lg font-semibold mb-4'>
-              Change Board Sharing Restrictions
-            </h3>
-
-            <div className='space-y-3'>
-              {(['anyone', 'admins_only', 'owner_only'] as const).map(
-                (option) => {
-                  const info = getRoleDisplay(option);
-                  return (
-                    <button
-                      key={option}
-                      onClick={() =>
-                        updateWorkspaceSetting(
-                          'board_sharing_restriction',
-                          option
-                        )
-                      }
-                      disabled={isUpdating}
-                      className={`w-full p-3 text-left rounded-lg border ${
-                        settings.board_sharing_restriction === option
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border hover:bg-muted/50'
-                      } transition-colors flex items-center gap-3`}
-                    >
-                      {React.createElement(info.icon, {
-                        className: `w-4 h-4 ${info.color}`,
-                      })}
-                      <div>
-                        <div className='font-medium'>{info.text}</div>
-                      </div>
-                    </button>
-                  );
-                }
-              )}
-            </div>
-
-            <div className='flex justify-end gap-3 mt-6'>
-              <button
-                onClick={() => setShowSharingModal(false)}
-                disabled={isUpdating}
-                className='px-4 py-2 text-muted-foreground hover:text-foreground disabled:opacity-50'
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Board Creation Restriction Modal */}
-      {showCreationModal && currentBoardType && (
+      {showCreationModal && (
         <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
           <div className='bg-background border border-border rounded-lg p-6 w-full max-w-md mx-4'>
             <h3 className='text-lg font-semibold mb-4'>
-              Change{' '}
-              {currentBoardType
-                .replace('_', ' ')
-                .replace(/\b\w/g, (l) => l.toUpperCase())}{' '}
-              Creation Permissions
+              Change Board Creation Permissions
             </h3>
 
             <div className='space-y-3'>
@@ -1750,15 +1309,12 @@ export default function WorkspaceSettingsPage() {
                 (option) => {
                   const info = getRoleDisplay(option);
                   const isSelected =
-                    settings.board_creation_restriction[currentBoardType] ===
-                    option;
+                    settings.board_creation_simplified === option;
 
                   return (
                     <button
                       key={option}
-                      onClick={() =>
-                        updateBoardCreationRestriction(currentBoardType, option)
-                      }
+                      onClick={() => updateBoardCreationRestriction(option)}
                       disabled={isUpdating}
                       className={`w-full p-3 text-left rounded-lg border ${
                         isSelected
@@ -1780,10 +1336,7 @@ export default function WorkspaceSettingsPage() {
 
             <div className='flex justify-end gap-3 mt-6'>
               <button
-                onClick={() => {
-                  setShowCreationModal(false);
-                  setCurrentBoardType(null);
-                }}
+                onClick={() => setShowCreationModal(false)}
                 disabled={isUpdating}
                 className='px-4 py-2 text-muted-foreground hover:text-foreground disabled:opacity-50'
               >
@@ -1795,15 +1348,11 @@ export default function WorkspaceSettingsPage() {
       )}
 
       {/* Board Deletion Restriction Modal */}
-      {showDeletionModal && currentBoardType && (
+      {showDeletionModal && (
         <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
           <div className='bg-background border border-border rounded-lg p-6 w-full max-w-md mx-4'>
             <h3 className='text-lg font-semibold mb-4'>
-              Change{' '}
-              {currentBoardType
-                .replace('_', ' ')
-                .replace(/\b\w/g, (l) => l.toUpperCase())}{' '}
-              Deletion Permissions
+              Change Board Deletion Permissions
             </h3>
 
             <div className='space-y-3'>
@@ -1811,15 +1360,12 @@ export default function WorkspaceSettingsPage() {
                 (option) => {
                   const info = getRoleDisplay(option);
                   const isSelected =
-                    settings.board_deletion_restriction[currentBoardType] ===
-                    option;
+                    settings.board_deletion_simplified === option;
 
                   return (
                     <button
                       key={option}
-                      onClick={() =>
-                        updateBoardDeletionRestriction(currentBoardType, option)
-                      }
+                      onClick={() => updateBoardDeletionRestriction(option)}
                       disabled={isUpdating}
                       className={`w-full p-3 text-left rounded-lg border ${
                         isSelected
@@ -1841,10 +1387,7 @@ export default function WorkspaceSettingsPage() {
 
             <div className='flex justify-end gap-3 mt-6'>
               <button
-                onClick={() => {
-                  setShowDeletionModal(false);
-                  setCurrentBoardType(null);
-                }}
+                onClick={() => setShowDeletionModal(false)}
                 disabled={isUpdating}
                 className='px-4 py-2 text-muted-foreground hover:text-foreground disabled:opacity-50'
               >

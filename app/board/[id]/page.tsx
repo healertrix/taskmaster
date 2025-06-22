@@ -61,6 +61,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Trash2,
+  LayoutGrid,
 } from 'lucide-react';
 
 // Define card/task type
@@ -519,10 +520,6 @@ const DescriptionModal = ({
     </div>
   );
 };
-
-
-
-
 
 const getColumnStyle = (id: string) => {
   const styles = {
@@ -1299,11 +1296,55 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
   // Show error state
   if (error || listsError || !board) {
+    const isError = error || listsError;
+    const errorTitle = isError
+      ? 'Oops! Something went wrong'
+      : 'Board not found';
+    const errorMessage = isError
+      ? 'We encountered an issue while loading this board. This might be a temporary problem.'
+      : "This board doesn't exist or you don't have permission to view it. It may have been deleted or you might not be a member of this workspace.";
+
     return (
-      <BoardError
-        error={error || listsError || 'Board not found'}
-        backUrl={getBackUrl()}
-      />
+      <div className='min-h-screen dot-pattern-dark'>
+        <DashboardHeader />
+        <main className='container mx-auto max-w-7xl px-4 pt-24 pb-16'>
+          <div className='flex flex-col items-center justify-center py-16 text-center'>
+            <div className='w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center mb-4'>
+              <AlertCircle className='w-8 h-8 text-red-600 dark:text-red-400' />
+            </div>
+            <h3 className='text-lg font-semibold text-foreground mb-2'>
+              {errorTitle}
+            </h3>
+            <p className='text-muted-foreground mb-6 max-w-md'>
+              {errorMessage}
+            </p>
+
+            <div className='flex flex-col sm:flex-row gap-3'>
+              <button
+                onClick={() => router.back()}
+                className='btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center gap-2'
+              >
+                <ArrowLeft className='w-4 h-4' />
+                Go Back
+              </button>
+
+              <button
+                onClick={() => router.push('/')}
+                className='btn border border-border hover:bg-muted/50 px-4 py-2 flex items-center gap-2'
+              >
+                Go to Dashboard
+              </button>
+            </div>
+
+            {isError && (
+              <p className='text-xs text-muted-foreground mt-4'>
+                If this problem persists, please try refreshing the page or
+                contact support.
+              </p>
+            )}
+          </div>
+        </main>
+      </div>
     );
   }
 
