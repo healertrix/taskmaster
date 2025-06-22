@@ -277,15 +277,51 @@ export async function PUT(
       return NextResponse.json({ error: 'Card not found' }, { status: 404 });
     }
 
-    // Verify user has access to the board
-    const { data: boardAccess, error: boardError } = await supabase
-      .from('board_members')
-      .select('id')
-      .eq('board_id', card.board_id)
-      .eq('profile_id', user.id)
+    // Verify user has access to the board - use comprehensive access check
+    const { data: board, error: boardError } = await supabase
+      .from('boards')
+      .select('id, workspace_id, visibility, owner_id')
+      .eq('id', card.board_id)
       .single();
 
-    if (boardError || !boardAccess) {
+    if (boardError || !board) {
+      return NextResponse.json({ error: 'Board not found' }, { status: 404 });
+    }
+
+    // Check access permissions (same pattern as other endpoints)
+    let hasAccess = false;
+
+    // Check if user is board owner
+    if (board.owner_id === user.id) {
+      hasAccess = true;
+    } else {
+      // Check if user is a direct board member
+      const { data: boardMembership, error: boardMemberError } = await supabase
+        .from('board_members')
+        .select('id')
+        .eq('board_id', card.board_id)
+        .eq('profile_id', user.id)
+        .single();
+
+      if (!boardMemberError && boardMembership) {
+        hasAccess = true;
+      } else if (board.visibility === 'workspace') {
+        // Check if user is a workspace member for workspace-visible boards
+        const { data: workspaceMembership, error: workspaceMemberError } =
+          await supabase
+            .from('workspace_members')
+            .select('id')
+            .eq('workspace_id', board.workspace_id)
+            .eq('profile_id', user.id)
+            .single();
+
+        if (!workspaceMemberError && workspaceMembership) {
+          hasAccess = true;
+        }
+      }
+    }
+
+    if (!hasAccess) {
       return NextResponse.json(
         { error: 'Board not found or access denied' },
         { status: 403 }
