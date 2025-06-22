@@ -628,7 +628,7 @@ export default function HomePage() {
                         return (
                           <Link
                             key={board.id}
-                            href={`/board/${board.id}?from=workspace&workspaceId=${workspace.id}`}
+                            href={`/board/${board.id}`}
                             className='group relative block p-5 rounded-xl card card-hover h-32 overflow-hidden transition-all duration-200'
                           >
                             {/* Color bar at top */}

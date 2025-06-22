@@ -65,6 +65,8 @@ export default function WorkspaceSettingsPage() {
   const router = useRouter();
   const workspaceId = params.id as string;
 
+
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -188,6 +190,8 @@ export default function WorkspaceSettingsPage() {
       className: color || 'bg-blue-600',
     };
   };
+
+  // Detect previous page for better navigation
 
   // Fetch workspace data and settings
   useEffect(() => {
@@ -668,9 +672,62 @@ export default function WorkspaceSettingsPage() {
       <div className='min-h-screen dot-pattern-dark'>
         <DashboardHeader />
         <main className='container mx-auto max-w-4xl px-4 pt-24 pb-16'>
-          <div className='flex items-center justify-center h-64'>
-            <div className='text-red-500'>
-              You don't have permission to manage this workspace
+          <div className='flex items-center justify-center min-h-[60vh]'>
+            <div className='text-center max-w-md mx-auto'>
+              {/* Access Denied Card */}
+              <div className='bg-card border border-border rounded-2xl p-8 shadow-lg'>
+                {/* Icon */}
+                <div className='flex justify-center mb-6'>
+                  <div className='w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center'>
+                    <Shield className='w-8 h-8 text-amber-500' />
+                  </div>
+                </div>
+
+                {/* Title */}
+                <h2 className='text-2xl font-bold text-foreground mb-3'>
+                  Access Restricted
+                </h2>
+
+                {/* Description */}
+                <p className='text-muted-foreground mb-2 leading-relaxed'>
+                  You don't have permission to manage settings for this
+                  workspace.
+                </p>
+                <p className='text-sm text-muted-foreground mb-6'>
+                  Only workspace owners and administrators can modify workspace
+                  settings.
+                </p>
+
+                {/* User Role Info */}
+                {userRole && (
+                  <div className='bg-muted/30 rounded-lg p-3 mb-6'>
+                    <div className='flex items-center justify-center gap-2 text-sm'>
+                      {userRole === 'member' && (
+                        <>
+                          <User className='w-4 h-4 text-muted-foreground' />
+                          <span className='text-muted-foreground font-medium'>
+                            You are a member of this workspace
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Button */}
+                <button
+                  onClick={() => router.back()}
+                  className='inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 transition-colors'
+                >
+                  <ArrowLeft className='w-4 h-4' />
+                  Go back
+                </button>
+              </div>
+
+              {/* Help Text */}
+              <p className='text-xs text-muted-foreground mt-4'>
+                Need access? Contact a workspace administrator or owner.
+              </p>
             </div>
           </div>
         </main>

@@ -525,7 +525,13 @@ const DescriptionModal = ({
 const BoardLoading = () => <BoardSkeleton />;
 
 // Error component
-const BoardError = ({ error, backUrl }: { error: string; backUrl: string }) => (
+const BoardError = ({
+  error,
+  onGoBack,
+}: {
+  error: string;
+  onGoBack: () => void;
+}) => (
   <div className='min-h-screen dot-pattern-dark'>
     <DashboardHeader />
     <div className='container mx-auto max-w-7xl px-4 pt-24 pb-16'>
@@ -537,13 +543,13 @@ const BoardError = ({ error, backUrl }: { error: string; backUrl: string }) => (
           Board Not Found
         </h1>
         <p className='text-muted-foreground mb-6'>{error}</p>
-        <Link
-          href={backUrl}
+        <button
+          onClick={onGoBack}
           className='inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors'
         >
           <ArrowLeft className='w-4 h-4' />
-          Back
-        </Link>
+          Go back
+        </button>
       </div>
     </div>
   </div>
@@ -622,36 +628,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     refetch,
   } = useLists(params.id);
 
-  // Get navigation context from URL params
-  const searchParams = new URLSearchParams(
-    typeof window !== 'undefined' ? window.location.search : ''
-  );
-  const fromContext = searchParams.get('from');
-  const workspaceId = searchParams.get('workspaceId');
-
-  // Smart navigation function
-  const getBackUrl = () => {
-    if (fromContext === 'workspace' && workspaceId) {
-      return `/boards/${workspaceId}`;
-    }
-
-    // Check if we came from the home page by looking at the referrer
-    if (typeof window !== 'undefined') {
-      const referrer = document.referrer;
-      if (referrer && (referrer.endsWith('/') || referrer.endsWith('/home'))) {
-        return '/';
-      }
-    }
-
-    // Default to home page if no specific context is found
-    return '/';
-  };
-
-  const getBackLabel = () => {
-    if (fromContext === 'workspace') {
-      return 'Back to Workspace';
-    }
-    return 'Back to Home';
+  // Simple back navigation using browser history
+  const handleGoBack = () => {
+    router.back();
   };
 
   // Notification helper functions
@@ -827,9 +806,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       setDeletionStats(data.deletionStats);
       showSuccess('Board deleted successfully');
 
-      // Redirect to the previous page after a short delay
+      // Go back to previous page after a short delay
       setTimeout(() => {
-        router.push(getBackUrl());
+        router.back();
       }, 2000);
     } catch (error) {
       console.error('Error deleting board:', error);
@@ -1656,13 +1635,13 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         <div className='flex items-center justify-between group'>
           {/* Left side - Board info */}
           <div className='flex items-center gap-4'>
-            <Link
-              href={getBackUrl()}
+            <button
+              onClick={handleGoBack}
               className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
-              title={getBackLabel()}
+              title='Go back'
             >
               <ArrowLeft className='w-5 h-5' />
-            </Link>
+            </button>
 
             <div className='flex items-center gap-3'>
               {/* Workspace indicator */}

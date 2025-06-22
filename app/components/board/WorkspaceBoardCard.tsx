@@ -46,9 +46,7 @@ export function WorkspaceBoardCard({
 
   return (
     <Link
-      href={`/board/${board.id}${
-        workspaceId ? `?from=workspace&workspaceId=${workspaceId}` : ''
-      }`}
+      href={`/board/${board.id}`}
       className='group relative block p-5 rounded-xl card card-hover h-40 overflow-hidden transition-all duration-200'
     >
       {/* Color bar at top */}
