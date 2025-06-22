@@ -65,7 +65,10 @@ export async function GET(request: NextRequest) {
       .from('workspace_settings')
       .select('workspace_id, setting_type, setting_value')
       .in('workspace_id', workspaceIds)
-      .eq('setting_type', 'board_creation_restriction');
+      .in('setting_type', [
+        'board_creation_simplified',
+        'board_creation_restriction',
+      ]);
 
     if (settingsError) {
       console.error('Error fetching workspace settings:', settingsError);
@@ -81,20 +84,44 @@ export async function GET(request: NextRequest) {
       const userRole = wm.role;
       const isOwner = workspace.owner_id === user.id;
 
-      // Find board creation settings for this workspace
-      const boardCreationSettings = settingsData?.find(
-        (setting) => setting.workspace_id === workspace.id
+      // Find board creation settings for this workspace (prefer new format)
+      const newFormatSetting = settingsData?.find(
+        (setting) =>
+          setting.workspace_id === workspace.id &&
+          setting.setting_type === 'board_creation_simplified'
+      );
+      const oldFormatSetting = settingsData?.find(
+        (setting) =>
+          setting.workspace_id === workspace.id &&
+          setting.setting_type === 'board_creation_restriction'
       );
 
-      // Default settings if not found
-      const defaultBoardCreationSettings = {
-        public_boards: 'any_member',
-        workspace_visible_boards: 'any_member',
-        private_boards: 'any_member',
-      };
-
-      const boardCreationRestriction =
-        boardCreationSettings?.setting_value || defaultBoardCreationSettings;
+      // Use new format if available, otherwise fall back to old format
+      let boardCreationSetting: string;
+      if (newFormatSetting) {
+        try {
+          boardCreationSetting =
+            typeof newFormatSetting.setting_value === 'string'
+              ? JSON.parse(newFormatSetting.setting_value)
+              : newFormatSetting.setting_value;
+        } catch {
+          boardCreationSetting = 'any_member';
+        }
+      } else if (oldFormatSetting) {
+        try {
+          const oldValue =
+            typeof oldFormatSetting.setting_value === 'string'
+              ? JSON.parse(oldFormatSetting.setting_value)
+              : oldFormatSetting.setting_value;
+          // Extract workspace visible boards setting from old format
+          boardCreationSetting =
+            oldValue?.workspace_visible_boards || 'any_member';
+        } catch {
+          boardCreationSetting = 'any_member';
+        }
+      } else {
+        boardCreationSetting = 'any_member'; // Default
+      }
 
       // Determine if user can create boards
       let canCreateBoards = false;
@@ -105,55 +132,40 @@ export async function GET(request: NextRequest) {
         reason: '',
       };
 
-      if (isOwner) {
-        // Owners can always create boards
-        canCreateBoards = true;
-        boardCreationInfo = {
-          canCreatePublic: true,
-          canCreateWorkspaceVisible: true,
-          canCreatePrivate: true,
-          reason: 'Owner',
-        };
-      } else {
-        // Check permissions based on role and settings
-        const checkPermission = (setting: string) => {
-          switch (setting) {
-            case 'any_member':
-              return ['admin', 'member'].includes(userRole);
-            case 'admin_only':
-              return userRole === 'admin';
-            case 'nobody':
-              return false;
-            default:
-              return false;
-          }
-        };
-
-        boardCreationInfo.canCreatePublic = checkPermission(
-          boardCreationRestriction.public_boards
-        );
-        boardCreationInfo.canCreateWorkspaceVisible = checkPermission(
-          boardCreationRestriction.workspace_visible_boards
-        );
-        boardCreationInfo.canCreatePrivate = checkPermission(
-          boardCreationRestriction.private_boards
-        );
-
-        canCreateBoards =
-          boardCreationInfo.canCreatePublic ||
-          boardCreationInfo.canCreateWorkspaceVisible ||
-          boardCreationInfo.canCreatePrivate;
-
-        if (!canCreateBoards) {
-          if (userRole === 'guest') {
-            boardCreationInfo.reason = 'Guests cannot create boards';
-          } else {
-            boardCreationInfo.reason = 'No board creation permissions';
-          }
-        } else {
-          boardCreationInfo.reason = userRole === 'admin' ? 'Admin' : 'Member';
-        }
+      // Check if user can create boards based on the simplified settings
+      switch (boardCreationSetting) {
+        case 'owner_only':
+          canCreateBoards = isOwner;
+          break;
+        case 'admins_only':
+          canCreateBoards = isOwner || userRole === 'admin';
+          break;
+        case 'any_member':
+          canCreateBoards =
+            isOwner || userRole === 'admin' || userRole === 'member';
+          break;
+        default:
+          canCreateBoards = isOwner || userRole === 'admin';
+          break;
       }
+
+      // Set board creation info (simplified for the new format)
+      boardCreationInfo = {
+        canCreatePublic: canCreateBoards,
+        canCreateWorkspaceVisible: canCreateBoards,
+        canCreatePrivate: canCreateBoards,
+        reason: canCreateBoards
+          ? isOwner
+            ? 'Owner'
+            : userRole === 'admin'
+            ? 'Admin'
+            : 'Member'
+          : `Only ${
+              boardCreationSetting === 'owner_only'
+                ? 'workspace owners'
+                : 'admins'
+            } can create boards`,
+      };
 
       return {
         id: workspace.id,

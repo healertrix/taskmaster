@@ -71,16 +71,21 @@ export function CreateBoardModal({
   );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showWorkspaceDetails, setShowWorkspaceDetails] = useState(false);
+
   const colorPickerRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   // Use the new hook to get workspaces with permissions
   const {
-    workspaces: availableWorkspaces,
+    workspaces: allWorkspaces,
     loading: workspacesLoading,
     error: workspacesError,
   } = useWorkspacesWithPermissions();
+
+  // Filter workspaces to only show ones where user can create boards
+  const availableWorkspaces = allWorkspaces.filter(
+    (workspace) => workspace.canCreateBoards
+  );
 
   // Determine if we're creating from workspace page
   const isFromWorkspacePage = !!workspaceId;
@@ -93,18 +98,15 @@ export function CreateBoardModal({
       setDescription('');
       setSelectedColor(boardColors[0].value);
       setCustomColor('#3B82F6');
-      setShowWorkspaceDetails(false); // Reset details visibility
 
       // Set default workspace
       if (workspaceId) {
         setSelectedWorkspaceId(workspaceId);
-      } else if (availableWorkspaces.length > 0 && !selectedWorkspaceId) {
-        setSelectedWorkspaceId(availableWorkspaces[0].id);
       }
 
       setError(null);
     }
-  }, [isOpen, workspaceId, availableWorkspaces]);
+  }, [isOpen, workspaceId]);
 
   // Update workspace ID when workspaceId prop changes (but don't reset entire form)
   useEffect(() => {
@@ -112,6 +114,18 @@ export function CreateBoardModal({
       setSelectedWorkspaceId(workspaceId);
     }
   }, [workspaceId, isOpen]);
+
+  // Set default workspace when workspaces are loaded (only if no workspace selected and not from workspace page)
+  useEffect(() => {
+    if (
+      isOpen &&
+      !isFromWorkspacePage &&
+      !selectedWorkspaceId &&
+      availableWorkspaces.length > 0
+    ) {
+      setSelectedWorkspaceId(availableWorkspaces[0].id);
+    }
+  }, [isOpen, isFromWorkspacePage, selectedWorkspaceId, availableWorkspaces]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -122,30 +136,13 @@ export function CreateBoardModal({
       if (e.key === 'Escape') {
         onClose();
       }
-
-      // Ctrl+Enter to save/submit form
-      if (e.key === 'Enter' && e.ctrlKey) {
-        e.preventDefault();
-        if (name.trim() && selectedWorkspaceId) {
-          // Create a synthetic form event to trigger handleSubmit
-          const syntheticEvent = new Event('submit', {
-            bubbles: true,
-            cancelable: true,
-          });
-          Object.defineProperty(syntheticEvent, 'preventDefault', {
-            value: () => e.preventDefault(),
-            writable: false,
-          });
-          handleSubmit(syntheticEvent as any);
-        }
-      }
     };
 
     if (isOpen) {
       document.addEventListener('keydown', handleKeyboard);
       return () => document.removeEventListener('keydown', handleKeyboard);
     }
-  }, [isOpen, onClose, name, selectedWorkspaceId]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -291,11 +288,6 @@ export function CreateBoardModal({
               type='text'
               value={name}
               onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault(); // Prevent form submission on Enter
-                }
-              }}
               className='w-full p-3 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent'
               placeholder='My Board'
               disabled={isLoading}
@@ -316,11 +308,6 @@ export function CreateBoardModal({
               id='board-description'
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault(); // Prevent form submission on Enter (allow Shift+Enter for new lines)
-                }
-              }}
               className='w-full p-3 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none'
               placeholder='What is this board about?'
               rows={3}
@@ -345,129 +332,33 @@ export function CreateBoardModal({
                 )}
               </label>
 
-              {/* Custom Dropdown */}
-              <CustomWorkspaceDropdown
-                availableWorkspaces={availableWorkspaces}
-                selectedWorkspaceId={selectedWorkspaceId}
-                onSelect={setSelectedWorkspaceId}
-                disabled={isLoading || workspacesLoading}
-                getRoleText={getRoleText}
-                getRoleIcon={getRoleIcon}
-                loading={workspacesLoading}
-              />
-
-              {/* Workspace details toggle and section */}
-              {selectedWorkspaceId && !workspacesLoading && (
-                <div className='mt-2'>
-                  {/* Toggle button */}
-                  <button
-                    type='button'
-                    onClick={() =>
-                      setShowWorkspaceDetails(!showWorkspaceDetails)
-                    }
-                    className='flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors'
-                  >
-                    <Info className='w-3 h-3' />
-                    <span>
-                      {showWorkspaceDetails
-                        ? 'Hide details'
-                        : 'Show workspace details'}
-                    </span>
-                    <ChevronDown
-                      className={`w-3 h-3 transition-transform ${
-                        showWorkspaceDetails ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </button>
-
-                  {/* Workspace details - only show when expanded */}
-                  {showWorkspaceDetails && (
-                    <div className='mt-2 p-3 bg-background/80 border border-border rounded-md'>
-                      {(() => {
-                        const selectedWorkspace = availableWorkspaces.find(
-                          (w) => w.id === selectedWorkspaceId
-                        );
-                        if (!selectedWorkspace) return null;
-
-                        const colorStyle = getColorDisplay(
-                          selectedWorkspace.color
-                        );
-
-                        return (
-                          <div className='space-y-2'>
-                            <div className='flex items-center gap-2'>
-                              <div
-                                className={`w-4 h-4 rounded-full ${
-                                  colorStyle.className || ''
-                                }`}
-                                style={
-                                  colorStyle.backgroundColor
-                                    ? {
-                                        backgroundColor:
-                                          colorStyle.backgroundColor,
-                                      }
-                                    : {}
-                                }
-                              />
-                              <span className='text-sm font-medium text-foreground'>
-                                {selectedWorkspace.name}
-                              </span>
-                              <div className='flex items-center gap-1 ml-auto'>
-                                {getRoleIcon(selectedWorkspace)}
-                                <span className='text-xs text-muted-foreground'>
-                                  {getRoleText(selectedWorkspace)}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Show board creation permissions */}
-                            <div className='text-xs text-muted-foreground bg-background/60 border border-border/50 rounded p-2'>
-                              <div className='font-medium mb-1 text-foreground'>
-                                Board Creation Permissions:
-                              </div>
-                              <div className='space-y-1'>
-                                <div className='flex items-center gap-2'>
-                                  <div
-                                    className={`w-2 h-2 rounded-full ${
-                                      selectedWorkspace.boardCreationInfo
-                                        .canCreateWorkspaceVisible
-                                        ? 'bg-green-500'
-                                        : 'bg-red-500'
-                                    }`}
-                                  />
-                                  <span>
-                                    Workspace boards:{' '}
-                                    {selectedWorkspace.boardCreationInfo
-                                      .canCreateWorkspaceVisible
-                                      ? 'Allowed'
-                                      : 'Not allowed'}
-                                  </span>
-                                </div>
-                                <div className='flex items-center gap-2'>
-                                  <div
-                                    className={`w-2 h-2 rounded-full ${
-                                      selectedWorkspace.boardCreationInfo
-                                        .canCreatePrivate
-                                        ? 'bg-green-500'
-                                        : 'bg-red-500'
-                                    }`}
-                                  />
-                                  <span>
-                                    Private boards:{' '}
-                                    {selectedWorkspace.boardCreationInfo
-                                      .canCreatePrivate
-                                      ? 'Allowed'
-                                      : 'Not allowed'}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
+              {/* Show message if no workspaces available for board creation */}
+              {!workspacesLoading && availableWorkspaces.length === 0 ? (
+                <div className='p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md'>
+                  <div className='flex items-start gap-2'>
+                    <Shield className='w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0' />
+                    <div className='text-sm'>
+                      <p className='font-medium text-yellow-800 dark:text-yellow-200 mb-1'>
+                        No workspaces available for board creation
+                      </p>
+                      <p className='text-yellow-700 dark:text-yellow-300'>
+                        You don't have permission to create boards in any
+                        workspace. Contact a workspace admin to grant you board
+                        creation permissions.
+                      </p>
                     </div>
-                  )}
+                  </div>
                 </div>
+              ) : (
+                <CustomWorkspaceDropdown
+                  availableWorkspaces={availableWorkspaces}
+                  selectedWorkspaceId={selectedWorkspaceId}
+                  onSelect={setSelectedWorkspaceId}
+                  disabled={isLoading || workspacesLoading}
+                  getRoleText={getRoleText}
+                  getRoleIcon={getRoleIcon}
+                  loading={workspacesLoading}
+                />
               )}
             </div>
           )}
@@ -626,24 +517,8 @@ export function CreateBoardModal({
                   !name.trim() ||
                   !selectedWorkspaceId ||
                   workspacesLoading ||
-                  (() => {
-                    const selectedWorkspace = availableWorkspaces.find(
-                      (w) => w.id === selectedWorkspaceId
-                    );
-                    return (
-                      selectedWorkspace && !selectedWorkspace.canCreateBoards
-                    );
-                  })()
+                  (!isFromWorkspacePage && availableWorkspaces.length === 0)
                 }
-                title={(() => {
-                  const selectedWorkspace = availableWorkspaces.find(
-                    (w) => w.id === selectedWorkspaceId
-                  );
-                  if (selectedWorkspace && !selectedWorkspace.canCreateBoards) {
-                    return `You don't have permission to create boards in this workspace. ${selectedWorkspace.boardCreationInfo.reason}`;
-                  }
-                  return '';
-                })()}
               >
                 {isLoading ? (
                   <div className='flex items-center gap-2'>

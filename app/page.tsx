@@ -23,6 +23,7 @@ import { BoardCard } from './components/board/BoardCard';
 import { createClient } from '@/utils/supabase/client';
 import { useBoardStars } from '@/hooks/useBoardStars';
 import { useWorkspaceBoardsForHome } from '@/hooks/useWorkspaceBoardsForHome';
+import { canUserCreateBoards } from '@/utils/permissions';
 
 const initialWorkspaces: any[] = [];
 
@@ -41,6 +42,9 @@ export default function HomePage() {
     workspaceColor?: string;
   } | null>(null);
   const [userWorkspaces, setUserWorkspaces] = useState(initialWorkspaces);
+  const [workspaceSettings, setWorkspaceSettings] = useState<
+    Record<string, any>
+  >({});
   const [isLoading, setIsLoading] = useState(true);
 
   // Use the custom hook for board stars
@@ -120,12 +124,14 @@ export default function HomePage() {
               name: wm.workspaces.name,
               initial: wm.workspaces.name.charAt(0).toUpperCase(),
               color: wm.workspaces.color,
+              role: wm.role || 'member',
               boards: [],
               members: [],
             }));
 
             setUserWorkspaces(mappedWorkspaces);
             await fetchWorkspaceBoards(workspaceIds);
+            await fetchWorkspaceSettings(workspaceIds);
           } else {
             // SUCCESS: Use direct workspace data
             const mappedWorkspaces = directWorkspaceData.map((workspace) => {
@@ -149,6 +155,9 @@ export default function HomePage() {
             // Fetch boards for all workspaces
             const workspaceIds = directWorkspaceData.map((w) => w.id);
             await fetchWorkspaceBoards(workspaceIds);
+
+            // Fetch workspace settings for permission checks
+            await fetchWorkspaceSettings(workspaceIds);
           }
         }
       }
@@ -158,6 +167,55 @@ export default function HomePage() {
       setIsLoading(false);
     }
   }, [fetchWorkspaceBoards]);
+
+  // Fetch workspace settings for permission checks
+  const fetchWorkspaceSettings = useCallback(async (workspaceIds: string[]) => {
+    try {
+      const supabase = createClient();
+
+      // Fetch settings for all workspaces
+      const { data: settingsData, error } = await supabase
+        .from('workspace_settings')
+        .select('workspace_id, setting_type, setting_value')
+        .in('workspace_id', workspaceIds);
+
+      if (!error && settingsData) {
+        // Process settings data by workspace
+        const settingsByWorkspace: Record<string, any> = {};
+
+        settingsData.forEach((setting) => {
+          if (!settingsByWorkspace[setting.workspace_id]) {
+            settingsByWorkspace[setting.workspace_id] = {
+              membership_restriction: 'admins_only',
+              board_creation_simplified: 'any_member',
+              board_deletion_simplified: 'any_member',
+            };
+          }
+
+          if (
+            setting.setting_type === 'membership_restriction' ||
+            setting.setting_type === 'board_creation_simplified' ||
+            setting.setting_type === 'board_deletion_simplified'
+          ) {
+            try {
+              const value =
+                typeof setting.setting_value === 'string'
+                  ? JSON.parse(setting.setting_value)
+                  : setting.setting_value;
+              settingsByWorkspace[setting.workspace_id][setting.setting_type] =
+                value;
+            } catch {
+              // Keep default value on parse error
+            }
+          }
+        });
+
+        setWorkspaceSettings(settingsByWorkspace);
+      }
+    } catch (error) {
+      console.error('Error fetching workspace settings:', error);
+    }
+  }, []);
 
   // Debug: Log userWorkspaces state changes
   useEffect(() => {}, [userWorkspaces]);
@@ -316,7 +374,6 @@ export default function HomePage() {
     setBoardModalContext(null);
   };
 
-  
   const currentUser = {
     name: 'Superhero User',
     avatar: '', // Leave empty for initial/icon display
@@ -533,7 +590,6 @@ export default function HomePage() {
 
             {/* Workspaces Section */}
             {(() => {
-
               return userWorkspaces.map((workspace) => (
                 <section
                   key={workspace.id}
@@ -691,18 +747,50 @@ export default function HomePage() {
                       });
                     })()}
 
-                    {/* Create New Board (in workspace) */}
-                    <button
-                      onClick={() => handleCreateBoardInWorkspace(workspace)}
-                      className='h-32 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
-                    >
-                      <div className='w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors'>
-                        <Plus className='w-5 h-5 text-primary' />
-                      </div>
-                      <span className='font-medium text-sm'>
-                        Create New Board
-                      </span>
-                    </button>
+                    {/* Create New Board (in workspace) - Only show if user has permission */}
+                    {(() => {
+                      const settings = workspaceSettings[workspace.id];
+                      const userRole = workspace.role || 'member';
+                      const canCreate = canUserCreateBoards(settings, userRole);
+
+                      if (canCreate) {
+                        return (
+                          <button
+                            onClick={() =>
+                              handleCreateBoardInWorkspace(workspace)
+                            }
+                            className='h-32 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
+                          >
+                            <div className='w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors'>
+                              <Plus className='w-5 h-5 text-primary' />
+                            </div>
+                            <span className='font-medium text-sm'>
+                              Create New Board
+                            </span>
+                          </button>
+                        );
+                      }
+
+                      // If user can't create boards, show an informational card instead
+                      return (
+                        <div className='h-32 rounded-xl border-2 border-dashed border-border/30 bg-card/20 flex flex-col items-center justify-center text-muted-foreground/60'>
+                          <div className='w-10 h-10 rounded-full bg-muted/20 flex items-center justify-center mb-2'>
+                            <Plus className='w-5 h-5 text-muted-foreground/40' />
+                          </div>
+                          <span className='font-medium text-sm text-center px-4'>
+                            Only{' '}
+                            {settings?.board_creation_simplified ===
+                            'owner_only'
+                              ? 'workspace owners'
+                              : settings?.board_creation_simplified ===
+                                'admins_only'
+                              ? 'admins'
+                              : 'certain members'}{' '}
+                            can create boards
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </section>
               ));

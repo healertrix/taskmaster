@@ -24,6 +24,7 @@ import {
   MoreHorizontal,
 } from 'lucide-react';
 import Link from 'next/link';
+import { canUserInviteMembers } from '@/utils/permissions';
 
 type Profile = {
   id: string;
@@ -375,28 +376,10 @@ export default function WorkspaceMembersPage() {
   };
 
   // Define permission flags based on workspace settings
-  const canAddMembers = (() => {
-    if (!workspaceSettings) {
-      return currentUserRole === 'owner' || currentUserRole === 'admin';
-    }
-
-    const membershipRestriction = workspaceSettings.membership_restriction;
-
-    switch (membershipRestriction) {
-      case 'owner_only':
-        return currentUserRole === 'owner';
-      case 'admins_only':
-        return currentUserRole === 'owner' || currentUserRole === 'admin';
-      case 'anyone':
-        return (
-          currentUserRole === 'owner' ||
-          currentUserRole === 'admin' ||
-          currentUserRole === 'member'
-        );
-      default:
-        return currentUserRole === 'owner' || currentUserRole === 'admin';
-    }
-  })();
+  const canAddMembers = canUserInviteMembers(
+    workspaceSettings,
+    currentUserRole as 'owner' | 'admin' | 'member'
+  );
 
   const canManageMembers =
     currentUserRole === 'owner' || currentUserRole === 'admin';
