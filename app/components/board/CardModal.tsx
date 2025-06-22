@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -44,6 +44,8 @@ import {
   Hash,
   MapPin,
   FileText,
+  CheckCircle2,
+  LayoutGrid,
 } from 'lucide-react';
 import { DateTimeRangePicker } from '@/components/ui/DateTimeRangePicker';
 import { Checklist } from '@/components/ui/Checklist';
@@ -339,8 +341,9 @@ export function CardModal({
     Array<{ id: string; name: string; cards_count: number }>
   >([]);
   const [selectedListId, setSelectedListId] = useState('');
-  const [selectedPosition, setSelectedPosition] = useState(1);
   const [isLoadingLists, setIsLoadingLists] = useState(false);
+  const [isListDropdownOpen, setIsListDropdownOpen] = useState(false);
+  const dropdownButtonRef = useRef<HTMLButtonElement>(null);
 
   // Check if there are any active save operations
   const hasActiveSaveOperations = () => {
@@ -420,7 +423,11 @@ export function CardModal({
           e.stopPropagation();
           handleCancelClose();
         } else if (showMoveModal) {
-          setShowMoveModal(false);
+          if (isListDropdownOpen) {
+            setIsListDropdownOpen(false);
+          } else {
+            setShowMoveModal(false);
+          }
         } else {
           handleModalClose();
         }
@@ -453,6 +460,8 @@ export function CardModal({
     showAddChecklistModal,
     showAttachmentModal,
     showSaveWarningModal,
+    showMoveModal,
+    isListDropdownOpen,
     title,
     description,
   ]);
@@ -1775,41 +1784,21 @@ export function CardModal({
         throw new Error(data.error || 'Failed to fetch board lists');
       }
 
-      // Prepare the lists data with card counts
+      // Prepare the lists data with card counts, excluding current list
       const listsWithCounts =
-        data.lists?.map((list: any) => ({
-          id: list.id,
-          name: list.name,
-          cards_count: list.cards?.length || 0,
-        })) || [];
+        data.lists
+          ?.map((list: any) => ({
+            id: list.id,
+            name: list.name,
+            cards_count: list.cards?.length || 0,
+          }))
+          .filter((list: any) => list.id !== card.list_id) || [];
 
       setAvailableLists(listsWithCounts);
 
-      // Set default selection to current list and calculate current position
-      const currentListInOptions = listsWithCounts.find(
-        (list: any) => list.id === card.list_id
-      );
-      if (currentListInOptions) {
-        setSelectedListId(card.list_id);
-        // Calculate current position in the list (1-based)
-        const currentList = data.lists?.find(
-          (list: any) => list.id === card.list_id
-        );
-        if (currentList?.cards) {
-          // Sort cards by position to get the correct index
-          const sortedCards = [...currentList.cards].sort(
-            (a, b) => a.position - b.position
-          );
-          const currentCardIndex = sortedCards.findIndex(
-            (c: any) => c.id === card.id
-          );
-          setSelectedPosition(currentCardIndex >= 0 ? currentCardIndex + 1 : 1);
-        } else {
-          setSelectedPosition(1);
-        }
-      } else if (listsWithCounts.length > 0) {
+      // Set default selection to first available list (since current list is excluded)
+      if (listsWithCounts.length > 0) {
         setSelectedListId(listsWithCounts[0].id);
-        setSelectedPosition(1);
       }
     } catch (error) {
       console.error('Error fetching lists:', error);
@@ -1822,27 +1811,6 @@ export function CardModal({
   const handleMoveCard = async () => {
     if (!selectedListId || isMovingCard) return;
 
-    // Prevent moving to same position
-    if (
-      selectedListId === card.list_id &&
-      selectedPosition ===
-        (() => {
-          const currentList = availableLists.find(
-            (list) => list.id === card.list_id
-          );
-          if (currentList) {
-            // Calculate current position based on actual card position
-            // This is a simplified version - in real app you'd need to get this from the API
-            return Math.round(card.position) || 1;
-          }
-          return 1;
-        })()
-    ) {
-      // Show a subtle message that no move is needed
-      setShowMoveModal(false);
-      return;
-    }
-
     setIsMovingCard(true);
 
     try {
@@ -1853,7 +1821,7 @@ export function CardModal({
         },
         body: JSON.stringify({
           list_id: selectedListId,
-          position: selectedPosition,
+          position: 999999, // Move to end of list
         }),
       });
 
@@ -1863,25 +1831,12 @@ export function CardModal({
         throw new Error(data.error || 'Failed to move card');
       }
 
-      // Close the move modal first
+      // Close the move modal and card modal
       setShowMoveModal(false);
+      onClose(); // Close the card modal
 
-      // If moving between different lists, close the modal and refresh the page
-      if (selectedListId !== card.list_id) {
-        onClose(); // Close the card modal
-
-        // Refresh the page to show the updated board state
-        // This ensures the card appears in the correct list
-        window.location.reload();
-      } else {
-        // If moving within the same list, just update the position
-        if (onUpdateCard) {
-          await onUpdateCard(card.id, {
-            position: data.card.position,
-          });
-        }
-        // Don't close the modal for same-list moves so user can see the result
-      }
+      // Refresh the page to show the updated board state
+      window.location.reload();
     } catch (error) {
       console.error('Error moving card:', error);
       // Handle error - could show a toast notification here
@@ -3667,164 +3622,229 @@ export function CardModal({
 
         {/* Move Card Modal */}
         {showMoveModal && (
-          <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4'>
-            <div className='bg-card border border-border rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'>
-              {/* Header */}
-              <div className='bg-gradient-to-r from-primary to-primary/90 px-6 py-4'>
-                <div className='flex items-center justify-between text-white'>
-                  <div className='flex items-center gap-3'>
-                    <div className='w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center'>
-                      <Move className='w-4 h-4' />
+          <>
+            {/* Backdrop */}
+            <div
+              className='fixed inset-0 bg-black/50 backdrop-blur-sm z-[70]'
+              onClick={() => !isMovingCard && setShowMoveModal(false)}
+            />
+
+            <div className='fixed inset-0 z-[80] flex items-center justify-center p-4 pointer-events-none'>
+              <div className='bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200 pointer-events-auto'>
+                {/* Header */}
+                <div className='bg-gradient-to-r from-primary to-primary/90 px-6 py-4'>
+                  <div className='flex items-center justify-between text-white'>
+                    <div className='flex items-center gap-3'>
+                      <div className='w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center'>
+                        <Move className='w-4 h-4' />
+                      </div>
+                      <div>
+                        <h3 className='text-lg font-semibold'>Move Card</h3>
+                        <p className='text-sm text-white/80'>
+                          Choose destination list
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className='text-lg font-semibold'>Move Card</h3>
-                      <p className='text-sm text-white/80'>
-                        Choose destination list and position
+                    <button
+                      onClick={() => setShowMoveModal(false)}
+                      className='p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200'
+                      title='Close modal'
+                      aria-label='Close modal'
+                      disabled={isMovingCard}
+                    >
+                      <X className='w-5 h-5' />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className='p-6'>
+                  {isLoadingLists ? (
+                    <div className='flex items-center justify-center py-12'>
+                      <div className='flex items-center gap-3'>
+                        <div className='w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
+                        <span className='text-sm text-muted-foreground font-medium'>
+                          Loading lists...
+                        </span>
+                      </div>
+                    </div>
+                  ) : availableLists.length === 0 ? (
+                    <div className='text-center py-12'>
+                      <div className='w-16 h-16 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4'>
+                        <LayoutGrid className='w-8 h-8 text-muted-foreground' />
+                      </div>
+                      <p className='text-sm text-muted-foreground'>
+                        No other lists available to move to
                       </p>
                     </div>
-                  </div>
-                  <button
-                    onClick={() => setShowMoveModal(false)}
-                    className='p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200'
-                    title='Close modal'
-                    aria-label='Close modal'
-                    disabled={isMovingCard}
-                  >
-                    <X className='w-5 h-5' />
-                  </button>
-                </div>
-              </div>
+                  ) : (
+                    <div className='space-y-4'>
+                      {/* Current location info - more compact */}
+                      <div className='text-sm text-muted-foreground'>
+                        Moving from{' '}
+                        <span className='font-medium text-foreground'>
+                          "{listName}"
+                        </span>
+                      </div>
 
-              {/* Content */}
-              <div className='p-6'>
-                {isLoadingLists ? (
-                  <div className='flex items-center justify-center py-8'>
-                    <div className='flex items-center gap-3'>
-                      <div className='w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
-                      <span className='text-sm text-muted-foreground'>
-                        Loading lists...
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className='space-y-4'>
-                    {/* Simple current location info */}
-                    <div className='text-sm text-muted-foreground'>
-                      in list{' '}
-                      <span className='font-medium text-foreground'>
-                        {listName}
-                      </span>
-                    </div>
-
-                    {/* List Selection */}
-                    <div className='space-y-2'>
-                      <label className='block text-sm font-medium text-foreground'>
-                        List
-                      </label>
-                      <select
-                        value={selectedListId}
-                        onChange={(e) => {
-                          setSelectedListId(e.target.value);
-                          setSelectedPosition(1);
-                        }}
-                        className='w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary'
-                        disabled={isMovingCard}
-                        title='Select destination list'
-                      >
-                        {availableLists.map((list) => (
-                          <option key={list.id} value={list.id}>
-                            {list.name}
-                            {list.id === card.list_id ? ' (current)' : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Position Selection */}
-                    {selectedListId && (
+                      {/* List Selection */}
                       <div className='space-y-2'>
                         <label className='block text-sm font-medium text-foreground'>
-                          Position
+                          Move to list
                         </label>
-                        <select
-                          value={selectedPosition}
-                          onChange={(e) =>
-                            setSelectedPosition(Number(e.target.value))
-                          }
-                          className='w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary'
-                          disabled={isMovingCard}
-                          title='Select position in list'
-                        >
-                          {(() => {
-                            const selectedList = availableLists.find(
-                              (list) => list.id === selectedListId
-                            );
-                            const maxPositions = selectedList
-                              ? selectedListId === card.list_id
-                                ? selectedList.cards_count
-                                : selectedList.cards_count + 1
-                              : 1;
 
-                            const currentPosition =
-                              Math.round(card.position) || 1;
-
-                            return Array.from(
-                              { length: maxPositions },
-                              (_, i) => i + 1
-                            ).map((pos) => {
-                              const isCurrentPosition =
-                                selectedListId === card.list_id &&
-                                pos === currentPosition;
-
-                              return (
-                                <option key={pos} value={pos}>
-                                  {pos}
-                                  {isCurrentPosition ? ' (current)' : ''}
-                                </option>
-                              );
-                            });
-                          })()}
-                        </select>
+                        <div className='relative'>
+                          <button
+                            ref={dropdownButtonRef}
+                            onClick={() =>
+                              !isMovingCard &&
+                              setIsListDropdownOpen(!isListDropdownOpen)
+                            }
+                            className='w-full bg-background border-2 border-border hover:border-primary/50 rounded-xl px-4 py-3 text-left flex items-center justify-between transition-all duration-200 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20 group'
+                            disabled={isMovingCard}
+                          >
+                            <div className='flex items-center gap-3'>
+                              {selectedListId ? (
+                                <>
+                                  <div className='w-3 h-3 bg-gradient-to-r from-green-400 to-blue-500 rounded-full' />
+                                  <span className='font-medium text-foreground'>
+                                    {
+                                      availableLists.find(
+                                        (list) => list.id === selectedListId
+                                      )?.name
+                                    }
+                                  </span>
+                                  <span className='text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full'>
+                                    {
+                                      availableLists.find(
+                                        (list) => list.id === selectedListId
+                                      )?.cards_count
+                                    }{' '}
+                                    cards
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <div className='w-3 h-3 bg-muted rounded-full' />
+                                  <span className='text-muted-foreground'>
+                                    Choose a list...
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            <ChevronDown
+                              className={`w-5 h-5 text-muted-foreground transition-transform duration-200 group-hover:text-foreground ${
+                                isListDropdownOpen ? 'rotate-180' : ''
+                              }`}
+                            />
+                          </button>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
 
-                {/* Action Buttons */}
-                <div className='flex gap-2 justify-end mt-6 pt-4 border-t border-border'>
-                  <button
-                    onClick={() => setShowMoveModal(false)}
-                    className='px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors'
-                    disabled={isMovingCard}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleMoveCard}
-                    disabled={
-                      !selectedListId ||
-                      isMovingCard ||
-                      isLoadingLists ||
-                      // Disable if trying to move to same position
-                      (selectedListId === card.list_id &&
-                        selectedPosition ===
-                          (() => {
-                            const currentList = availableLists.find(
-                              (list) => list.id === card.list_id
-                            );
-                            return currentList
-                              ? Math.round(card.position) || 1
-                              : 1;
-                          })())
-                    }
-                    className='px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
-                  >
-                    {isMovingCard ? 'Moving...' : 'Move'}
-                  </button>
+                  {/* Action Buttons */}
+                  {availableLists.length > 0 && (
+                    <div className='flex gap-3 justify-end mt-8 pt-6 border-t border-border'>
+                      <button
+                        onClick={() => setShowMoveModal(false)}
+                        className='px-6 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-all duration-200'
+                        disabled={isMovingCard}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleMoveCard}
+                        disabled={!selectedListId || isMovingCard}
+                        className='px-6 py-3 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2'
+                      >
+                        {isMovingCard ? (
+                          <>
+                            <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                            Moving...
+                          </>
+                        ) : (
+                          <>
+                            <Move className='w-4 h-4' />
+                            Move Card
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
+          </>
+        )}
+
+        {/* Custom Dropdown - positioned outside modal to avoid clipping */}
+        {showMoveModal && isListDropdownOpen && (
+          <>
+            <div
+              className='fixed inset-0 z-[100]'
+              onClick={() => setIsListDropdownOpen(false)}
+            />
+            <div
+              className='fixed bg-card border-2 border-border rounded-xl shadow-2xl z-[101] overflow-hidden max-h-64 overflow-y-auto'
+              style={{
+                top: dropdownButtonRef.current
+                  ? `${
+                      dropdownButtonRef.current.getBoundingClientRect().bottom +
+                      8
+                    }px`
+                  : '50%',
+                left: dropdownButtonRef.current
+                  ? `${
+                      dropdownButtonRef.current.getBoundingClientRect().left
+                    }px`
+                  : '50%',
+                width: dropdownButtonRef.current
+                  ? `${
+                      dropdownButtonRef.current.getBoundingClientRect().width
+                    }px`
+                  : '300px',
+              }}
+            >
+              {availableLists.map((list, index) => (
+                <button
+                  key={list.id}
+                  onClick={() => {
+                    setSelectedListId(list.id);
+                    setIsListDropdownOpen(false);
+                  }}
+                  className={`w-full px-4 py-3 text-left hover:bg-muted/80 transition-colors duration-200 flex items-center gap-3 border-b border-border/50 last:border-b-0 ${
+                    selectedListId === list.id
+                      ? 'bg-primary/10 dark:bg-primary/10'
+                      : ''
+                  }`}
+                >
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      index % 4 === 0
+                        ? 'bg-gradient-to-r from-red-400 to-pink-500'
+                        : index % 4 === 1
+                        ? 'bg-gradient-to-r from-blue-400 to-purple-500'
+                        : index % 4 === 2
+                        ? 'bg-gradient-to-r from-green-400 to-blue-500'
+                        : 'bg-gradient-to-r from-yellow-400 to-orange-500'
+                    }`}
+                  />
+                  <div className='flex-1'>
+                    <div className='font-medium text-foreground'>
+                      {list.name}
+                    </div>
+                  </div>
+                  <span className='text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full'>
+                    {list.cards_count} cards
+                  </span>
+                  {selectedListId === list.id && (
+                    <CheckCircle2 className='w-4 h-4 text-primary' />
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>
