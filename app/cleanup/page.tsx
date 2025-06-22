@@ -15,9 +15,13 @@ export default function CleanupPage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const supabase = createClient();
+  const [mounted, setMounted] = useState(false);
+
+  // Only create Supabase client on the client side
+  const supabase = mounted ? createClient() : null;
 
   const fetchWorkspaces = async () => {
+    if (!supabase) return;
     try {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) return;
@@ -38,6 +42,7 @@ export default function CleanupPage() {
   };
 
   const deleteWorkspace = async (workspaceId: string) => {
+    if (!supabase) return;
     if (!confirm('Are you sure you want to delete this workspace?')) return;
 
     setDeleting(workspaceId);
@@ -67,15 +72,28 @@ export default function CleanupPage() {
       alert('Workspace deleted successfully!');
     } catch (error) {
       console.error('Error deleting workspace:', error);
-      alert('Error deleting workspace: ' + error.message);
+      alert(
+        'Error deleting workspace: ' +
+          (error instanceof Error ? error.message : 'Unknown error')
+      );
     } finally {
       setDeleting(null);
     }
   };
 
   useEffect(() => {
-    fetchWorkspaces();
+    setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (mounted) {
+      fetchWorkspaces();
+    }
+  }, [mounted]);
+
+  if (!mounted) {
+    return null; // Don't render anything on server
+  }
 
   if (loading) {
     return (

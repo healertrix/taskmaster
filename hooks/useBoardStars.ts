@@ -106,7 +106,7 @@ export const useBoardStars = () => {
           .from('boards')
           .select('id, name, color, workspace_id, updated_at')
           .eq('id', boardId)
-          .single();
+          .maybeSingle();
 
         if (boardError) {
           console.error(`Error fetching board ${boardId}:`, boardError);
@@ -212,9 +212,9 @@ export const useBoardStars = () => {
             .from('boards')
             .select('id, name, color, workspace_id, updated_at')
             .eq('id', boardId)
-            .single();
+            .maybeSingle();
 
-          if (boardError) {
+          if (boardError || !boardData) {
             console.error('Error fetching board details:', boardError);
             return;
           }
