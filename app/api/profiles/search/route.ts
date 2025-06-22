@@ -62,12 +62,58 @@ export async function GET(request: NextRequest) {
           );
         }
 
-        // Check if user has permission to add members (admin)
-        if (membership.role !== 'admin') {
+        // Check workspace settings for membership permissions
+        const { data: settingsData, error: settingsError } = await supabase
+          .from('workspace_settings')
+          .select('setting_type, setting_value')
+          .eq('workspace_id', workspaceId);
+
+        // Default membership restriction
+        let membershipRestriction = 'admins_only';
+
+        // Process settings data to find membership_restriction
+        if (settingsData && settingsData.length > 0) {
+          const membershipSetting = settingsData.find(
+            (setting) => setting.setting_type === 'membership_restriction'
+          );
+
+          if (membershipSetting) {
+            try {
+              if (typeof membershipSetting.setting_value === 'string') {
+                membershipRestriction = JSON.parse(
+                  membershipSetting.setting_value
+                );
+              } else {
+                membershipRestriction = membershipSetting.setting_value;
+              }
+            } catch (error) {
+              console.error('Error parsing membership_restriction:', error);
+              membershipRestriction = 'admins_only';
+            }
+          }
+        }
+
+        // Check if user can search for members based on their role and workspace settings
+        const canSearchMembers = (() => {
+          switch (membershipRestriction) {
+            case 'owner_only':
+              return false; // Owner already checked above
+            case 'admins_only':
+              return membership.role === 'admin';
+            case 'anyone':
+              return (
+                membership.role === 'admin' || membership.role === 'member'
+              );
+            default:
+              return membership.role === 'admin';
+          }
+        })();
+
+        if (!canSearchMembers) {
           return NextResponse.json(
             {
               error:
-                'Insufficient permissions to search for members - need admin role',
+                'You do not have permission to search for members in this workspace',
             },
             { status: 403 }
           );

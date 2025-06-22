@@ -899,7 +899,7 @@ export default function WorkspaceSettingsPage() {
                 </div>
                 <div>
                   <div className='font-medium text-foreground'>
-                    {membershipInfo.text} can be added to this workspace
+                    {membershipInfo.text} can invite new members
                   </div>
                   <div className='text-sm text-muted-foreground'>
                     Controls who can invite new members to join this workspace

@@ -44,17 +44,14 @@ export async function POST(
     }
 
     // Check workspace settings for membership permissions
-    const { data: settings, error: settingsError } = await supabase
+    const { data: settingsData, error: settingsError } = await supabase
       .from('workspace_settings')
-      .select('setting_value')
-      .eq('workspace_id', workspaceId)
-      .eq('setting_type', 'membership_restriction')
-      .maybeSingle(); // Use maybeSingle() to handle no rows gracefully
+      .select('setting_type, setting_value')
+      .eq('workspace_id', workspaceId);
 
-    console.log('Workspace settings check:', { settings, settingsError });
+    console.log('Workspace settings check:', { settingsData, settingsError });
 
-    // If there's an error other than "no rows found", return error
-    if (settingsError && settingsError.code !== 'PGRST116') {
+    if (settingsError) {
       console.error('Error fetching workspace settings:', settingsError);
       return NextResponse.json(
         { error: 'Failed to check permissions' },
@@ -62,21 +59,46 @@ export async function POST(
       );
     }
 
-    // Default to allowing admins and owners if no setting exists
-    const membershipRestriction =
-      (settings?.setting_value as string) || '"admins_only"';
+    // Default membership restriction
+    let membershipRestriction = 'admins_only';
+
+    // Process settings data to find membership_restriction
+    if (settingsData && settingsData.length > 0) {
+      const membershipSetting = settingsData.find(
+        (setting) => setting.setting_type === 'membership_restriction'
+      );
+
+      if (membershipSetting) {
+        try {
+          if (typeof membershipSetting.setting_value === 'string') {
+            membershipRestriction = JSON.parse(membershipSetting.setting_value);
+          } else {
+            membershipRestriction = membershipSetting.setting_value;
+          }
+        } catch (error) {
+          console.error('Error parsing membership_restriction:', error);
+          membershipRestriction = 'admins_only';
+        }
+      }
+    }
 
     // Check if user can add members based on their role and workspace settings
-    const canAddMembers =
-      membershipRestriction === '"anyone"' ||
-      (membershipRestriction === '"any_member"' &&
-        ['admin', 'member', 'owner'].includes(membership.role)) ||
-      (membershipRestriction === '"admins_only"' &&
-        ['admin', 'owner'].includes(membership.role)) ||
-      (membershipRestriction === '"owner_only"' &&
-        membership.role === 'owner') ||
-      // Default: Allow admins and owners
-      ['admin', 'owner'].includes(membership.role);
+    const canAddMembers = (() => {
+      switch (membershipRestriction) {
+        case 'owner_only':
+          return membership.role === 'owner';
+        case 'admins_only':
+          return membership.role === 'owner' || membership.role === 'admin';
+        case 'anyone':
+          return (
+            membership.role === 'owner' ||
+            membership.role === 'admin' ||
+            membership.role === 'member'
+          );
+        default:
+          return membership.role === 'owner' || membership.role === 'admin';
+      }
+    })();
 
     console.log('Permission check:', {
       membershipRestriction,

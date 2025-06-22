@@ -41,11 +41,18 @@ type WorkspaceMember = {
   profile: Profile;
 };
 
+type WorkspaceSettings = {
+  membership_restriction: 'anyone' | 'admins_only' | 'owner_only';
+  board_creation_simplified: 'any_member' | 'admins_only' | 'owner_only';
+  board_deletion_simplified: 'any_member' | 'admins_only' | 'owner_only';
+};
+
 type Workspace = {
   id: string;
   name: string;
   color: string;
   owner_id: string;
+  settings?: WorkspaceSettings;
 };
 
 type Invitation = {
@@ -69,6 +76,8 @@ export default function WorkspaceMembersPage() {
   };
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [workspaceSettings, setWorkspaceSettings] =
+    useState<WorkspaceSettings | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
@@ -142,6 +151,51 @@ export default function WorkspaceMembersPage() {
         }
 
         setWorkspace(workspaceData);
+
+        // Fetch workspace settings - match the pattern from settings page
+        const { data: settingsData, error: settingsError } = await supabase
+          .from('workspace_settings')
+          .select('setting_type, setting_value')
+          .eq('workspace_id', workspaceId);
+
+        console.log('Raw workspace settings data:', {
+          settingsData,
+          settingsError,
+        });
+
+        if (!settingsError && settingsData) {
+          // Process settings data similar to settings page
+          const processedSettings = {
+            membership_restriction: 'admins_only',
+            board_creation_simplified: 'any_member',
+            board_deletion_simplified: 'any_member',
+          };
+
+          settingsData.forEach((setting) => {
+            const settingType = setting.setting_type;
+
+            if (settingType === 'membership_restriction') {
+              let value;
+              try {
+                if (typeof setting.setting_value === 'string') {
+                  value = JSON.parse(setting.setting_value);
+                } else {
+                  value = setting.setting_value;
+                }
+              } catch (error) {
+                console.error('Error parsing membership_restriction:', error);
+                value = 'admins_only';
+              }
+              processedSettings.membership_restriction = value;
+            }
+            // Add other settings processing if needed later
+          });
+
+          console.log('Processed workspace settings:', processedSettings);
+          setWorkspaceSettings(processedSettings);
+        } else {
+          console.log('No workspace settings found or error:', settingsError);
+        }
 
         // Check user's role in workspace - check if owner first, then membership
         let userRole = '';
@@ -320,9 +374,30 @@ export default function WorkspaceMembersPage() {
     }, 4500);
   };
 
-  // Define permission flags
-  const canAddMembers =
-    currentUserRole === 'owner' || currentUserRole === 'admin';
+  // Define permission flags based on workspace settings
+  const canAddMembers = (() => {
+    if (!workspaceSettings) {
+      return currentUserRole === 'owner' || currentUserRole === 'admin';
+    }
+
+    const membershipRestriction = workspaceSettings.membership_restriction;
+
+    switch (membershipRestriction) {
+      case 'owner_only':
+        return currentUserRole === 'owner';
+      case 'admins_only':
+        return currentUserRole === 'owner' || currentUserRole === 'admin';
+      case 'anyone':
+        return (
+          currentUserRole === 'owner' ||
+          currentUserRole === 'admin' ||
+          currentUserRole === 'member'
+        );
+      default:
+        return currentUserRole === 'owner' || currentUserRole === 'admin';
+    }
+  })();
+
   const canManageMembers =
     currentUserRole === 'owner' || currentUserRole === 'admin';
 
