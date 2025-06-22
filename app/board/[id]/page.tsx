@@ -565,6 +565,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     cardId: string;
     cardTitle: string;
     currentListId: string;
+    currentListName: string;
   } | null>(null);
 
   // Notification states
@@ -906,12 +907,14 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     // Find the task and its current list
     let taskTitle = 'Task';
     let currentListId = '';
+    let currentListName = 'List';
 
     for (const list of lists) {
       const task = list.cards.find((card) => card.id === taskId);
       if (task) {
         taskTitle = task.title;
         currentListId = list.id;
+        currentListName = list.name;
         break;
       }
     }
@@ -920,6 +923,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       cardId: taskId,
       cardTitle: taskTitle,
       currentListId: currentListId,
+      currentListName: currentListName,
     });
     setShowMoveCardModal(true);
   };
@@ -2023,19 +2027,21 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           // Find the selected card across all lists
           let selectedCard = null;
           let listName = '';
+          let listId = '';
 
           for (const list of lists) {
             const card = list.cards.find((c) => c.id === selectedCardId);
             if (card) {
               selectedCard = card;
               listName = list.name;
+              listId = list.id;
               break;
             }
           }
 
           return selectedCard ? (
             <CardModal
-              card={{ ...selectedCard, board_id: params.id }}
+              card={{ ...selectedCard, board_id: params.id, list_id: listId }}
               isOpen={isCardModalOpen}
               onClose={handleCloseCard}
               onUpdateCard={handleUpdateCard}
@@ -2057,6 +2063,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           cardId={moveCardData.cardId}
           cardTitle={moveCardData.cardTitle}
           currentListId={moveCardData.currentListId}
+          currentListName={moveCardData.currentListName}
           boardId={params.id}
           onMoveSuccess={handleMoveSuccess}
         />

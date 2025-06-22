@@ -10,6 +10,7 @@ interface MoveCardModalProps {
   cardId: string;
   cardTitle: string;
   currentListId: string;
+  currentListName: string;
   boardId: string;
   onMoveSuccess?: () => void;
 }
@@ -26,6 +27,7 @@ export function MoveCardModal({
   cardId,
   cardTitle,
   currentListId,
+  currentListName,
   boardId,
   onMoveSuccess,
 }: MoveCardModalProps) {
@@ -54,8 +56,30 @@ export function MoveCardModal({
         console.log('All lists received:', lists);
 
         // Filter out the current list and format for dropdown
+        console.log('Before filtering - checking each list:');
+        lists.forEach((list: any) => {
+          console.log(
+            `List: ${list.name}, ID: "${list.id}" (type: ${typeof list.id})`
+          );
+          console.log(
+            `Current List ID: "${currentListId}" (type: ${typeof currentListId})`
+          );
+          console.log(`Are they equal? ${list.id === currentListId}`);
+          console.log(`Strict equal? ${list.id === currentListId}`);
+          console.log('---');
+        });
+
         const filteredLists = lists
-          .filter((list: any) => list.id !== currentListId)
+          .filter((list: any) => {
+            // Convert both to strings to ensure proper comparison
+            const listId = String(list.id);
+            const currentId = String(currentListId);
+            const shouldInclude = listId !== currentId;
+            console.log(
+              `List "${list.name}" (${listId}) should be included: ${shouldInclude}`
+            );
+            return shouldInclude;
+          })
           .map((list: any) => ({
             id: list.id,
             name: list.name,
@@ -241,11 +265,15 @@ export function MoveCardModal({
               </div>
             ) : (
               <div className='space-y-4'>
-                {/* Card Info */}
+                {/* Current location info */}
                 <div className='text-sm text-muted-foreground'>
                   Moving card{' '}
                   <span className='font-medium text-foreground'>
                     "{cardTitle}"
+                  </span>{' '}
+                  from{' '}
+                  <span className='font-medium text-foreground'>
+                    "{currentListName}"
                   </span>
                 </div>
 

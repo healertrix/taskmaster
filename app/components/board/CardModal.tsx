@@ -1777,6 +1777,13 @@ export function CardModal({
   const fetchAvailableLists = async () => {
     setIsLoadingLists(true);
     try {
+      console.log(
+        'CardModal - fetchAvailableLists called for card:',
+        card.id,
+        'in list:',
+        card.list_id
+      );
+
       const response = await fetch(`/api/lists?board_id=${card.board_id}`);
       const data = await response.json();
 
@@ -1784,16 +1791,42 @@ export function CardModal({
         throw new Error(data.error || 'Failed to fetch board lists');
       }
 
+      console.log('CardModal - Raw API response:', data);
+      console.log(
+        'CardModal - Card list_id:',
+        card.list_id,
+        'type:',
+        typeof card.list_id
+      );
+
       // Prepare the lists data with card counts, excluding current list
-      const listsWithCounts =
-        data.lists
-          ?.map((list: any) => ({
+      const allLists = data.lists || [];
+      const listsWithCounts = [];
+
+      for (const list of allLists) {
+        const listId = String(list.id);
+        const currentId = String(card.list_id);
+        const isCurrentList = listId === currentId;
+
+        console.log(`CardModal - Processing list "${list.name}":`, {
+          listId,
+          currentId,
+          isCurrentList,
+          shouldInclude: !isCurrentList,
+        });
+
+        if (!isCurrentList) {
+          listsWithCounts.push({
             id: list.id,
             name: list.name,
             cards_count: list.cards?.length || 0,
-          }))
-          .filter((list: any) => list.id !== card.list_id) || [];
+          });
+        } else {
+          console.log(`CardModal - EXCLUDING current list "${list.name}"`);
+        }
+      }
 
+      console.log('CardModal - Final filtered lists:', listsWithCounts);
       setAvailableLists(listsWithCounts);
 
       // Set default selection to first available list (since current list is excluded)
@@ -1847,6 +1880,15 @@ export function CardModal({
 
   // Handle opening move modal
   const handleOpenMoveModal = () => {
+    console.log(
+      'CardModal - Opening move modal for card:',
+      card.id,
+      'in list:',
+      card.list_id
+    );
+    // Clear any existing lists first
+    setAvailableLists([]);
+    setSelectedListId('');
     setShowMoveModal(true);
     fetchAvailableLists();
   };
