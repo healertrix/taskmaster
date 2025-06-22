@@ -63,6 +63,11 @@ export default function WorkspaceMembersPage() {
   const router = useRouter();
   const workspaceId = params.id as string;
 
+  // Simple back navigation using browser history
+  const handleGoBack = () => {
+    router.back();
+  };
+
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -627,13 +632,13 @@ export default function WorkspaceMembersPage() {
         {/* Header */}
         <div className='flex items-center justify-between mb-8'>
           <div className='flex items-center gap-4'>
-            <Link
-              href={`/boards/${workspace.id}`}
+            <button
+              onClick={handleGoBack}
               className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
-              aria-label='Back to workspace'
+              aria-label='Go back'
             >
               <ArrowLeft className='w-5 h-5' />
-            </Link>
+            </button>
             <div>
               <h1 className='text-2xl font-bold text-foreground'>
                 {workspace.name} Members
