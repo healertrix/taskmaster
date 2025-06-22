@@ -67,11 +67,11 @@ export async function POST(
     } else {
       // Check if user is a direct board member
       const { data: boardMembership, error: boardMemberError } = await supabase
-        .from('board_members')
-        .select('id')
-        .eq('board_id', card.board_id)
-        .eq('profile_id', user.id)
-        .single();
+      .from('board_members')
+      .select('id')
+      .eq('board_id', card.board_id)
+      .eq('profile_id', user.id)
+      .single();
 
       if (!boardMemberError && boardMembership) {
         hasAccess = true;
@@ -139,22 +139,22 @@ export async function POST(
 
     // Direct update instead of using stored procedure
     const { data: updatedCard, error: updateError } = await supabase
-      .from('cards')
-      .update({
-        list_id: target_list_id,
-        position: new_position,
+        .from('cards')
+        .update({
+          list_id: target_list_id,
+          position: new_position,
         updated_at: new Date().toISOString(),
-      })
-      .eq('id', cardId)
+        })
+        .eq('id', cardId)
       .select('id, list_id, position');
 
     if (updateError) {
       console.error('Error moving card:', updateError);
-      return NextResponse.json(
-        { error: 'Failed to move card' },
-        { status: 500 }
-      );
-    }
+        return NextResponse.json(
+          { error: 'Failed to move card' },
+          { status: 500 }
+        );
+      }
 
     // Check if any rows were updated
     if (!updatedCard || updatedCard.length === 0) {

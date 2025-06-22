@@ -162,6 +162,8 @@ interface CardModalProps {
   onUpdateCard?: (cardId: string, updates: Partial<Card>) => Promise<boolean>;
   onDeleteCard?: (cardId: string) => Promise<boolean>;
   onArchiveCard?: (cardId: string) => Promise<boolean>;
+  onLabelsUpdated?: (labelId?: string, labelData?: any) => void;
+  onMembersUpdated?: (memberId?: string, memberData?: any) => void;
   listName?: string;
   boardName?: string;
 }
@@ -225,6 +227,8 @@ export function CardModal({
   onUpdateCard,
   onDeleteCard,
   onArchiveCard,
+  onLabelsUpdated,
+  onMembersUpdated,
   listName = 'List',
   boardName = 'Board',
 }: CardModalProps) {
@@ -1686,6 +1690,12 @@ export function CardModal({
     // Refresh activities to show the member addition
     fetchActivities();
 
+    // Notify parent component about member update
+    onMembersUpdated?.(member.profiles.id, {
+      action: 'added',
+      member: member,
+    });
+
     // Clear saving state after a short delay (will be cleared properly when API responds)
     setTimeout(() => setIsSavingMember(false), 1000);
   };
@@ -1716,6 +1726,13 @@ export function CardModal({
       if (response.ok) {
         // Success - refresh activities to show the member removal
         fetchActivities();
+
+        // Notify parent component about member removal
+        onMembersUpdated?.(profileId, {
+          action: 'removed',
+          memberId: profileId,
+          member: memberToRemove,
+        });
       } else {
         // Rollback on failure
         setCardMembers((prev) => [...prev, memberToRemove]);
@@ -3426,11 +3443,13 @@ export function CardModal({
           onClose={() => setShowLabelModal(false)}
           cardId={card.id}
           boardId={card.board_id}
-          onLabelsUpdated={() => {
+          onLabelsUpdated={(labelId, labelData) => {
             // Refresh the labels display by updating the key
             setLabelsRefreshKey((prev) => prev + 1);
             // Refresh activities to show the label change activity
             fetchActivities();
+            // Notify parent component to refresh board data
+            onLabelsUpdated?.(labelId, labelData);
           }}
         />
 

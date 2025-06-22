@@ -1,6 +1,12 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useCallback,
+} from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -578,6 +584,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   // Card modal states
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+  const [isUpdatingLabels, setIsUpdatingLabels] = useState(false);
 
   // Notification states
   const [showSuccessToast, setShowSuccessToast] = useState(false);
@@ -950,6 +957,243 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     setSelectedCardId(null);
     setIsCardModalOpen(false);
   };
+
+  // Super optimized members update - instant UI updates for member changes
+  const handleMembersUpdated = useCallback(
+    debounce(async (memberId?: string, memberData?: any) => {
+      try {
+        setIsUpdatingLabels(true); // Reuse the same loading state
+
+        if (memberId && memberData && selectedCardId) {
+          if (memberData.action === 'added') {
+            // Optimistically add member to the card's assignees
+            setColumns((prevColumns) =>
+              prevColumns.map((column) => ({
+                ...column,
+                cards: column.cards.map((card) =>
+                  card.id === selectedCardId
+                    ? {
+                        ...card,
+                        assignees: [
+                          ...(card.assignees || []),
+                          {
+                            initials: memberData.member.profiles.full_name
+                              .split(' ')
+                              .map((n: string) => n[0])
+                              .join('')
+                              .toUpperCase()
+                              .substring(0, 2),
+                            color: generateConsistentColor(
+                              memberData.member.profiles.id
+                            ),
+                            avatar_url: memberData.member.profiles.avatar_url,
+                            full_name: memberData.member.profiles.full_name,
+                          },
+                        ],
+                      }
+                    : card
+                ),
+              }))
+            );
+          } else if (memberData.action === 'removed') {
+            // Optimistically remove member from the card's assignees
+            // For removal, we need to fetch the updated card members to ensure accuracy
+            try {
+              const response = await fetch(
+                `/api/cards/${selectedCardId}/members`
+              );
+              if (response.ok) {
+                const data = await response.json();
+                const cardMembers = data.members || [];
+
+                // Update the specific card's assignees based on the fresh data
+                setColumns((prevColumns) =>
+                  prevColumns.map((column) => ({
+                    ...column,
+                    cards: column.cards.map((card) =>
+                      card.id === selectedCardId
+                        ? {
+                            ...card,
+                            assignees: cardMembers.map((member: any) => ({
+                              initials: member.profiles.full_name
+                                .split(' ')
+                                .map((n: string) => n[0])
+                                .join('')
+                                .toUpperCase()
+                                .substring(0, 2),
+                              color: generateConsistentColor(
+                                member.profiles.id
+                              ),
+                              avatar_url: member.profiles.avatar_url,
+                              full_name: member.profiles.full_name,
+                            })),
+                          }
+                        : card
+                    ),
+                  }))
+                );
+              }
+            } catch (error) {
+              console.log('Background member sync failed for removal');
+            }
+          }
+        }
+
+        // For all member operations, trigger a gentle re-fetch of the current card's members
+        // This ensures consistency without causing skeleton loading (same as labels)
+        if (selectedCardId) {
+          try {
+            const response = await fetch(
+              `/api/cards/${selectedCardId}/members`
+            );
+            if (response.ok) {
+              const data = await response.json();
+              const cardMembers = data.members || [];
+
+              // Update the specific card's members in the columns state
+              setColumns((prevColumns) =>
+                prevColumns.map((column) => ({
+                  ...column,
+                  cards: column.cards.map((card) =>
+                    card.id === selectedCardId
+                      ? {
+                          ...card,
+                          assignees: cardMembers.map((member: any) => ({
+                            initials: member.profiles.full_name
+                              .split(' ')
+                              .map((n: string) => n[0])
+                              .join('')
+                              .toUpperCase()
+                              .substring(0, 2),
+                            color: generateConsistentColor(member.profiles.id),
+                            avatar_url: member.profiles.avatar_url,
+                            full_name: member.profiles.full_name,
+                          })),
+                        }
+                      : card
+                  ),
+                }))
+              );
+            }
+          } catch (error) {
+            console.log(
+              'Background member sync failed, but UI is still updated'
+            );
+          }
+        }
+
+        showSuccess('Members updated successfully');
+      } catch (error) {
+        console.error('Error updating members:', error);
+        showError('Failed to update members');
+      } finally {
+        setIsUpdatingLabels(false);
+      }
+    }, 50),
+    [selectedCardId]
+  );
+
+  // Helper function to generate consistent colors for members
+  const generateConsistentColor = (userId: string) => {
+    const colors = [
+      'bg-blue-500',
+      'bg-green-500',
+      'bg-purple-500',
+      'bg-red-500',
+      'bg-yellow-500',
+      'bg-indigo-500',
+      'bg-pink-500',
+      'bg-teal-500',
+    ];
+    const colorIndex = userId.charCodeAt(0) % colors.length;
+    return colors[colorIndex];
+  };
+
+  // Super optimized labels update - instant UI updates for all label changes
+  const handleLabelsUpdated = useCallback(
+    debounce(async (updatedLabelId?: string, updatedLabelData?: any) => {
+      try {
+        setIsUpdatingLabels(true);
+
+        if (updatedLabelId && updatedLabelData && updatedLabelData.oldColor) {
+          // Instant UI update: Update all cards with the old color to the new color
+          setColumns((prevColumns) =>
+            prevColumns.map((column) => ({
+              ...column,
+              cards: column.cards.map((card) => ({
+                ...card,
+                labels:
+                  card.labels?.map((label) =>
+                    label.color === updatedLabelData.oldColor
+                      ? {
+                          ...label,
+                          color: updatedLabelData.color,
+                          text: updatedLabelData.name || label.text,
+                        }
+                      : label
+                  ) || [],
+              })),
+            }))
+          );
+        }
+
+        // For all label operations, trigger a gentle re-fetch of the current card's labels
+        // This ensures consistency without causing skeleton loading
+        if (selectedCardId) {
+          try {
+            const response = await fetch(`/api/cards/${selectedCardId}/labels`);
+            if (response.ok) {
+              const data = await response.json();
+              const cardLabels = data.labels || [];
+
+              // Update the specific card's labels in the columns state
+              setColumns((prevColumns) =>
+                prevColumns.map((column) => ({
+                  ...column,
+                  cards: column.cards.map((card) =>
+                    card.id === selectedCardId
+                      ? {
+                          ...card,
+                          labels: cardLabels.map((cardLabel: any) => ({
+                            color: cardLabel.labels.color,
+                            text: cardLabel.labels.name || '',
+                          })),
+                        }
+                      : card
+                  ),
+                }))
+              );
+            }
+          } catch (error) {
+            console.log(
+              'Background label sync failed, but UI is still updated'
+            );
+          }
+        }
+
+        showSuccess('Labels updated successfully');
+      } catch (error) {
+        console.error('Error updating labels:', error);
+        showError('Failed to update labels');
+      } finally {
+        setIsUpdatingLabels(false);
+      }
+    }, 50), // Very fast debounce for instant feel
+    [selectedCardId]
+  );
+
+  // Debounce utility function
+  function debounce(func: Function, wait: number) {
+    let timeout: NodeJS.Timeout;
+    return function executedFunction(...args: any[]) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
 
   const handleUpdateCard = async (
     cardId: string,
@@ -1465,6 +1709,14 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               <span>Last accessed {formatLastAccess(board.updated_at)}</span>
             </div>
 
+            {/* Labels updating indicator */}
+            {isUpdatingLabels && (
+              <div className='flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400'>
+                <Loader2 className='w-4 h-4 animate-spin' />
+                <span>Updating labels...</span>
+              </div>
+            )}
+
             {/* Star button */}
             <button
               onClick={toggleStar}
@@ -1756,6 +2008,8 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               onUpdateCard={handleUpdateCard}
               onDeleteCard={handleDeleteTask}
               onArchiveCard={handleArchiveTask}
+              onLabelsUpdated={handleLabelsUpdated}
+              onMembersUpdated={handleMembersUpdated}
               listName={listName}
               boardName={board?.name || 'Board'}
             />

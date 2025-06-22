@@ -33,7 +33,7 @@ interface LabelModalProps {
   onClose: () => void;
   cardId: string;
   boardId: string;
-  onLabelsUpdated?: () => void;
+  onLabelsUpdated?: (labelId?: string, labelData?: any) => void;
 }
 
 const LABEL_COLORS = [
@@ -192,6 +192,9 @@ export default function LabelModal({
         const data = await response.json();
         setBoardLabels((prev) => [...prev, data.label]);
         cancelCreate();
+
+        // Notify parent components that labels have been updated (new label)
+        onLabelsUpdated?.();
       } else {
         const errorData = await response.json();
         console.error('Failed to create label:', errorData);
@@ -212,6 +215,10 @@ export default function LabelModal({
 
     setIsLoading(true);
     try {
+      // Store the old color before updating
+      const oldLabel = boardLabels.find((label) => label.id === labelId);
+      const oldColor = oldLabel?.color;
+
       const response = await fetch(`/api/boards/${boardId}/labels/${labelId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -232,6 +239,14 @@ export default function LabelModal({
               : cardLabel
           )
         );
+
+        // Notify parent components with specific label update info
+        onLabelsUpdated?.(labelId, {
+          id: labelId,
+          color: data.label.color,
+          name: data.label.name,
+          oldColor: oldColor,
+        });
       }
     } catch (error) {
       console.error('Failed to update label:', error);
@@ -266,6 +281,9 @@ export default function LabelModal({
           )
         );
         setDeleteConfirm({ isOpen: false, label: null });
+
+        // Notify parent components that labels have been updated (deleted label)
+        onLabelsUpdated?.();
       }
     } catch (error) {
       console.error('Failed to delete label:', error);
@@ -304,6 +322,7 @@ export default function LabelModal({
         }
       }
 
+      // Notify parent components that card labels have been updated (toggle)
       onLabelsUpdated?.();
     } catch (error) {
       console.error('Failed to toggle card label:', error);
