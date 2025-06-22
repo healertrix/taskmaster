@@ -45,6 +45,7 @@ interface TaskCardProps {
   onManageLabels?: (taskId: string) => void;
   onManageAssignees?: (taskId: string) => void;
   onManageDueDate?: (taskId: string) => void;
+  onMoveTask?: (taskId: string) => void;
   onOpenCard?: (taskId: string) => void; // Add callback for opening card modal
 }
 
@@ -61,6 +62,7 @@ export function TaskCard({
   onManageLabels,
   onManageAssignees,
   onManageDueDate,
+  onMoveTask,
   onOpenCard,
 }: TaskCardProps) {
   // Format date for display
@@ -232,13 +234,8 @@ export function TaskCard({
           <div onClick={(e) => e.stopPropagation()}>
             <TaskActionsMenu
               task={task}
-              onEditTask={onEditTask}
-              onCopyTask={onCopyTask}
-              onArchiveTask={onArchiveTask}
+              onMoveTask={onMoveTask}
               onDeleteTask={onDeleteTask}
-              onManageLabels={onManageLabels}
-              onManageAssignees={onManageAssignees}
-              onManageDueDate={onManageDueDate}
             />
           </div>
         )}

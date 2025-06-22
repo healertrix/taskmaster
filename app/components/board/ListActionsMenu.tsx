@@ -2,23 +2,20 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreHorizontal, Archive, X, Trash2 } from 'lucide-react';
+import { MoreHorizontal, X, Trash2 } from 'lucide-react';
 
 interface ListActionsMenuProps {
   listId: string;
   listName: string;
-  onArchiveList: (listId: string) => Promise<boolean>;
   onDeleteList?: (listId: string) => Promise<boolean>;
 }
 
 export function ListActionsMenu({
   listId,
   listName,
-  onArchiveList,
   onDeleteList,
 }: ListActionsMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [menuPosition, setMenuPosition] = useState({
@@ -118,18 +115,6 @@ export function ListActionsMenu({
     }
   }, [isOpen, showDeleteConfirm]);
 
-  const handleArchive = async () => {
-    if (isArchiving) return;
-
-    setIsArchiving(true);
-    const success = await onArchiveList(listId);
-    setIsArchiving(false);
-
-    if (success) {
-      setIsOpen(false);
-    }
-  };
-
   const handleDelete = async () => {
     if (isDeleting || !onDeleteList) return;
 
@@ -181,15 +166,6 @@ export function ListActionsMenu({
 
             {/* Actions */}
             <div className='py-2'>
-              <button
-                onClick={handleArchive}
-                disabled={isArchiving}
-                className='w-full px-4 py-2 text-left text-sm text-slate-300 hover:text-white hover:bg-slate-700 transition-colors flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed'
-              >
-                <Archive className='w-4 h-4' />
-                {isArchiving ? 'Archiving...' : 'Archive this list'}
-              </button>
-
               {onDeleteList && (
                 <button
                   onClick={() => setShowDeleteConfirm(true)}

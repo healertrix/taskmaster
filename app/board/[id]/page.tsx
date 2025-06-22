@@ -32,6 +32,7 @@ import { useBoard } from '@/hooks/useBoard';
 import { useLists } from '@/hooks/useLists';
 import { AddListForm } from '../../components/board/AddListForm';
 import { CardModal } from '../../components/board/CardModal';
+import { MoveCardModal } from '../../components/board/MoveCardModal';
 import { BoardSkeleton } from '../../components/ui/skeletons';
 import {
   Star,
@@ -558,6 +559,14 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   const [isCardModalOpen, setIsCardModalOpen] = useState(false);
   const [isUpdatingLabels, setIsUpdatingLabels] = useState(false);
 
+  // Move card modal states
+  const [showMoveCardModal, setShowMoveCardModal] = useState(false);
+  const [moveCardData, setMoveCardData] = useState<{
+    cardId: string;
+    cardTitle: string;
+    currentListId: string;
+  } | null>(null);
+
   // Notification states
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -890,6 +899,40 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
   const handleManageDueDate = (taskId: string) => {
     showSuccess('Due date management will be implemented soon');
+  };
+
+  // Move card handler
+  const handleMoveTask = (taskId: string) => {
+    // Find the task and its current list
+    let taskTitle = 'Task';
+    let currentListId = '';
+
+    for (const list of lists) {
+      const task = list.cards.find((card) => card.id === taskId);
+      if (task) {
+        taskTitle = task.title;
+        currentListId = list.id;
+        break;
+      }
+    }
+
+    setMoveCardData({
+      cardId: taskId,
+      cardTitle: taskTitle,
+      currentListId: currentListId,
+    });
+    setShowMoveCardModal(true);
+  };
+
+  const handleCloseMoveModal = () => {
+    setShowMoveCardModal(false);
+    setMoveCardData(null);
+  };
+
+  const handleMoveSuccess = () => {
+    // Refresh the board data after successful move
+    refetch();
+    showSuccess('Card moved successfully');
   };
 
   // Card modal handlers
@@ -1794,6 +1837,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   onManageLabels={handleManageLabels}
                   onManageAssignees={handleManageAssignees}
                   onManageDueDate={handleManageDueDate}
+                  onMoveTask={handleMoveTask}
                   onOpenCard={handleOpenCard}
                 />
               </div>
@@ -1821,6 +1865,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 onManageLabels={handleManageLabels}
                 onManageAssignees={handleManageAssignees}
                 onManageDueDate={handleManageDueDate}
+                onMoveTask={handleMoveTask}
                 onOpenCard={handleOpenCard}
               />
             )}
@@ -2003,6 +2048,19 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             />
           ) : null;
         })()}
+
+      {/* Move Card Modal */}
+      {moveCardData && (
+        <MoveCardModal
+          isOpen={showMoveCardModal}
+          onClose={handleCloseMoveModal}
+          cardId={moveCardData.cardId}
+          cardTitle={moveCardData.cardTitle}
+          currentListId={moveCardData.currentListId}
+          boardId={params.id}
+          onMoveSuccess={handleMoveSuccess}
+        />
+      )}
 
       {/* Success Toast */}
       {showSuccessToast && (

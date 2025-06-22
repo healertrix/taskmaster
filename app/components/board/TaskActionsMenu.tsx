@@ -2,19 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  MoreHorizontal,
-  Edit3,
-  Copy,
-  Archive,
-  Trash2,
-  X,
-  Tag,
-  User,
-  Calendar,
-  Paperclip,
-  MessageSquare,
-} from 'lucide-react';
+import { MoreHorizontal, Trash2, X, ArrowRight } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -27,28 +15,17 @@ interface Task {
 
 interface TaskActionsMenuProps {
   task: Task;
-  onEditTask?: (taskId: string) => void;
-  onCopyTask?: (taskId: string) => void;
-  onArchiveTask?: (taskId: string) => Promise<boolean>;
+  onMoveTask?: (taskId: string) => void;
   onDeleteTask?: (taskId: string) => Promise<boolean>;
-  onManageLabels?: (taskId: string) => void;
-  onManageAssignees?: (taskId: string) => void;
-  onManageDueDate?: (taskId: string) => void;
 }
 
 export function TaskActionsMenu({
   task,
-  onEditTask,
-  onCopyTask,
-  onArchiveTask,
+  onMoveTask,
   onDeleteTask,
-  onManageLabels,
-  onManageAssignees,
-  onManageDueDate,
 }: TaskActionsMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isArchiving, setIsArchiving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
 
@@ -76,7 +53,7 @@ export function TaskActionsMenu({
       }
 
       // Check if menu would overflow vertically
-      const menuHeight = showDeleteConfirm ? 200 : 320; // Approximate menu height
+      const menuHeight = showDeleteConfirm ? 200 : 160; // Reduced height for fewer options
       if (top + menuHeight > viewport.height) {
         // Position above the button
         top = buttonRect.top - menuHeight - 8;
@@ -104,18 +81,6 @@ export function TaskActionsMenu({
       return () => document.removeEventListener('keydown', handleKeyDown);
     }
   }, [isOpen]);
-
-  const handleArchive = async () => {
-    if (!onArchiveTask) return;
-
-    setIsArchiving(true);
-    const success = await onArchiveTask(task.id);
-    setIsArchiving(false);
-
-    if (success) {
-      setIsOpen(false);
-    }
-  };
 
   const handleDelete = async () => {
     if (!onDeleteTask) return;
@@ -184,88 +149,15 @@ export function TaskActionsMenu({
               </p>
             </div>
 
-            {/* Quick Actions */}
-            <div className='py-1'>
-              {onEditTask && (
-                <button
-                  onClick={() => handleMenuAction(() => onEditTask(task.id))}
-                  className='w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 transition-colors flex items-center gap-3'
-                >
-                  <Edit3 className='w-4 h-4' />
-                  Edit card
-                </button>
-              )}
-
-              {onCopyTask && (
-                <button
-                  onClick={() => handleMenuAction(() => onCopyTask(task.id))}
-                  className='w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 transition-colors flex items-center gap-3'
-                >
-                  <Copy className='w-4 h-4' />
-                  Copy card
-                </button>
-              )}
-            </div>
-
-            {/* Manage Actions */}
-            {(onManageLabels || onManageAssignees || onManageDueDate) && (
-              <>
-                <div className='border-t border-slate-700 pt-1 pb-1'>
-                  <div className='px-4 py-1'>
-                    <span className='text-xs text-slate-500 font-medium'>
-                      MANAGE
-                    </span>
-                  </div>
-
-                  {onManageLabels && (
-                    <button
-                      onClick={() =>
-                        handleMenuAction(() => onManageLabels!(task.id))
-                      }
-                      className='w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 transition-colors flex items-center gap-3'
-                    >
-                      <Tag className='w-4 h-4' />
-                      Labels
-                    </button>
-                  )}
-
-                  {onManageAssignees && (
-                    <button
-                      onClick={() =>
-                        handleMenuAction(() => onManageAssignees!(task.id))
-                      }
-                      className='w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 transition-colors flex items-center gap-3'
-                    >
-                      <User className='w-4 h-4' />
-                      Members
-                    </button>
-                  )}
-
-                  {onManageDueDate && (
-                    <button
-                      onClick={() =>
-                        handleMenuAction(() => onManageDueDate!(task.id))
-                      }
-                      className='w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 transition-colors flex items-center gap-3'
-                    >
-                      <Calendar className='w-4 h-4' />
-                      Due date
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-
             {/* Actions */}
-            <div className='border-t border-slate-700 pt-1'>
-              {onArchiveTask && (
+            <div className='py-2'>
+              {onMoveTask && (
                 <button
-                  onClick={handleArchive}
-                  disabled={isArchiving}
-                  className='w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 transition-colors flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed'
+                  onClick={() => handleMenuAction(() => onMoveTask(task.id))}
+                  className='w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-700 transition-colors flex items-center gap-3'
                 >
-                  <Archive className='w-4 h-4' />
-                  {isArchiving ? 'Archiving...' : 'Archive'}
+                  <ArrowRight className='w-4 h-4' />
+                  Move card
                 </button>
               )}
 

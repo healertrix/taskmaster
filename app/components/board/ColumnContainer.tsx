@@ -52,6 +52,7 @@ interface ColumnContainerProps {
   onManageLabels?: (taskId: string) => void;
   onManageAssignees?: (taskId: string) => void;
   onManageDueDate?: (taskId: string) => void;
+  onMoveTask?: (taskId: string) => void;
   onOpenCard?: (taskId: string) => void;
 }
 
@@ -73,6 +74,7 @@ export function ColumnContainer({
   onManageLabels,
   onManageAssignees,
   onManageDueDate,
+  onMoveTask,
   onOpenCard,
 }: ColumnContainerProps) {
   // Use useDroppable for the column to accept tasks
@@ -183,6 +185,7 @@ export function ColumnContainer({
                   onManageLabels={onManageLabels}
                   onManageAssignees={onManageAssignees}
                   onManageDueDate={onManageDueDate}
+                  onMoveTask={onMoveTask}
                   onOpenCard={onOpenCard}
                 />
                 {/* Show drop indicator after each task */}
