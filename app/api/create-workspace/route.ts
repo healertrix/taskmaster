@@ -75,8 +75,9 @@ export async function POST(request: Request) {
       .single();
 
     if (!memberCheck) {
-        '⚠️ Database trigger failed, manually adding workspace member'
-      );
+        console.log(
+          '⚠️ Database trigger failed, manually adding workspace member'
+        );
       const { error: memberError } = await supabase
         .from('workspace_members')
         .insert({
@@ -90,8 +91,10 @@ export async function POST(request: Request) {
         console.error('❌ Failed to add workspace member:', memberError);
         // Don't fail the whole request, but log the issue
       } else {
+        console.log('✅ Workspace member added manually');
       }
     } else {
+      console.log(
         '✅ Workspace member exists via trigger, role:',
         memberCheck.role
       );

@@ -129,7 +129,7 @@ export const useBoard = (boardId: string) => {
           id,
           profile_id,
           role,
-          profiles (
+          profiles!profile_id (
             id,
             full_name,
             email,

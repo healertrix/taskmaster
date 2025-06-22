@@ -58,8 +58,9 @@ export async function POST() {
         const toDelete = workspaces.slice(1);
 
         for (const workspace of toDelete) {
-            `Deleting duplicate workspace: ${workspace.name} (${workspace.id})`
-          );
+            console.log(
+              `Deleting duplicate workspace: ${workspace.name} (${workspace.id})`
+            );
 
           // Delete workspace members first
           await supabase

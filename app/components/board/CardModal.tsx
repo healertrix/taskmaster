@@ -13,14 +13,11 @@ import {
   Paperclip,
   CheckSquare,
   MessageSquare,
-  Archive,
   Trash2,
   Plus,
   Eye,
   Clock,
-  Copy,
   Move,
-  Share2,
   Activity,
   Send,
   Edit,
@@ -43,6 +40,10 @@ import {
   Flag,
   Timer,
   Target,
+  List,
+  Hash,
+  MapPin,
+  FileText,
 } from 'lucide-react';
 import { DateTimeRangePicker } from '@/components/ui/DateTimeRangePicker';
 import { Checklist } from '@/components/ui/Checklist';
@@ -331,6 +332,16 @@ export function CardModal({
   // Save warning modal state
   const [showSaveWarningModal, setShowSaveWarningModal] = useState(false);
 
+  // Move card modal state
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [isMovingCard, setIsMovingCard] = useState(false);
+  const [availableLists, setAvailableLists] = useState<
+    Array<{ id: string; name: string; cards_count: number }>
+  >([]);
+  const [selectedListId, setSelectedListId] = useState('');
+  const [selectedPosition, setSelectedPosition] = useState(1);
+  const [isLoadingLists, setIsLoadingLists] = useState(false);
+
   // Check if there are any active save operations
   const hasActiveSaveOperations = () => {
     return (
@@ -408,6 +419,8 @@ export function CardModal({
         } else if (showSaveWarningModal) {
           e.stopPropagation();
           handleCancelClose();
+        } else if (showMoveModal) {
+          setShowMoveModal(false);
         } else {
           handleModalClose();
         }
@@ -1751,6 +1764,154 @@ export function CardModal({
     }
   };
 
+  // Fetch available lists for moving the card
+  const fetchAvailableLists = async () => {
+    setIsLoadingLists(true);
+    try {
+      const response = await fetch(`/api/lists?board_id=${card.board_id}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch board lists');
+      }
+
+      // Prepare the lists data with card counts
+      const listsWithCounts =
+        data.lists?.map((list: any) => ({
+          id: list.id,
+          name: list.name,
+          cards_count: list.cards?.length || 0,
+        })) || [];
+
+      setAvailableLists(listsWithCounts);
+
+      // Set default selection to current list and calculate current position
+      const currentListInOptions = listsWithCounts.find(
+        (list: any) => list.id === card.list_id
+      );
+      if (currentListInOptions) {
+        setSelectedListId(card.list_id);
+        // Calculate current position in the list (1-based)
+        const currentList = data.lists?.find(
+          (list: any) => list.id === card.list_id
+        );
+        if (currentList?.cards) {
+          // Sort cards by position to get the correct index
+          const sortedCards = [...currentList.cards].sort(
+            (a, b) => a.position - b.position
+          );
+          const currentCardIndex = sortedCards.findIndex(
+            (c: any) => c.id === card.id
+          );
+          setSelectedPosition(currentCardIndex >= 0 ? currentCardIndex + 1 : 1);
+        } else {
+          setSelectedPosition(1);
+        }
+      } else if (listsWithCounts.length > 0) {
+        setSelectedListId(listsWithCounts[0].id);
+        setSelectedPosition(1);
+      }
+    } catch (error) {
+      console.error('Error fetching lists:', error);
+    } finally {
+      setIsLoadingLists(false);
+    }
+  };
+
+  // Handle moving the card
+  const handleMoveCard = async () => {
+    if (!selectedListId || isMovingCard) return;
+
+    // Prevent moving to same position
+    if (
+      selectedListId === card.list_id &&
+      selectedPosition ===
+        (() => {
+          const currentList = availableLists.find(
+            (list) => list.id === card.list_id
+          );
+          if (currentList) {
+            // Calculate current position based on actual card position
+            // This is a simplified version - in real app you'd need to get this from the API
+            return Math.round(card.position) || 1;
+          }
+          return 1;
+        })()
+    ) {
+      // Show a subtle message that no move is needed
+      setShowMoveModal(false);
+      return;
+    }
+
+    setIsMovingCard(true);
+
+    try {
+      const response = await fetch(`/api/cards/${card.id}/move`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          list_id: selectedListId,
+          position: selectedPosition,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to move card');
+      }
+
+      // Close the move modal first
+      setShowMoveModal(false);
+
+      // If moving between different lists, close the modal and refresh the page
+      if (selectedListId !== card.list_id) {
+        onClose(); // Close the card modal
+
+        // Refresh the page to show the updated board state
+        // This ensures the card appears in the correct list
+        window.location.reload();
+      } else {
+        // If moving within the same list, just update the position
+        if (onUpdateCard) {
+          await onUpdateCard(card.id, {
+            position: data.card.position,
+          });
+        }
+        // Don't close the modal for same-list moves so user can see the result
+      }
+    } catch (error) {
+      console.error('Error moving card:', error);
+      // Handle error - could show a toast notification here
+    } finally {
+      setIsMovingCard(false);
+    }
+  };
+
+  // Handle opening move modal
+  const handleOpenMoveModal = () => {
+    setShowMoveModal(true);
+    fetchAvailableLists();
+  };
+
+  // Handle ESC key for move modal
+  useEffect(() => {
+    if (!showMoveModal) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showMoveModal) {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowMoveModal(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true); // Use capture phase
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [showMoveModal]);
+
   const getActivityIcon = (actionType: string) => {
     switch (actionType) {
       case 'comment_added':
@@ -2604,49 +2765,29 @@ export function CardModal({
                     <div className='absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-xl z-20 py-2'>
                       <div className='px-3 py-2'>
                         <div className='space-y-1'>
-                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
+                          <button
+                            onClick={() => {
+                              setIsActionsDropdownOpen(false);
+                              handleOpenMoveModal();
+                            }}
+                            className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'
+                          >
                             <Move className='w-4 h-4 text-muted-foreground' />
                             Move
                           </button>
-                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
-                            <Copy className='w-4 h-4 text-muted-foreground' />
-                            Copy
-                          </button>
-                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
-                            <Share2 className='w-4 h-4 text-muted-foreground' />
-                            Share
-                          </button>
-                          <button className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'>
-                            <Eye className='w-4 h-4 text-muted-foreground' />
-                            Watch
-                          </button>
 
-                          {(onArchiveCard || onDeleteCard) && (
+                          {onDeleteCard && (
                             <div className='border-t border-border my-2 pt-2'>
-                              {onArchiveCard && (
-                                <button
-                                  onClick={() => {
-                                    setIsActionsDropdownOpen(false);
-                                    onArchiveCard(card.id);
-                                  }}
-                                  className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'
-                                >
-                                  <Archive className='w-4 h-4 text-muted-foreground' />
-                                  Archive
-                                </button>
-                              )}
-                              {onDeleteCard && (
-                                <button
-                                  onClick={() => {
-                                    setIsActionsDropdownOpen(false);
-                                    setShowDeleteConfirm(true);
-                                  }}
-                                  className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors'
-                                >
-                                  <Trash2 className='w-4 h-4' />
-                                  Delete
-                                </button>
-                              )}
+                              <button
+                                onClick={() => {
+                                  setIsActionsDropdownOpen(false);
+                                  setShowDeleteConfirm(true);
+                                }}
+                                className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors'
+                              >
+                                <Trash2 className='w-4 h-4' />
+                                Delete
+                              </button>
                             </div>
                           )}
                         </div>
@@ -3523,6 +3664,168 @@ export function CardModal({
           isLoading={isAddingAttachment}
           editingAttachment={editingAttachment}
         />
+
+        {/* Move Card Modal */}
+        {showMoveModal && (
+          <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4'>
+            <div className='bg-card border border-border rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'>
+              {/* Header */}
+              <div className='bg-gradient-to-r from-primary to-primary/90 px-6 py-4'>
+                <div className='flex items-center justify-between text-white'>
+                  <div className='flex items-center gap-3'>
+                    <div className='w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center'>
+                      <Move className='w-4 h-4' />
+                    </div>
+                    <div>
+                      <h3 className='text-lg font-semibold'>Move Card</h3>
+                      <p className='text-sm text-white/80'>
+                        Choose destination list and position
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowMoveModal(false)}
+                    className='p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200'
+                    title='Close modal'
+                    aria-label='Close modal'
+                    disabled={isMovingCard}
+                  >
+                    <X className='w-5 h-5' />
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className='p-6'>
+                {isLoadingLists ? (
+                  <div className='flex items-center justify-center py-8'>
+                    <div className='flex items-center gap-3'>
+                      <div className='w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
+                      <span className='text-sm text-muted-foreground'>
+                        Loading lists...
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className='space-y-4'>
+                    {/* Simple current location info */}
+                    <div className='text-sm text-muted-foreground'>
+                      in list{' '}
+                      <span className='font-medium text-foreground'>
+                        {listName}
+                      </span>
+                    </div>
+
+                    {/* List Selection */}
+                    <div className='space-y-2'>
+                      <label className='block text-sm font-medium text-foreground'>
+                        List
+                      </label>
+                      <select
+                        value={selectedListId}
+                        onChange={(e) => {
+                          setSelectedListId(e.target.value);
+                          setSelectedPosition(1);
+                        }}
+                        className='w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary'
+                        disabled={isMovingCard}
+                        title='Select destination list'
+                      >
+                        {availableLists.map((list) => (
+                          <option key={list.id} value={list.id}>
+                            {list.name}
+                            {list.id === card.list_id ? ' (current)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Position Selection */}
+                    {selectedListId && (
+                      <div className='space-y-2'>
+                        <label className='block text-sm font-medium text-foreground'>
+                          Position
+                        </label>
+                        <select
+                          value={selectedPosition}
+                          onChange={(e) =>
+                            setSelectedPosition(Number(e.target.value))
+                          }
+                          className='w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary'
+                          disabled={isMovingCard}
+                          title='Select position in list'
+                        >
+                          {(() => {
+                            const selectedList = availableLists.find(
+                              (list) => list.id === selectedListId
+                            );
+                            const maxPositions = selectedList
+                              ? selectedListId === card.list_id
+                                ? selectedList.cards_count
+                                : selectedList.cards_count + 1
+                              : 1;
+
+                            const currentPosition =
+                              Math.round(card.position) || 1;
+
+                            return Array.from(
+                              { length: maxPositions },
+                              (_, i) => i + 1
+                            ).map((pos) => {
+                              const isCurrentPosition =
+                                selectedListId === card.list_id &&
+                                pos === currentPosition;
+
+                              return (
+                                <option key={pos} value={pos}>
+                                  {pos}
+                                  {isCurrentPosition ? ' (current)' : ''}
+                                </option>
+                              );
+                            });
+                          })()}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className='flex gap-2 justify-end mt-6 pt-4 border-t border-border'>
+                  <button
+                    onClick={() => setShowMoveModal(false)}
+                    className='px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors'
+                    disabled={isMovingCard}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleMoveCard}
+                    disabled={
+                      !selectedListId ||
+                      isMovingCard ||
+                      isLoadingLists ||
+                      // Disable if trying to move to same position
+                      (selectedListId === card.list_id &&
+                        selectedPosition ===
+                          (() => {
+                            const currentList = availableLists.find(
+                              (list) => list.id === card.list_id
+                            );
+                            return currentList
+                              ? Math.round(card.position) || 1
+                              : 1;
+                          })())
+                    }
+                    className='px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                  >
+                    {isMovingCard ? 'Moving...' : 'Move'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
