@@ -102,7 +102,8 @@ export async function POST() {
     return NextResponse.json(
       {
         error: 'Failed to cleanup workspaces',
-        details: error.message,
+        details:
+          error instanceof Error ? error.message : 'Unknown error occurred',
       },
       { status: 500 }
     );
