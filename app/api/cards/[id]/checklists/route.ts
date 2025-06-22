@@ -202,7 +202,13 @@ export async function POST(
     }
 
     // Create template items if provided
-    let createdItems = [];
+    let createdItems: Array<{
+      id: string;
+      text: string;
+      completed: boolean;
+      created_at: string;
+      updated_at: string;
+    }> = [];
     if (
       templateItems &&
       Array.isArray(templateItems) &&
