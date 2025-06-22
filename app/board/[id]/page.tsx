@@ -1547,6 +1547,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         const oldIndex = column.cards.findIndex((card) => card.id === activeId);
         const newIndex = column.cards.findIndex((card) => card.id === overId);
 
+        // Don't do anything if trying to move to the same position
+        if (oldIndex === newIndex) return;
+
         newPosition = newIndex;
 
         // Update local state optimistically
@@ -1597,38 +1600,34 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       }
     }
 
-    // Only persist to database if the card actually moved to a different list
-    if (targetColumnId !== activeColumnId) {
-      try {
-        const response = await fetch(`/api/cards/${activeId}/move`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            target_list_id: targetColumnId,
-            new_position: newPosition,
-          }),
-        });
+    // Persist to database for both cross-list moves AND same-list reordering
+    try {
+      const response = await fetch(`/api/cards/${activeId}/move`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          target_list_id: targetColumnId,
+          new_position: newPosition,
+        }),
+      });
 
-        const data = await response.json();
+      const data = await response.json();
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to move card');
-        }
-
-        // No need to refetch - the optimistic update is already applied
-        // Success is implicit - user can see the card moved visually
-      } catch (error) {
-        console.error('Error moving card:', error);
-
-        // Revert the optimistic update on error by refetching
-        await refetch();
-
-        showError(
-          error instanceof Error ? error.message : 'Failed to move card'
-        );
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to move card');
       }
+
+      // No need to refetch - the optimistic update is already applied
+      // Success is implicit - user can see the card moved visually
+    } catch (error) {
+      console.error('Error moving card:', error);
+
+      // Revert the optimistic update on error by refetching
+      await refetch();
+
+      showError(error instanceof Error ? error.message : 'Failed to move card');
     }
   }
 

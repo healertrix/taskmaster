@@ -67,11 +67,11 @@ export async function POST(
     } else {
       // Check if user is a direct board member
       const { data: boardMembership, error: boardMemberError } = await supabase
-      .from('board_members')
-      .select('id')
-      .eq('board_id', card.board_id)
-      .eq('profile_id', user.id)
-      .single();
+        .from('board_members')
+        .select('id')
+        .eq('board_id', card.board_id)
+        .eq('profile_id', user.id)
+        .single();
 
       if (!boardMemberError && boardMembership) {
         hasAccess = true;
@@ -137,26 +137,26 @@ export async function POST(
       .eq('id', target_list_id)
       .single();
 
-    // Direct update instead of using stored procedure
-    const { data: updatedCard, error: updateError } = await supabase
-        .from('cards')
-        .update({
-          list_id: target_list_id,
-          position: new_position,
-        updated_at: new Date().toISOString(),
-        })
-        .eq('id', cardId)
-      .select('id, list_id, position');
+    // Use stored procedure for proper position management
+    const { data: updatedCard, error: updateError } = await supabase.rpc(
+      'move_card_with_position_management',
+      {
+        p_card_id: cardId,
+        p_target_list_id: target_list_id,
+        p_new_position: new_position,
+        p_current_list_id: card.list_id,
+      }
+    );
 
     if (updateError) {
       console.error('Error moving card:', updateError);
-        return NextResponse.json(
-          { error: 'Failed to move card' },
-          { status: 500 }
-        );
-      }
+      return NextResponse.json(
+        { error: 'Failed to move card' },
+        { status: 500 }
+      );
+    }
 
-    // Check if any rows were updated
+    // Check if any rows were returned from the stored procedure
     if (!updatedCard || updatedCard.length === 0) {
       console.error(
         'No card was updated - card might not exist or no permissions'
