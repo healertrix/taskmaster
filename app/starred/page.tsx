@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { DashboardHeader } from '../components/dashboard/header';
 import { BoardCard } from '../components/board/BoardCard';
@@ -14,7 +15,8 @@ import {
   Loader2,
 } from 'lucide-react';
 
-export default function StarredBoardsPage() {
+// Disable SSR for this page to prevent Supabase prerender issues
+const StarredBoardsPageComponent = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const { starredBoards, loading, error, toggleBoardStar } = useBoardStars();
 
@@ -221,4 +223,9 @@ export default function StarredBoardsPage() {
       </main>
     </div>
   );
-}
+};
+
+// Export with SSR disabled to prevent Supabase prerender issues
+export default dynamic(() => Promise.resolve(StarredBoardsPageComponent), {
+  ssr: false,
+});
