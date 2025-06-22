@@ -256,10 +256,10 @@ export async function GET(request: NextRequest) {
 
           // Only set the count if it's greater than 0
           if (attachmentCount && attachmentCount > 0) {
-            card.attachments = attachmentCount;
+            (card as any).attachments = attachmentCount;
           }
           if (commentCount && commentCount > 0) {
-            card.comments = commentCount;
+            (card as any).comments = commentCount;
           }
         });
       });
