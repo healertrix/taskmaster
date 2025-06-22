@@ -357,7 +357,10 @@ export async function PUT(
 
     // Create a single timeline activity for any date changes
     try {
-      const dateChanges = {};
+      const dateChanges: {
+        start_date?: { old: string | null; new: string | null };
+        due_date?: { old: string | null; new: string | null };
+      } = {};
       let hasDateChanges = false;
 
       // Check for start_date changes
