@@ -61,7 +61,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Trash2,
-  LayoutGrid,
 } from 'lucide-react';
 
 // Define card/task type
@@ -521,39 +520,9 @@ const DescriptionModal = ({
   );
 };
 
-// Loading component (kept for backward compatibility)
-const BoardLoading = () => <BoardSkeleton />;
 
-// Error component
-const BoardError = ({
-  error,
-  onGoBack,
-}: {
-  error: string;
-  onGoBack: () => void;
-}) => (
-  <div className='min-h-screen dot-pattern-dark'>
-    <DashboardHeader />
-    <div className='container mx-auto max-w-7xl px-4 pt-24 pb-16'>
-      <div className='text-center py-12'>
-        <div className='w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4'>
-          <X className='w-8 h-8 text-red-500' />
-        </div>
-        <h1 className='text-2xl font-bold text-foreground mb-2'>
-          Board Not Found
-        </h1>
-        <p className='text-muted-foreground mb-6'>{error}</p>
-        <button
-          onClick={onGoBack}
-          className='inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors'
-        >
-          <ArrowLeft className='w-4 h-4' />
-          Go back
-        </button>
-      </div>
-    </div>
-  </div>
-);
+
+
 
 const getColumnStyle = (id: string) => {
   const styles = {

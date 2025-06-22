@@ -191,8 +191,6 @@ export default function WorkspaceSettingsPage() {
     };
   };
 
-  // Detect previous page for better navigation
-
   // Fetch workspace data and settings
   useEffect(() => {
     const fetchWorkspaceData = async () => {

@@ -14,7 +14,6 @@ interface WorkspaceBoardCardProps {
     style: any;
     className: string;
   };
-  workspaceId?: string;
 }
 
 export function WorkspaceBoardCard({
@@ -22,7 +21,6 @@ export function WorkspaceBoardCard({
   onToggleStar,
   formatDate,
   getColorDisplay,
-  workspaceId,
 }: WorkspaceBoardCardProps) {
   const [isToggling, setIsToggling] = useState(false);
 
