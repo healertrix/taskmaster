@@ -76,6 +76,8 @@ export function DashboardHeader() {
     'all' | 'cards' | 'boards' | 'workspaces'
   >('all');
   const [showCreateDropdown, setShowCreateDropdown] = useState(false);
+  const [showMobileCreateDropdown, setShowMobileCreateDropdown] =
+    useState(false);
   const [isCreateWorkspaceModalOpen, setIsCreateWorkspaceModalOpen] =
     useState(false);
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
@@ -91,6 +93,7 @@ export function DashboardHeader() {
 
   const searchRef = useRef<HTMLDivElement>(null);
   const createDropdownRef = useRef<HTMLDivElement>(null);
+  const mobileCreateDropdownRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const isSearchPage = pathname === '/search';
 
@@ -109,6 +112,12 @@ export function DashboardHeader() {
         !createDropdownRef.current.contains(event.target as Node)
       ) {
         setShowCreateDropdown(false);
+      }
+      if (
+        mobileCreateDropdownRef.current &&
+        !mobileCreateDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowMobileCreateDropdown(false);
       }
     };
 
@@ -588,10 +597,10 @@ export function DashboardHeader() {
 
                 {/* Create Dropdown Menu */}
                 {showCreateDropdown && (
-                  <div className='absolute top-full right-0 mt-2 w-80 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-50 overflow-hidden'>
+                  <div className='absolute top-full right-0 mt-2 w-80 bg-card border border-border rounded-lg shadow-2xl z-[60] overflow-hidden'>
                     {/* Board Creation Section */}
-                    <div className='p-4 border-b border-slate-700'>
-                      <h3 className='text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 px-1'>
+                    <div className='p-4 border-b border-border'>
+                      <h3 className='text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3 px-1'>
                         CREATE BOARD
                       </h3>
 
@@ -600,16 +609,16 @@ export function DashboardHeader() {
                           setIsCreateBoardModalOpen(true);
                           setShowCreateDropdown(false);
                         }}
-                        className='w-full flex items-start gap-3 p-3 hover:bg-slate-700/50 rounded-lg transition-colors text-left group'
+                        className='w-full flex items-start gap-3 p-3 hover:bg-muted/50 rounded-lg transition-colors text-left group'
                       >
                         <div className='w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-purple-500/30 transition-colors'>
                           <LayoutGrid className='w-4 h-4 text-purple-400' />
                         </div>
                         <div className='flex-1'>
-                          <h4 className='font-semibold text-sm text-white mb-1'>
+                          <h4 className='font-semibold text-sm text-foreground mb-1'>
                             Create board
                           </h4>
-                          <p className='text-xs text-slate-400 leading-relaxed'>
+                          <p className='text-xs text-muted-foreground leading-relaxed'>
                             A board is made up of cards ordered on lists. Use it
                             to manage projects, track information, or organize
                             anything.
@@ -620,7 +629,7 @@ export function DashboardHeader() {
 
                     {/* Workspace Creation Section */}
                     <div className='p-4'>
-                      <h3 className='text-xs font-bold text-slate-400 uppercase tracking-wide mb-3 px-1'>
+                      <h3 className='text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3 px-1'>
                         CREATE WORKSPACE
                       </h3>
 
@@ -629,16 +638,16 @@ export function DashboardHeader() {
                           setIsCreateWorkspaceModalOpen(true);
                           setShowCreateDropdown(false);
                         }}
-                        className='w-full flex items-start gap-3 p-3 hover:bg-slate-700/50 rounded-lg transition-colors text-left group'
+                        className='w-full flex items-start gap-3 p-3 hover:bg-muted/50 rounded-lg transition-colors text-left group'
                       >
                         <div className='w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-green-500/30 transition-colors'>
                           <Briefcase className='w-4 h-4 text-green-400' />
                         </div>
                         <div className='flex-1'>
-                          <h4 className='font-semibold text-sm text-white mb-1'>
+                          <h4 className='font-semibold text-sm text-foreground mb-1'>
                             Create workspace
                           </h4>
-                          <p className='text-xs text-slate-400 leading-relaxed'>
+                          <p className='text-xs text-muted-foreground leading-relaxed'>
                             A workspace is a group of boards and people. Use it
                             to organize your company, side project, or family.
                           </p>
@@ -662,22 +671,24 @@ export function DashboardHeader() {
               </button>
 
               {/* Mobile Create Button */}
-              <div className='relative' ref={createDropdownRef}>
+              <div className='relative' ref={mobileCreateDropdownRef}>
                 <button
                   className='p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/50 transition-colors'
-                  onClick={() => setShowCreateDropdown(!showCreateDropdown)}
+                  onClick={() =>
+                    setShowMobileCreateDropdown(!showMobileCreateDropdown)
+                  }
                   aria-label='Create'
                 >
                   <Plus className='w-5 h-5' />
                 </button>
 
                 {/* Mobile Create Dropdown */}
-                {showCreateDropdown && (
+                {showMobileCreateDropdown && (
                   <div className='absolute top-full right-0 mt-2 w-48 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden'>
                     <button
                       onClick={() => {
                         setIsCreateBoardModalOpen(true);
-                        setShowCreateDropdown(false);
+                        setShowMobileCreateDropdown(false);
                       }}
                       className='w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors text-left'
                     >
@@ -690,7 +701,7 @@ export function DashboardHeader() {
                     <button
                       onClick={() => {
                         setIsCreateWorkspaceModalOpen(true);
-                        setShowCreateDropdown(false);
+                        setShowMobileCreateDropdown(false);
                       }}
                       className='w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors text-left border-t border-border'
                     >
