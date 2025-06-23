@@ -142,7 +142,7 @@ export function ListActionsMenu({
       {/* Menu */}
       <div
         ref={menuRef}
-        className='fixed w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-[10001] py-2'
+        className='fixed w-64 bg-card/95 backdrop-blur-lg border border-border/50 rounded-xl shadow-2xl z-[10001] py-3 overflow-hidden'
         style={{
           top: `${menuPosition.top}px`,
           left: `${menuPosition.left}px`,
@@ -150,14 +150,15 @@ export function ListActionsMenu({
       >
         {!showDeleteConfirm ? (
           <>
-            {/* Header */}
-            <div className='flex items-center justify-between px-4 py-2 border-b border-slate-700'>
-              <span className='text-sm font-medium text-slate-200'>
+            {/* Header with gradient */}
+            <div className='flex items-center justify-between px-5 py-3 bg-gradient-to-r from-secondary/10 to-accent/10 border-b border-border/30'>
+              <span className='text-sm font-semibold text-foreground flex items-center gap-2'>
+                <div className='w-2 h-2 bg-secondary rounded-full'></div>
                 List actions
               </span>
               <button
                 onClick={() => setIsOpen(false)}
-                className='p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded transition-colors'
+                className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-all duration-200'
                 title='Close menu'
               >
                 <X className='w-4 h-4' />
@@ -169,10 +170,12 @@ export function ListActionsMenu({
               {onDeleteList && (
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
-                  className='w-full px-4 py-2 text-left text-sm text-slate-300 hover:text-red-400 hover:bg-red-900/20 transition-colors flex items-center gap-3'
+                  className='w-full px-5 py-3 text-left text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-200 flex items-center gap-3 group'
                 >
-                  <Trash2 className='w-4 h-4' />
-                  Delete this list
+                  <div className='w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center group-hover:bg-red-500/20 transition-colors'>
+                    <Trash2 className='w-4 h-4 text-red-400 group-hover:text-red-300' />
+                  </div>
+                  <span className='font-medium'>Delete this list</span>
                 </button>
               )}
             </div>
@@ -180,26 +183,46 @@ export function ListActionsMenu({
         ) : (
           <>
             {/* Delete Confirmation */}
-            <div className='px-4 py-3'>
-              <h3 className='text-sm font-medium text-slate-200 mb-2'>
-                Delete "{listName}"?
-              </h3>
-              <p className='text-xs text-slate-400 mb-4'>
+            <div className='px-5 py-4'>
+              <div className='flex items-center gap-3 mb-4'>
+                <div className='w-10 h-10 bg-red-500/15 rounded-full flex items-center justify-center'>
+                  <Trash2 className='w-5 h-5 text-red-400' />
+                </div>
+                <div>
+                  <h3 className='text-sm font-semibold text-foreground'>
+                    Delete "{listName}"?
+                  </h3>
+                  <p className='text-xs text-red-300/80'>
+                    This action cannot be undone
+                  </p>
+                </div>
+              </div>
+              <p className='text-xs text-muted-foreground mb-6'>
                 This action will permanently delete the list and all its cards.
                 This cannot be undone.
               </p>
-              <div className='flex gap-2'>
+              <div className='flex gap-3'>
                 <button
                   onClick={handleDelete}
                   disabled={isDeleting}
-                  className='flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-2 px-3 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+                  className='flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground text-sm font-semibold py-2.5 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow-md'
                 >
-                  {isDeleting ? 'Deleting...' : 'Delete'}
+                  {isDeleting ? (
+                    <>
+                      <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className='w-4 h-4' />
+                      Delete
+                    </>
+                  )}
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
                   disabled={isDeleting}
-                  className='flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium py-2 px-3 rounded transition-colors disabled:opacity-50'
+                  className='flex-1 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-semibold py-2.5 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 shadow-sm hover:shadow-md'
                 >
                   Cancel
                 </button>

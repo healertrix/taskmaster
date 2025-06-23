@@ -2759,33 +2759,35 @@ export function CardModal({
                     />
 
                     {/* Dropdown Menu */}
-                    <div className='absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-xl z-20 py-2'>
-                      <div className='px-3 py-2'>
+                    <div className='absolute top-full left-0 right-0 mt-2 bg-card/95 backdrop-blur-lg border border-border/50 rounded-xl shadow-2xl z-20 py-3 overflow-hidden'>
+                      <div className='px-3 py-1'>
                         <div className='space-y-1'>
                           <button
                             onClick={() => {
                               setIsActionsDropdownOpen(false);
                               handleOpenMoveModal();
                             }}
-                            className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'
+                            className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-primary/10 hover:text-primary rounded-lg transition-all duration-200 group'
                           >
-                            <Move className='w-4 h-4 text-muted-foreground' />
-                            Move
+                            <div className='w-7 h-7 bg-primary/10 rounded-lg flex items-center justify-center group-hover:bg-primary/20 transition-colors'>
+                              <Move className='w-4 h-4 text-primary' />
+                            </div>
+                            <span className='font-medium'>Move card</span>
                           </button>
 
                           {onDeleteCard && (
-                            <div className='border-t border-border my-2 pt-2'>
-                              <button
-                                onClick={() => {
-                                  setIsActionsDropdownOpen(false);
-                                  setShowDeleteConfirm(true);
-                                }}
-                                className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors'
-                              >
-                                <Trash2 className='w-4 h-4' />
-                                Delete
-                              </button>
-                            </div>
+                            <button
+                              onClick={() => {
+                                setIsActionsDropdownOpen(false);
+                                setShowDeleteConfirm(true);
+                              }}
+                              className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all duration-200 group'
+                            >
+                              <div className='w-7 h-7 bg-red-500/10 rounded-lg flex items-center justify-center group-hover:bg-red-500/20 transition-colors'>
+                                <Trash2 className='w-4 h-4 text-red-400 group-hover:text-red-300' />
+                              </div>
+                              <span className='font-medium'>Delete</span>
+                            </button>
                           )}
                         </div>
                       </div>
@@ -3425,26 +3427,50 @@ export function CardModal({
 
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (
-          <div className='fixed inset-0 bg-black/60 z-50 flex items-center justify-center'>
-            <div className='bg-card rounded-lg shadow-xl p-6 w-full max-w-sm border border-border flex flex-col items-center'>
-              <Trash2 className='w-10 h-10 text-destructive mb-4' />
-              <h3 className='text-lg font-semibold mb-2 text-center'>
-                Delete this card?
-              </h3>
-              <p className='text-sm text-muted-foreground mb-4 text-center'>
-                This action cannot be undone. Are you sure you want to delete
-                this card?
-              </p>
-              <div className='flex gap-3 mt-2'>
-                <button
-                  onClick={() => {
-                    setShowDeleteConfirm(false);
-                    onDeleteCard && onDeleteCard(card.id);
-                  }}
-                  className='px-4 py-2 rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors text-sm font-medium'
-                >
-                  Delete
-                </button>
+          <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4'>
+            <div className='bg-card/95 backdrop-blur-lg rounded-xl shadow-2xl border border-border/50 w-full max-w-md overflow-hidden'>
+              {/* Header with red gradient */}
+              <div className='bg-gradient-to-r from-red-500/15 to-red-600/10 px-6 py-4 border-b border-red-500/20'>
+                <div className='flex items-center gap-3'>
+                  <div className='w-10 h-10 bg-red-500/15 rounded-full flex items-center justify-center'>
+                    <Trash2 className='w-5 h-5 text-red-400' />
+                  </div>
+                  <div>
+                    <h3 className='text-lg font-semibold text-foreground'>
+                      Delete this card?
+                    </h3>
+                    <p className='text-sm text-red-300/80'>
+                      This action cannot be undone
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className='px-6 py-4'>
+                <p className='text-sm text-muted-foreground mb-6'>
+                  Are you sure you want to delete this card? This will
+                  permanently remove the card and all its data.
+                </p>
+
+                <div className='flex gap-3 justify-between'>
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className='px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-all duration-200'
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDeleteConfirm(false);
+                      onDeleteCard && onDeleteCard(card.id);
+                    }}
+                    className='px-6 py-2.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md'
+                  >
+                    <Trash2 className='w-4 h-4' />
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           </div>
