@@ -907,7 +907,7 @@ export default function WorkspaceSettingsPage() {
                 </div>
               </div>
               {canUpdateSettings && (
-                <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
+                <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors items-center gap-1 hidden md:flex'>
                   Change
                   <ChevronRight className='w-4 h-4' />
                 </div>
@@ -948,7 +948,7 @@ export default function WorkspaceSettingsPage() {
                 </div>
               </div>
               {canUpdateSettings && (
-                <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
+                <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors items-center gap-1 hidden md:flex'>
                   Change
                   <ChevronRight className='w-4 h-4' />
                 </div>
@@ -988,7 +988,7 @@ export default function WorkspaceSettingsPage() {
                 </div>
               </div>
               {canUpdateSettings && (
-                <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
+                <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors items-center gap-1 hidden md:flex'>
                   Change
                   <ChevronRight className='w-4 h-4' />
                 </div>

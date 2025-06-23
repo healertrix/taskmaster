@@ -711,10 +711,14 @@ export default function WorkspaceMembersPage() {
             {canAddMembers && (
               <button
                 onClick={() => setShowAddMemberModal(true)}
-                className='btn btn-primary flex items-center gap-2'
+                className='inline-flex items-center justify-center gap-2 w-10 h-10 md:w-auto md:px-4 md:py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all duration-200 shadow-sm hover:shadow-md hover:scale-105'
+                title='Add Members'
+                aria-label='Add Members'
               >
-                <UserPlus className='w-4 h-4' />
-                Add Members
+                <UserPlus className='w-5 h-5' />
+                <span className='hidden md:inline text-sm font-medium'>
+                  Add Members
+                </span>
               </button>
             )}
           </div>
