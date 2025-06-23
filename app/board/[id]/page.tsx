@@ -8,7 +8,7 @@ import React, {
   useCallback,
 } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   DndContext,
   DragEndEvent,
@@ -539,6 +539,7 @@ const getColumnStyle = (id: string) => {
 
 export default function BoardPage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
 
   const [columns, setColumns] = useState<Column[]>([]);
@@ -720,6 +721,27 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
     trackAccess();
   }, [params.id]);
+
+  // Handle opening card from URL parameter
+  useEffect(() => {
+    const cardId = searchParams?.get('card');
+    if (cardId && columns.length > 0) {
+      // Check if the card exists in the current board
+      const cardExists = columns.some((column) =>
+        column.cards.some((card) => card.id === cardId)
+      );
+
+      if (cardExists) {
+        setSelectedCardId(cardId);
+        setIsCardModalOpen(true);
+
+        // Remove the card parameter from URL without triggering a page reload
+        const url = new URL(window.location.href);
+        url.searchParams.delete('card');
+        window.history.replaceState({}, '', url.toString());
+      }
+    }
+  }, [searchParams, columns]);
 
   // Close modal on Escape key
   useEffect(() => {

@@ -23,103 +23,48 @@ import {
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-// Mock search results data
-const searchResultsData = {
-  cards: [
-    {
-      id: 'card1',
-      name: 'Tourists List, Police Control Room, Police, State Supervisor List',
-      board: 'TouristSprint1: Web - Pending',
-      boardColor: 'bg-blue-600',
-      updatedAt: 'yesterday',
-    },
-    {
-      id: 'card2',
-      name: 'Hotel View and Tourist Spot',
-      board: 'TouristSprint1: Backend - Pending',
-      boardColor: 'bg-indigo-600',
-      updatedAt: '3 years ago',
-    },
-    {
-      id: 'card3',
-      name: 'Models Creation',
-      board: 'TouristSprint1: Backend - Complete',
-      description:
-        'Database Schema is as enclosed Tourist: - FName, Lname - Phone Number - Nationality - Passport Number - Password - ApiKey Police Control Room: - Room id - Superintendent - Lat/Longitude - Phone Number...',
-      boardColor: 'bg-green-600',
-      updatedAt: '3 years ago',
-    },
-    {
-      id: 'card4',
-      name: 'Figma Design',
-      board: 'TouristSprint1: Web - Complete',
-      description:
-        'https://www.figma.com/file/R54k5nlaERWTNODBTBG6Tc/tourist-app?node-id=0%3A1',
-      boardColor: 'bg-purple-600',
-      updatedAt: '3 years ago',
-    },
-    {
-      id: 'card5',
-      name: 'Figma Design',
-      board: 'TouristSprint1: Android - Complete',
-      boardColor: 'bg-red-600',
-      updatedAt: '3 years ago',
-    },
-    {
-      id: 'card6',
-      name: 'Figma Designs',
-      board: 'TouristSprint1: References',
-      boardColor: 'bg-amber-600',
-      updatedAt: '3 years ago',
-    },
-  ],
-  boards: [
-    {
-      id: 'board1',
-      name: 'TouristSprint1',
-      workspace: 'Entrepreneur Tourist',
-      updatedAt: '6 hours ago',
-      starred: true,
-      color: 'bg-blue-600',
-    },
-  ],
-  workspaces: [
-    {
-      id: 'ws1',
-      name: 'Entrepreneur Tourist',
-      letter: 'E',
-      description: 'Tourism application development workspace',
-      members: 8,
-      updatedAt: '1 day ago',
-    },
-    {
-      id: 'ws2',
-      name: 'Personal Projects',
-      letter: 'P',
-      description: 'Collection of personal project boards',
-      members: 1,
-      updatedAt: '1 week ago',
-    },
-    {
-      id: 'ws3',
-      name: 'Marketing Campaign',
-      letter: 'M',
-      description: 'Workspace for quarterly marketing initiatives',
-      members: 12,
-      updatedAt: '3 days ago',
-    },
-  ],
-};
+// Search result types
+interface SearchCard {
+  id: string;
+  title: string;
+  description?: string;
+  board: string;
+  boardId: string;
+  boardColor: string;
+  workspace: string;
+  list: string;
+  updatedAt: string;
+  dueDate?: string;
+}
 
-const filterOptions = {
-  lastUpdated: ['Last 24 hours', 'Last week', 'Last month', 'Last year'],
-  boards: [
-    'TouristSprint1',
-    'Daily Task Management Template | Trello',
-    'Remote Team Hub',
-    'Kanban Template',
-  ],
-};
+interface SearchBoard {
+  id: string;
+  name: string;
+  color: string;
+  workspace: string;
+  workspaceId: string;
+  updatedAt: string;
+  lastActivityAt: string;
+  starred: boolean;
+}
+
+interface SearchWorkspace {
+  id: string;
+  name: string;
+  color: string;
+  updatedAt: string;
+  isOwner: boolean;
+  memberCount: number;
+  letter: string;
+}
+
+interface SearchResults {
+  cards: SearchCard[];
+  boards: SearchBoard[];
+  workspaces: SearchWorkspace[];
+}
+
+
 
 export default function SearchPage() {
   const searchParams = useSearchParams();
@@ -143,6 +88,15 @@ export default function SearchPage() {
     includeClosedBoards: false,
   });
   const [sortOrder, setSortOrder] = useState('updated');
+  
+  // Search state
+  const [searchResults, setSearchResults] = useState<SearchResults>({
+    cards: [],
+    boards: [],
+    workspaces: [],
+  });
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // Set the active tab based on the filter parameter
   useEffect(() => {
@@ -151,50 +105,71 @@ export default function SearchPage() {
     }
   }, [filterFromUrl]);
 
-  // Filter cards based on filters and search term
-  const filteredCards = searchResultsData.cards.filter((card) => {
-    if (!searchTerm) return true;
-
-    if (card.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return true;
+  // Debounced search function
+  const performSearch = async (query: string) => {
+    if (!query || query.length < 2) {
+      setSearchResults({ cards: [], boards: [], workspaces: [] });
+      setSearchError(null);
+      return;
     }
 
-    if (
-      filters.includeCardDescriptions &&
-      card.description &&
-      card.description.toLowerCase().includes(searchTerm.toLowerCase())
-    ) {
-      return true;
-    }
+    setIsSearching(true);
+    setSearchError(null);
 
-    return false;
+    try {
+      const response = await fetch(
+        `/api/search?q=${encodeURIComponent(query)}&limit=20`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults({
+          cards: data.cards || [],
+          boards: data.boards || [],
+          workspaces: data.workspaces || [],
+        });
+      } else {
+        const errorData = await response.json();
+        setSearchError(errorData.error || 'Search failed');
+        setSearchResults({ cards: [], boards: [], workspaces: [] });
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchError('Network error while searching');
+      setSearchResults({ cards: [], boards: [], workspaces: [] });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchTerm) {
+        performSearch(searchTerm);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Filter results based on active filters
+  const filteredCards = searchResults.cards.filter((card) => {
+    if (filters.onlyStarredBoards) {
+      // We don't have starred info per card, so we'd need to check if the board is starred
+      // For now, just return all cards if this filter doesn't apply
+    }
+    return true;
   });
 
-  // Filter boards based on filters and search term
-  const filteredBoards = searchResultsData.boards.filter((board) => {
-    if (!searchTerm) return true;
-
+  const filteredBoards = searchResults.boards.filter((board) => {
     if (filters.onlyStarredBoards && !board.starred) {
       return false;
     }
-
-    return board.name.toLowerCase().includes(searchTerm.toLowerCase());
+    return true;
   });
 
-  // Filter workspaces based on search term
-  const filteredWorkspaces = searchResultsData.workspaces.filter(
-    (workspace) => {
-      if (!searchTerm) return true;
-
-      return (
-        workspace.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (workspace.description &&
-          workspace.description
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()))
-      );
-    }
-  );
+  const filteredWorkspaces = searchResults.workspaces;
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({
@@ -573,7 +548,38 @@ export default function SearchPage() {
 
           {/* Search Results */}
           <div className='flex-1'>
-            {!searchTerm && (
+            {/* Loading state */}
+            {isSearching && (
+              <div className='flex items-center justify-center h-full py-20'>
+                <div className='text-center'>
+                  <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4'></div>
+                  <p className='text-muted-foreground'>Searching...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Error state */}
+            {searchError && !isSearching && (
+              <div className='flex items-center justify-center h-full py-20'>
+                <div className='text-center max-w-md mx-auto'>
+                  <div className='mx-auto w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-4'>
+                    <AlertCircle className='w-8 h-8 text-red-500' />
+                  </div>
+                  <h2 className='text-xl font-semibold mb-2 text-foreground'>
+                    Search Error
+                  </h2>
+                  <p className='text-red-500 mb-4'>{searchError}</p>
+                  <button
+                    onClick={() => performSearch(searchTerm)}
+                    className='px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors'
+                  >
+                    Try Again
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!searchTerm && !isSearching && !searchError && (
               <div className='flex items-center justify-center h-full'>
                 <div className='text-center max-w-md mx-auto p-8'>
                   <div className='mx-auto w-24 h-24 bg-muted/30 rounded-full flex items-center justify-center mb-6'>
@@ -617,6 +623,8 @@ export default function SearchPage() {
             )}
 
             {searchTerm &&
+              !isSearching &&
+              !searchError &&
               filteredCards.length === 0 &&
               filteredBoards.length === 0 &&
               filteredWorkspaces.length === 0 && (
@@ -679,6 +687,8 @@ export default function SearchPage() {
               )}
 
             {searchTerm &&
+              !isSearching &&
+              !searchError &&
               (filteredCards.length > 0 ||
                 filteredBoards.length > 0 ||
                 filteredWorkspaces.length > 0) &&
@@ -693,23 +703,22 @@ export default function SearchPage() {
                   {filteredCards.length > 0 ? (
                     <div className='divide-y divide-border'>
                       {filteredCards.map((card) => (
-                        <div
+                        <Link
                           key={card.id}
-                          className='p-4 hover:bg-muted/20 transition-colors'
+                          href={`/board/${card.boardId}?card=${card.id}`}
+                          className='block p-4 hover:bg-muted/20 transition-colors'
                         >
                           <div className='flex items-start'>
                             <div
-                              className={`mt-1 w-5 h-5 ${card.boardColor} rounded flex-shrink-0`}
+                              className='mt-1 w-5 h-5 rounded flex-shrink-0'
+                              style={{ backgroundColor: card.boardColor }}
                             ></div>
                             <div className='ml-3 flex-1'>
-                              <Link
-                                href={`/card/${card.id}`}
-                                className='font-medium text-foreground hover:text-primary'
-                              >
-                                {card.name}
-                              </Link>
+                              <h3 className='font-medium text-foreground hover:text-primary'>
+                                {card.title}
+                              </h3>
                               <p className='text-sm text-muted-foreground mt-1'>
-                                {card.board}
+                                {card.board} • {card.list}
                               </p>
                               {card.description &&
                                 filters.includeCardDescriptions && (
@@ -719,10 +728,10 @@ export default function SearchPage() {
                                 )}
                             </div>
                             <div className='text-xs text-muted-foreground whitespace-nowrap ml-3'>
-                              Updated {card.updatedAt}
+                              {new Date(card.updatedAt).toLocaleDateString()}
                             </div>
                           </div>
-                        </div>
+                        </Link>
                       ))}
                     </div>
                   ) : (
@@ -770,6 +779,8 @@ export default function SearchPage() {
               )}
 
             {searchTerm &&
+              !isSearching &&
+              !searchError &&
               (filteredCards.length > 0 ||
                 filteredBoards.length > 0 ||
                 filteredWorkspaces.length > 0) &&
@@ -784,24 +795,23 @@ export default function SearchPage() {
                   {filteredBoards.length > 0 ? (
                     <div className='divide-y divide-border'>
                       {filteredBoards.map((board) => (
-                        <div
+                        <Link
                           key={board.id}
-                          className='p-4 hover:bg-muted/20 transition-colors'
+                          href={`/board/${board.id}`}
+                          className='block p-4 hover:bg-muted/20 transition-colors'
                         >
                           <div className='flex items-center'>
                             <div
-                              className={`w-10 h-10 ${board.color} rounded-md flex-shrink-0 flex items-center justify-center`}
+                              className='w-10 h-10 rounded-md flex-shrink-0 flex items-center justify-center'
+                              style={{ backgroundColor: board.color }}
                             >
                               <LayoutList className='w-5 h-5 text-white' />
                             </div>
                             <div className='ml-3 flex-1'>
                               <div className='flex items-center'>
-                                <Link
-                                  href={`/board/${board.id}`}
-                                  className='font-medium text-foreground hover:text-primary'
-                                >
+                                <h3 className='font-medium text-foreground hover:text-primary'>
                                   {board.name}
-                                </Link>
+                                </h3>
                                 {board.starred && (
                                   <Star className='w-4 h-4 ml-2 text-yellow-400 fill-current' />
                                 )}
@@ -811,10 +821,10 @@ export default function SearchPage() {
                               </p>
                             </div>
                             <div className='text-xs text-muted-foreground whitespace-nowrap'>
-                              Updated {board.updatedAt}
+                              {new Date(board.lastActivityAt).toLocaleDateString()}
                             </div>
                           </div>
-                        </div>
+                        </Link>
                       ))}
                     </div>
                   ) : (
@@ -862,6 +872,8 @@ export default function SearchPage() {
               )}
 
             {searchTerm &&
+              !isSearching &&
+              !searchError &&
               (filteredCards.length > 0 ||
                 filteredBoards.length > 0 ||
                 filteredWorkspaces.length > 0) &&
@@ -876,43 +888,40 @@ export default function SearchPage() {
                   {filteredWorkspaces.length > 0 ? (
                     <div className='divide-y divide-border'>
                       {filteredWorkspaces.map((workspace) => (
-                        <div
+                        <Link
                           key={workspace.id}
-                          className='p-4 hover:bg-muted/20 transition-colors'
+                                                        href={`/boards/${workspace.id}`}
+                          className='block p-4 hover:bg-muted/20 transition-colors'
                         >
                           <div className='flex items-start'>
                             <div
-                              className={`flex-shrink-0 w-10 h-10 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-md flex items-center justify-center text-white font-semibold`}
+                              className='flex-shrink-0 w-10 h-10 rounded-md flex items-center justify-center text-white font-semibold'
+                              style={{ backgroundColor: workspace.color }}
                             >
                               {workspace.letter}
                             </div>
                             <div className='ml-3 flex-1'>
-                              <Link
-                                href={`/workspace/${workspace.id}`}
-                                className='font-medium text-foreground hover:text-primary'
-                              >
+                              <h3 className='font-medium text-foreground hover:text-primary flex items-center'>
                                 {workspace.name}
-                              </Link>
-                              {workspace.description && (
-                                <p className='text-sm text-muted-foreground mt-1 line-clamp-2'>
-                                  {workspace.description}
-                                </p>
-                              )}
+                                {workspace.isOwner && (
+                                  <Users className='w-4 h-4 ml-2 text-blue-400' />
+                                )}
+                              </h3>
                               <div className='flex items-center text-xs text-muted-foreground mt-2'>
                                 <div className='flex items-center'>
                                   <User className='w-3 h-3 mr-1' />
-                                  {workspace.members}{' '}
-                                  {workspace.members === 1
+                                  {workspace.memberCount}{' '}
+                                  {workspace.memberCount === 1
                                     ? 'member'
                                     : 'members'}
                                 </div>
                               </div>
                             </div>
                             <div className='text-xs text-muted-foreground whitespace-nowrap ml-3'>
-                              Updated {workspace.updatedAt}
+                              {new Date(workspace.updatedAt).toLocaleDateString()}
                             </div>
                           </div>
-                        </div>
+                        </Link>
                       ))}
                     </div>
                   ) : (
