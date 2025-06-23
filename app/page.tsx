@@ -432,8 +432,8 @@ export default function HomePage() {
       <main className='container mx-auto max-w-7xl px-4 pt-24 pb-16'>
         {/* Sidebar and Main Content */}
         <div className='flex gap-8'>
-          {/* Sidebar - Using dark glass effect */}
-          <div className='w-64 flex-shrink-0'>
+          {/* Sidebar - Using dark glass effect - Hidden on mobile */}
+          <div className='w-64 flex-shrink-0 hidden md:block'>
             <div className='glass-dark rounded-xl p-4 sticky top-24'>
               <div className='mt-4'>
                 <h3 className='px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider'>
@@ -507,7 +507,7 @@ export default function HomePage() {
           </div>
 
           {/* Main Content */}
-          <div className='flex-1'>
+          <div className='flex-1 md:flex-1 w-full'>
             {/* Starred Boards Section */}
             {(boardsLoading || starredBoards.length > 0) && (
               <section className='mb-12'>

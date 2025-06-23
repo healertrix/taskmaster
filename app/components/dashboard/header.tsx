@@ -71,6 +71,7 @@ export function DashboardHeader() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [showMobileSearchModal, setShowMobileSearchModal] = useState(false);
   const [activeFilter, setActiveFilter] = useState<
     'all' | 'cards' | 'boards' | 'workspaces'
   >('all');
@@ -228,6 +229,19 @@ export function DashboardHeader() {
   const clearSearch = () => {
     setSearchTerm('');
     setShowSearchResults(false);
+    setShowMobileSearchModal(false);
+    setSearchResults({ cards: [], boards: [], workspaces: [] });
+    setSearchError(null);
+  };
+
+  const handleMobileSearchOpen = () => {
+    setShowMobileSearchModal(true);
+  };
+
+  const handleMobileSearchClose = () => {
+    setShowMobileSearchModal(false);
+    setSearchTerm('');
+    setShowSearchResults(false);
     setSearchResults({ cards: [], boards: [], workspaces: [] });
     setSearchError(null);
   };
@@ -241,24 +255,20 @@ export function DashboardHeader() {
       <header className='fixed top-0 left-0 right-0 superhero-header z-50'>
         <div className='container mx-auto px-4 py-3'>
           <div className='flex items-center justify-between'>
-            {/* Left section */}
-            <div
-              className={`flex items-center space-x-5 ${
-                isSearchPage ? 'w-1/4' : 'w-1/6'
-              }`}
-            >
+            {/* Left section - Logo */}
+            <div className='flex items-center'>
               <Link
                 href='/'
                 className='font-bold text-xl flex items-center gap-2 text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity'
               >
                 <CheckSquare className='w-6 h-6 text-primary' />
-                Taskmaster
+                <span className='hidden md:block'>Taskmaster</span>
               </Link>
             </div>
 
-            {/* Search Bar and Create Button */}
+            {/* Desktop Search Bar */}
             <div
-              className='flex items-center w-3/4 mx-auto px-4'
+              className='hidden md:flex items-center w-3/4 mx-auto px-4'
               ref={searchRef}
             >
               <div className='relative flex-1'>
@@ -562,8 +572,11 @@ export function DashboardHeader() {
                 )}
               </div>
 
-              {/* Create Button */}
-              <div className='relative ml-3' ref={createDropdownRef}>
+              {/* Desktop Create Button */}
+              <div
+                className='relative ml-3 hidden md:block'
+                ref={createDropdownRef}
+              >
                 <button
                   className='btn btn-primary flex items-center gap-1.5 text-sm hover:bg-primary/90 hover:text-primary-foreground'
                   onClick={() => setShowCreateDropdown(!showCreateDropdown)}
@@ -603,47 +616,6 @@ export function DashboardHeader() {
                           </p>
                         </div>
                       </button>
-
-                      <button
-                        onClick={() => {
-                          // For now, just show the regular create board modal
-                          setIsCreateBoardModalOpen(true);
-                          setShowCreateDropdown(false);
-                        }}
-                        className='w-full flex items-start gap-3 p-3 hover:bg-slate-700/50 rounded-lg transition-colors text-left group mt-2'
-                      >
-                        <div className='w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-blue-500/30 transition-colors'>
-                          <Zap className='w-4 h-4 text-blue-400' />
-                        </div>
-                        <div className='flex-1'>
-                          <div className='flex items-center gap-2 mb-1'>
-                            <h4 className='font-semibold text-sm text-white'>
-                              Start with a template
-                            </h4>
-                            <span className='relative inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white rounded-full shadow-lg overflow-hidden group'>
-                              <span className='absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300'></span>
-                              <span className='absolute inset-0 bg-white/20 rounded-full animate-pulse'></span>
-                              <span className='relative z-10 flex items-center gap-1'>
-                                <svg
-                                  className='w-3 h-3 animate-spin'
-                                  fill='currentColor'
-                                  viewBox='0 0 20 20'
-                                >
-                                  <path
-                                    fillRule='evenodd'
-                                    d='M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z'
-                                    clipRule='evenodd'
-                                  />
-                                </svg>
-                                Coming Soon
-                              </span>
-                            </span>
-                          </div>
-                          <p className='text-xs text-slate-400 leading-relaxed'>
-                            Get started faster with a board template.
-                          </p>
-                        </div>
-                      </button>
                     </div>
 
                     {/* Workspace Creation Section */}
@@ -678,22 +650,378 @@ export function DashboardHeader() {
               </div>
             </div>
 
-            {/* Right section with profile menu */}
-            <div className='flex items-center gap-4'>
+            {/* Mobile Actions */}
+            <div className='flex items-center gap-2 md:hidden'>
+              {/* Mobile Search Button */}
               <button
-                className='relative p-2 text-muted-foreground hover:text-foreground rounded-full'
-                aria-label='Notifications'
+                className='p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/50 transition-colors'
+                onClick={handleMobileSearchOpen}
+                aria-label='Search'
               >
-                <Bell className='w-5 h-5' />
-                {/* Notification indicator */}
-                <span className='absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full'></span>
+                <Search className='w-5 h-5' />
               </button>
 
+              {/* Mobile Create Button */}
+              <div className='relative' ref={createDropdownRef}>
+                <button
+                  className='p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/50 transition-colors'
+                  onClick={() => setShowCreateDropdown(!showCreateDropdown)}
+                  aria-label='Create'
+                >
+                  <Plus className='w-5 h-5' />
+                </button>
+
+                {/* Mobile Create Dropdown */}
+                {showCreateDropdown && (
+                  <div className='absolute top-full right-0 mt-2 w-48 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden'>
+                    <button
+                      onClick={() => {
+                        setIsCreateBoardModalOpen(true);
+                        setShowCreateDropdown(false);
+                      }}
+                      className='w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors text-left'
+                    >
+                      <div className='w-6 h-6 bg-purple-500/20 rounded flex items-center justify-center'>
+                        <LayoutGrid className='w-3 h-3 text-purple-400' />
+                      </div>
+                      <span className='text-sm font-medium'>Create board</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setIsCreateWorkspaceModalOpen(true);
+                        setShowCreateDropdown(false);
+                      }}
+                      className='w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors text-left border-t border-border'
+                    >
+                      <div className='w-6 h-6 bg-green-500/20 rounded flex items-center justify-center'>
+                        <Briefcase className='w-3 h-3 text-green-400' />
+                      </div>
+                      <span className='text-sm font-medium'>
+                        Create workspace
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <UserProfileMenu />
+            </div>
+
+            {/* Desktop Right section */}
+            <div className='hidden md:flex items-center gap-4'>
               <UserProfileMenu />
             </div>
           </div>
         </div>
       </header>
+
+      {/* Mobile Search Modal */}
+      {showMobileSearchModal && (
+        <div className='fixed inset-0 z-[100] md:hidden'>
+          {/* Backdrop */}
+          <div
+            className='absolute inset-0 bg-black/50 backdrop-blur-sm'
+            onClick={handleMobileSearchClose}
+          />
+
+          {/* Modal Content */}
+          <div className='relative z-10 flex flex-col h-full'>
+            {/* Header */}
+            <div className='bg-card border-b border-border p-4'>
+              <div className='flex items-center gap-3'>
+                <button
+                  onClick={handleMobileSearchClose}
+                  className='p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/50 transition-colors'
+                  aria-label='Close search'
+                >
+                  <X className='w-5 h-5' />
+                </button>
+
+                <div className='relative flex-1'>
+                  <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground' />
+                  <input
+                    type='text'
+                    placeholder='Search tasks, projects, etc...'
+                    className='w-full pl-10 pr-4 py-3 text-foreground placeholder-muted-foreground rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all'
+                    value={searchTerm}
+                    onChange={handleSearchChange}
+                    autoFocus
+                  />
+                  {searchTerm && (
+                    <button
+                      className='absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground hover:text-foreground'
+                      onClick={clearSearch}
+                      aria-label='Clear search'
+                    >
+                      <X className='w-4 h-4' />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filter Tabs */}
+              {searchTerm && searchTerm.length >= 2 && (
+                <div className='flex border-b border-border mt-4 -mb-4'>
+                  <button
+                    className={`px-3 py-2 text-sm font-medium ${
+                      activeFilter === 'all'
+                        ? 'text-primary border-b-2 border-primary'
+                        : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setActiveFilter('all')}
+                  >
+                    All
+                  </button>
+                  <button
+                    className={`px-3 py-2 text-sm font-medium ${
+                      activeFilter === 'cards'
+                        ? 'text-primary border-b-2 border-primary'
+                        : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setActiveFilter('cards')}
+                  >
+                    Cards{' '}
+                    {filteredResults.cards.length > 0 &&
+                      `(${filteredResults.cards.length})`}
+                  </button>
+                  <button
+                    className={`px-3 py-2 text-sm font-medium ${
+                      activeFilter === 'boards'
+                        ? 'text-primary border-b-2 border-primary'
+                        : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setActiveFilter('boards')}
+                  >
+                    Boards{' '}
+                    {filteredResults.boards.length > 0 &&
+                      `(${filteredResults.boards.length})`}
+                  </button>
+                  <button
+                    className={`px-3 py-2 text-sm font-medium ${
+                      activeFilter === 'workspaces'
+                        ? 'text-primary border-b-2 border-primary'
+                        : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setActiveFilter('workspaces')}
+                  >
+                    Workspaces{' '}
+                    {filteredResults.workspaces.length > 0 &&
+                      `(${filteredResults.workspaces.length})`}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Search Results */}
+            <div className='flex-1 overflow-y-auto bg-background'>
+              <div className='p-4'>
+                {isSearching && (
+                  <div className='flex items-center justify-center py-8'>
+                    <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-primary'></div>
+                    <span className='ml-3 text-muted-foreground'>
+                      Searching...
+                    </span>
+                  </div>
+                )}
+
+                {searchError && !isSearching && (
+                  <div className='text-center py-8'>
+                    <div className='text-red-500 mb-2'>{searchError}</div>
+                    <button
+                      onClick={() => performSearch(searchTerm)}
+                      className='text-primary hover:underline'
+                    >
+                      Try again
+                    </button>
+                  </div>
+                )}
+
+                {!isSearching &&
+                !searchError &&
+                searchTerm &&
+                searchTerm.length >= 2 ? (
+                  hasFilteredResults() ? (
+                    <div className='space-y-6'>
+                      {/* Cards */}
+                      {(activeFilter === 'all' || activeFilter === 'cards') &&
+                        filteredResults.cards.length > 0 && (
+                          <div>
+                            <h3 className='text-sm font-semibold text-muted-foreground uppercase mb-3'>
+                              Cards
+                            </h3>
+                            <div className='space-y-2'>
+                              {filteredResults.cards.map((card) => (
+                                <Link
+                                  key={card.id}
+                                  href={`/board/${card.boardId}?card=${card.id}`}
+                                  className='block p-3 rounded-lg hover:bg-muted/50 transition-colors'
+                                  onClick={handleMobileSearchClose}
+                                >
+                                  <div className='flex items-start gap-3'>
+                                    <div
+                                      className='w-4 h-4 mt-1 rounded'
+                                      style={{
+                                        backgroundColor: card.boardColor,
+                                      }}
+                                    />
+                                    <div className='flex-1 min-w-0'>
+                                      <p className='font-medium text-foreground truncate'>
+                                        {card.title}
+                                      </p>
+                                      <p className='text-sm text-muted-foreground'>
+                                        {card.board} • {card.list}
+                                      </p>
+                                      {card.description && (
+                                        <p className='text-sm text-muted-foreground mt-1 line-clamp-2'>
+                                          {card.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                      {/* Boards */}
+                      {(activeFilter === 'all' || activeFilter === 'boards') &&
+                        filteredResults.boards.length > 0 && (
+                          <div>
+                            <h3 className='text-sm font-semibold text-muted-foreground uppercase mb-3'>
+                              Boards
+                            </h3>
+                            <div className='space-y-2'>
+                              {filteredResults.boards.map((board) => (
+                                <Link
+                                  key={board.id}
+                                  href={`/board/${board.id}`}
+                                  className='block p-3 rounded-lg hover:bg-muted/50 transition-colors'
+                                  onClick={handleMobileSearchClose}
+                                >
+                                  <div className='flex items-center gap-3'>
+                                    <div
+                                      className='w-4 h-4 rounded'
+                                      style={{ backgroundColor: board.color }}
+                                    />
+                                    <div className='flex-1 min-w-0'>
+                                      <div className='flex items-center gap-2'>
+                                        <p className='font-medium text-foreground truncate'>
+                                          {board.name}
+                                        </p>
+                                        {board.starred && (
+                                          <Star className='w-4 h-4 text-yellow-400 fill-current flex-shrink-0' />
+                                        )}
+                                      </div>
+                                      <p className='text-sm text-muted-foreground truncate'>
+                                        {board.workspace}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                      {/* Workspaces */}
+                      {(activeFilter === 'all' ||
+                        activeFilter === 'workspaces') &&
+                        filteredResults.workspaces.length > 0 && (
+                          <div>
+                            <h3 className='text-sm font-semibold text-muted-foreground uppercase mb-3'>
+                              Workspaces
+                            </h3>
+                            <div className='space-y-2'>
+                              {filteredResults.workspaces.map((workspace) => (
+                                <Link
+                                  key={workspace.id}
+                                  href={`/boards/${workspace.id}`}
+                                  className='block p-3 rounded-lg hover:bg-muted/50 transition-colors'
+                                  onClick={handleMobileSearchClose}
+                                >
+                                  <div className='flex items-center gap-3'>
+                                    <div
+                                      className='w-4 h-4 rounded flex items-center justify-center text-white text-xs font-bold'
+                                      style={{
+                                        backgroundColor: workspace.color,
+                                      }}
+                                    >
+                                      {workspace.letter}
+                                    </div>
+                                    <div className='flex-1 min-w-0'>
+                                      <div className='flex items-center gap-2'>
+                                        <p className='font-medium text-foreground truncate'>
+                                          {workspace.name}
+                                        </p>
+                                        {workspace.isOwner && (
+                                          <Users className='w-4 h-4 text-blue-400 flex-shrink-0' />
+                                        )}
+                                      </div>
+                                      <p className='text-sm text-muted-foreground flex items-center'>
+                                        <User className='w-3 h-3 mr-1' />
+                                        {workspace.memberCount}{' '}
+                                        {workspace.memberCount === 1
+                                          ? 'member'
+                                          : 'members'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  ) : (
+                    <div className='text-center py-12'>
+                      <div className='relative mb-4'>
+                        <div className='bg-orange-500/10 rounded-full p-4 inline-block'>
+                          <Search className='w-8 h-8 text-orange-500/60' />
+                        </div>
+                        <div className='absolute -bottom-1 -right-1 bg-orange-500/30 rounded-full p-1'>
+                          <X className='w-4 h-4 text-orange-500' />
+                        </div>
+                      </div>
+                      <p className='text-lg font-medium text-foreground mb-2'>
+                        {getNoResultsMessage()}
+                      </p>
+                      <p className='text-muted-foreground'>
+                        Try different keywords or check your spelling
+                      </p>
+                    </div>
+                  )
+                ) : searchTerm && searchTerm.length === 1 ? (
+                  <div className='text-center py-12'>
+                    <div className='bg-blue-500/10 rounded-full p-4 inline-block mb-4'>
+                      <Search className='w-8 h-8 text-blue-500/60' />
+                    </div>
+                    <p className='text-lg font-medium text-foreground mb-2'>
+                      Keep typing to search...
+                    </p>
+                    <p className='text-muted-foreground'>
+                      Search for cards, boards, and workspaces
+                    </p>
+                  </div>
+                ) : (
+                  <div className='text-center py-12'>
+                    <div className='bg-blue-500/10 rounded-full p-4 inline-block mb-4'>
+                      <Search className='w-8 h-8 text-blue-500/60' />
+                    </div>
+                    <p className='text-lg font-medium text-foreground mb-2'>
+                      Start typing to search
+                    </p>
+                    <p className='text-muted-foreground'>
+                      Search for cards, boards, and workspaces
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       <CreateWorkspaceModal
