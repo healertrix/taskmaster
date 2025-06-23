@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { DashboardHeader } from './components/dashboard/header';
 import {
@@ -15,9 +15,13 @@ import {
   ChevronDown,
   LayoutGrid,
   ChevronRight,
+  Loader2,
 } from 'lucide-react';
 import { CreateWorkspaceModal } from './components/workspace/CreateWorkspaceModal';
-import { CreateBoardModal } from './components/board/CreateBoardModal';
+import {
+  CreateBoardModal,
+  CreateBoardModalRef,
+} from './components/board/CreateBoardModal';
 import { BoardCard } from './components/board/BoardCard';
 import { createClient } from '@/utils/supabase/client';
 import { useBoardStars } from '@/hooks/useBoardStars';
@@ -45,6 +49,8 @@ export default function HomePage() {
     Record<string, any>
   >({});
   const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const createBoardModalRef = useRef<CreateBoardModalRef>(null);
 
   // Use the custom hook for board stars
   const {
@@ -67,10 +73,11 @@ export default function HomePage() {
 
       // Get the current user
       const {
-        data: { user },
+        data: { user: currentUser },
       } = await supabase.auth.getUser();
 
-      if (user) {
+      if (currentUser) {
+        setUser(currentUser); // Store user in state
         // Fetch workspaces where user is a member (owner or regular member)
         const { data: workspaceData, error: workspaceError } = await supabase
           .from('workspace_members')
@@ -86,7 +93,7 @@ export default function HomePage() {
             )
           `
           )
-          .eq('profile_id', user.id);
+          .eq('profile_id', currentUser.id);
 
         if (workspaceError) {
           console.error('Error fetching workspaces:', workspaceError);
@@ -138,12 +145,17 @@ export default function HomePage() {
               const membership = workspaceData.find(
                 (wm) => wm.workspace_id === workspace.id
               );
+              // If user is workspace owner, set role to 'owner'
+              const isOwner = workspace.owner_id === currentUser.id;
+              const role = isOwner ? 'owner' : membership?.role || 'member';
+
               return {
                 id: workspace.id,
                 name: workspace.name,
                 initial: workspace.name.charAt(0).toUpperCase(),
                 color: workspace.color,
-                role: membership?.role || 'member',
+                owner_id: workspace.owner_id, // Include owner_id for ownership checks
+                role,
                 boards: [],
                 members: [],
               };
@@ -215,9 +227,6 @@ export default function HomePage() {
       console.error('Error fetching workspace settings:', error);
     }
   }, []);
-
-  // Debug: Log userWorkspaces state changes
-  useEffect(() => {}, [userWorkspaces]);
 
   // Fetch user workspaces on component mount
   useEffect(() => {
@@ -321,12 +330,14 @@ export default function HomePage() {
       if (error) {
         console.error('Error fetching new workspace:', error);
       } else if (data) {
-        // Add the new workspace to the state
+        // Add the new workspace to the state WITH owner_id and role
         const newWorkspace = {
           id: data.id,
           name: data.name,
           initial: data.name.charAt(0).toUpperCase(),
           color: data.color,
+          owner_id: data.owner_id, // Include owner_id for ownership detection
+          role: 'owner', // Set role as owner since user created the workspace
           boards: [],
           members: [],
         };
@@ -338,6 +349,15 @@ export default function HomePage() {
           ...prev,
           [newWorkspaceId]: true,
         }));
+
+        // Refetch workspaces in the create board modal (if it's open)
+        if (createBoardModalRef.current) {
+          try {
+            await createBoardModalRef.current.refetchWorkspaces();
+          } catch (error) {
+            console.error('Error refetching workspaces:', error);
+          }
+        }
       }
     } catch (error) {
       console.error('Error handling new workspace:', error);
@@ -361,9 +381,22 @@ export default function HomePage() {
   };
 
   const handleBoardCreated = async (newBoardId: string) => {
-    // Refresh the workspace data to show the new board
+    // Refresh all board data to show the new board
     await fetchWorkspacesWithBoards();
     await refetchBoards();
+
+    // Also refresh workspace boards to update the workspace sections
+    if (boardModalContext?.workspaceId) {
+      // If creating from specific workspace, refresh that workspace
+      await fetchWorkspaceBoards([boardModalContext.workspaceId]);
+    } else {
+      // If creating from top-level, refresh all workspaces
+      const workspaceIds = userWorkspaces.map((w) => w.id);
+      if (workspaceIds.length > 0) {
+        await fetchWorkspaceBoards(workspaceIds);
+      }
+    }
+
     setIsCreateBoardModalOpen(false);
     setBoardModalContext(null);
   };
@@ -728,8 +761,45 @@ export default function HomePage() {
                       });
                     })()}
 
-                    {/* Create New Board (in workspace) - Only show if user has permission */}
+                    {/* Create New Board */}
                     {(() => {
+                      // If no user data, show loading
+                      if (!user) {
+                        return (
+                          <div className='h-32 rounded-xl border-2 border-dashed border-border/50 bg-card/30 flex flex-col items-center justify-center text-muted-foreground'>
+                            <div className='w-10 h-10 rounded-full bg-muted/20 flex items-center justify-center mb-2'>
+                              <Loader2 className='w-5 h-5 animate-spin' />
+                            </div>
+                            <span className='font-medium text-sm'>
+                              Loading...
+                            </span>
+                          </div>
+                        );
+                      }
+
+                      // If you own the workspace, you can create boards
+                      const isOwner = workspace.owner_id === user.id;
+
+                      if (isOwner) {
+                        // Workspace owner - allow board creation
+                        return (
+                          <button
+                            onClick={() =>
+                              handleCreateBoardInWorkspace(workspace)
+                            }
+                            className='h-32 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
+                          >
+                            <div className='w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors'>
+                              <Plus className='w-5 h-5 text-primary' />
+                            </div>
+                            <span className='font-medium text-sm'>
+                              Create New Board
+                            </span>
+                          </button>
+                        );
+                      }
+
+                      // Check permissions for non-owners
                       const settings = workspaceSettings[workspace.id];
                       const userRole = workspace.role || 'member';
                       const canCreate = canUserCreateBoards(settings, userRole);
@@ -752,22 +822,14 @@ export default function HomePage() {
                         );
                       }
 
-                      // If user can't create boards, show an informational card instead
+                      // Can't create boards - show message
                       return (
                         <div className='h-32 rounded-xl border-2 border-dashed border-border/30 bg-card/20 flex flex-col items-center justify-center text-muted-foreground/60'>
                           <div className='w-10 h-10 rounded-full bg-muted/20 flex items-center justify-center mb-2'>
                             <Plus className='w-5 h-5 text-muted-foreground/40' />
                           </div>
                           <span className='font-medium text-sm text-center px-4'>
-                            Only{' '}
-                            {settings?.board_creation_simplified ===
-                            'owner_only'
-                              ? 'workspace owners'
-                              : settings?.board_creation_simplified ===
-                                'admins_only'
-                              ? 'admins'
-                              : 'certain members'}{' '}
-                            can create boards
+                            Only certain members can create boards
                           </span>
                         </div>
                       );
@@ -789,13 +851,13 @@ export default function HomePage() {
 
       {/* Board creation modal */}
       <CreateBoardModal
+        ref={createBoardModalRef}
         isOpen={isCreateBoardModalOpen}
         onClose={() => setIsCreateBoardModalOpen(false)}
         onSuccess={handleBoardCreated}
         workspaceId={boardModalContext?.workspaceId}
         workspaceName={boardModalContext?.workspaceName}
         workspaceColor={boardModalContext?.workspaceColor}
-        userWorkspaces={userWorkspaces}
       />
     </div>
   );
