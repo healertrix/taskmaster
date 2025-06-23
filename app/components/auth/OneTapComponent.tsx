@@ -90,13 +90,8 @@ const OneTapComponent = () => {
           window.google.accounts.id.renderButton(
             document.getElementById('googleButton')!,
             {
-              type: 'standard',
               theme: 'outline',
               size: 'large',
-              text: 'signin_with',
-              shape: 'rectangular',
-              logo_alignment: 'center',
-              width: '100%',
             }
           );
 
@@ -127,8 +122,8 @@ const OneTapComponent = () => {
         onLoad={() => {}}
         strategy='afterInteractive'
       />
-      <div className='flex flex-col items-center justify-center w-full'>
-        <div id='googleButton' className='w-full'></div>
+      <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+        <div id='googleButton'></div>
         <div id='oneTap' className='fixed top-0 right-0 z-[100]' />
       </div>
     </>
