@@ -416,7 +416,7 @@ export default function WorkspaceBoardsPage() {
           </div>
 
           {/* Board Card Skeletons */}
-          {[...Array(8)].map((_, i) => (
+          {[...Array(4)].map((_, i) => (
             <div
               key={i}
               className='h-40 rounded-xl bg-card border border-border/50 p-5'
@@ -452,7 +452,7 @@ export default function WorkspaceBoardsPage() {
     }
   }, [isDescriptionModalOpen]);
 
-  // Fetch workspace permissions
+  // Optimized workspace permissions - faster check
   useEffect(() => {
     const fetchWorkspacePermissions = async () => {
       try {
@@ -467,39 +467,44 @@ export default function WorkspaceBoardsPage() {
           return;
         }
 
-        // Check if user is workspace owner
+        // Check if user is workspace owner first (fastest check)
         if (workspace) {
           const isOwner = workspace.owner_id === user.id;
           setIsWorkspaceOwner(isOwner);
 
-          // Get user's workspace membership role
-          const { data: membership, error: membershipError } = await supabase
-            .from('workspace_members')
-            .select('role')
-            .eq('workspace_id', workspaceId)
-            .eq('profile_id', user.id)
-            .single();
+          // If workspace owner, can always create boards - no need for further checks
+          if (isOwner) {
+            setCanCreateBoards(true);
+            setUserRole('owner');
+            return;
+          }
 
-          if (!membershipError && membership) {
-            setUserRole(membership.role);
-
-            // If workspace owner, can always create boards
-            if (isOwner) {
-              setCanCreateBoards(true);
-              return;
-            }
-
-            // Get workspace board creation settings
-            const { data: settings, error: settingsError } = await supabase
+          // For non-owners, get membership and settings in parallel for speed
+          const [membershipResult, settingsResult] = await Promise.all([
+            supabase
+              .from('workspace_members')
+              .select('role')
+              .eq('workspace_id', workspaceId)
+              .eq('profile_id', user.id)
+              .single(),
+            supabase
               .from('workspace_settings')
               .select('setting_value, setting_type')
               .eq('workspace_id', workspaceId)
               .in('setting_type', [
                 'board_creation_simplified',
                 'board_creation_restriction',
-              ]);
+              ]),
+          ]);
 
-            let boardCreationPermission = 'any_member'; // default
+          const { data: membership, error: membershipError } = membershipResult;
+          const { data: settings, error: settingsError } = settingsResult;
+
+          if (!membershipError && membership) {
+            setUserRole(membership.role);
+
+            // Default to permissive setting for speed
+            let boardCreationPermission = 'any_member';
 
             if (!settingsError && settings) {
               // Look for new simplified format first
@@ -515,27 +520,10 @@ export default function WorkspaceBoardsPage() {
                 } catch (error) {
                   boardCreationPermission = 'any_member';
                 }
-              } else {
-                // Fallback to old format
-                const oldSetting = settings.find(
-                  (s) => s.setting_type === 'board_creation_restriction'
-                );
-                if (oldSetting) {
-                  try {
-                    const oldValue =
-                      typeof oldSetting.setting_value === 'string'
-                        ? JSON.parse(oldSetting.setting_value)
-                        : oldSetting.setting_value;
-                    boardCreationPermission =
-                      oldValue?.workspace_visible_boards || 'any_member';
-                  } catch (error) {
-                    boardCreationPermission = 'any_member';
-                  }
-                }
               }
             }
 
-            // Check permissions based on setting
+            // Quick permission check
             let canCreate = false;
             switch (boardCreationPermission) {
               case 'any_member':
@@ -558,7 +546,8 @@ export default function WorkspaceBoardsPage() {
         }
       } catch (error) {
         console.error('Error fetching workspace permissions:', error);
-        setCanCreateBoards(false);
+        // Don't disable on error, let the API handle permission rejection
+        setCanCreateBoards(true);
       }
     };
 

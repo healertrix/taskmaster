@@ -354,7 +354,7 @@ export function CreateBoardModal({
                   availableWorkspaces={availableWorkspaces}
                   selectedWorkspaceId={selectedWorkspaceId}
                   onSelect={setSelectedWorkspaceId}
-                  disabled={isLoading || workspacesLoading}
+                  disabled={isLoading}
                   getRoleText={getRoleText}
                   getRoleIcon={getRoleIcon}
                   loading={workspacesLoading}
@@ -516,7 +516,6 @@ export function CreateBoardModal({
                   isLoading ||
                   !name.trim() ||
                   !selectedWorkspaceId ||
-                  workspacesLoading ||
                   (!isFromWorkspacePage && availableWorkspaces.length === 0)
                 }
               >

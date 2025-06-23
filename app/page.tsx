@@ -13,7 +13,6 @@ import {
   Settings,
   MoreHorizontal,
   ChevronDown,
-  Home,
   LayoutGrid,
   ChevronRight,
 } from 'lucide-react';
@@ -304,11 +303,6 @@ export default function HomePage() {
     }));
   }, []);
 
-  const handleHomeClick = useCallback(() => {
-    // Navigate to home page
-    window.location.href = '/';
-  }, []);
-
   const handleCreateWorkspaceClick = useCallback(() => {
     setIsCreateWorkspaceModalOpen(true);
   }, []);
@@ -408,20 +402,7 @@ export default function HomePage() {
           {/* Sidebar - Using dark glass effect */}
           <div className='w-64 flex-shrink-0'>
             <div className='glass-dark rounded-xl p-4 sticky top-24'>
-              <nav className='space-y-1.5'>
-                <button
-                  className='nav-item flex items-center gap-2.5 w-full text-sm'
-                  onClick={handleHomeClick}
-                >
-                  <Home className='w-4 h-4' />
-                  Home
-                </button>
-                <button className='nav-item flex items-center gap-2.5 w-full text-sm'>
-                  <Settings className='w-4 h-4' />
-                  Settings
-                </button>
-              </nav>
-              <div className='mt-8'>
+              <div className='mt-4'>
                 <h3 className='px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider'>
                   Workspaces
                 </h3>
