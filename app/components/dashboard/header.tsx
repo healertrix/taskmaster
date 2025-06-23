@@ -262,7 +262,7 @@ export function DashboardHeader() {
   return (
     <>
       <header className='fixed top-0 left-0 right-0 superhero-header z-50'>
-        <div className='container mx-auto px-4 py-3'>
+        <div className='container mx-auto px-4 py-2 sm:py-3'>
           <div className='flex items-center justify-between'>
             {/* Left section - Logo */}
             <div className='flex items-center'>

@@ -1710,47 +1710,49 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       <DashboardHeader />
 
       {/* Board Header */}
-      <div className='container mx-auto max-w-full px-4 pt-24 pb-8'>
-        <div className='flex items-center justify-between group'>
+      <div className='container mx-auto max-w-full px-4 pt-20 sm:pt-24 pb-4 sm:pb-8'>
+        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 group'>
           {/* Left side - Board info */}
-          <div className='flex items-center gap-4'>
+          <div className='flex items-center gap-3 sm:gap-4 min-w-0 flex-1'>
             <button
               onClick={handleGoBack}
-              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
               title='Go back'
             >
               <ArrowLeft className='w-5 h-5' />
             </button>
 
-            <div className='flex items-center gap-3'>
+            <div className='flex items-center gap-2 sm:gap-3 min-w-0 flex-1'>
               {/* Workspace indicator */}
-              <div className='flex items-center gap-2'>
+              <div className='flex items-center gap-2 min-w-0'>
                 <div
-                  className={`w-8 h-8 ${workspaceColorClass} rounded-lg text-white flex items-center justify-center text-sm font-bold shadow-md`}
+                  className={`w-6 h-6 sm:w-8 sm:h-8 ${workspaceColorClass} rounded-lg text-white flex items-center justify-center text-xs sm:text-sm font-bold shadow-md flex-shrink-0`}
                 >
                   {board.workspace.name.charAt(0).toUpperCase()}
                 </div>
                 <Link
                   href={`/boards/${board.workspace.id}`}
-                  className='text-sm text-muted-foreground hover:text-primary transition-colors cursor-pointer'
+                  className='text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors cursor-pointer truncate'
                   title={`Go to ${board.workspace.name} workspace`}
                 >
                   {board.workspace.name}
                 </Link>
               </div>
 
-              <span className='text-muted-foreground'>/</span>
+              <span className='text-muted-foreground hidden sm:inline'>/</span>
 
               {/* Board name - editable */}
-              <BoardNameEditor
-                boardName={board.name}
-                onSave={updateBoardName}
-              />
+              <div className='min-w-0 flex-1'>
+                <BoardNameEditor
+                  boardName={board.name}
+                  onSave={updateBoardName}
+                />
+              </div>
             </div>
           </div>
 
           {/* Right side - Board info and actions */}
-          <div className='flex items-center gap-4'>
+          <div className='flex items-center gap-2 sm:gap-4 flex-shrink-0'>
             {/* Info button */}
             <button
               onClick={() => setIsDescriptionModalOpen(true)}
@@ -1761,7 +1763,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             </button>
 
             {/* Last access time */}
-            <div className='flex items-center gap-2 text-sm text-muted-foreground'>
+            <div className='hidden md:flex items-center gap-2 text-sm text-muted-foreground'>
               <Clock className='w-4 h-4' />
               <span>Last accessed {formatLastAccess(board.updated_at)}</span>
             </div>
