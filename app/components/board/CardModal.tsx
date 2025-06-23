@@ -257,6 +257,9 @@ export function CardModal({
   const [activeTab, setActiveTab] = useState<'comments' | 'activities'>(
     'comments'
   );
+  const [activeMobileTab, setActiveMobileTab] = useState<
+    'details' | 'discussion'
+  >('details');
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentContent, setEditingCommentContent] = useState('');
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(
@@ -462,6 +465,7 @@ export function CardModal({
     showSaveWarningModal,
     showMoveModal,
     isListDropdownOpen,
+    activeMobileTab,
     title,
     description,
   ]);
@@ -1960,7 +1964,7 @@ export function CardModal({
 
   return (
     <div
-      className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'
+      className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4'
       onClick={(e) => {
         // Only close if clicking the backdrop (not the modal content)
         if (e.target === e.currentTarget) {
@@ -1968,14 +1972,14 @@ export function CardModal({
         }
       }}
     >
-      <div className='bg-card rounded-xl shadow-2xl w-full max-w-7xl h-[90vh] border border-border overflow-hidden flex flex-col'>
+      <div className='bg-card rounded-xl shadow-2xl w-full max-w-7xl h-[95vh] sm:h-[90vh] border border-border overflow-hidden flex flex-col'>
         {/* Header */}
-        <div className='flex items-start gap-4 p-6 border-b border-border bg-muted/30 flex-shrink-0'>
-          <div className='flex-1'>
+        <div className='flex items-start gap-2 sm:gap-4 p-3 sm:p-6 border-b border-border bg-muted/30 flex-shrink-0'>
+          <div className='flex-1 min-w-0'>
             {/* Card Title */}
             <div className='flex items-center gap-2 mb-2'>
-              <Edit3 className='w-5 h-5 text-muted-foreground' />
-              <div className='flex items-center gap-2 flex-1'>
+              <Edit3 className='w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground' />
+              <div className='flex items-center gap-2 flex-1 min-w-0'>
                 {isEditingTitle ? (
                   <input
                     type='text'
@@ -1983,21 +1987,21 @@ export function CardModal({
                     onChange={(e) => setTitle(e.target.value)}
                     onBlur={handleSaveTitle}
                     onKeyDown={handleTitleKeyPress}
-                    className='flex-1 text-lg font-semibold bg-background text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary'
+                    className='flex-1 text-base sm:text-lg font-semibold bg-background text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary'
                     autoFocus
                     disabled={isSaving}
                     title='Edit card title'
                   />
                 ) : (
                   <h2
-                    className='text-lg font-semibold text-foreground cursor-pointer hover:bg-muted/50 rounded-md px-3 py-2 -mx-3 -my-2 transition-colors'
+                    className='text-base sm:text-lg font-semibold text-foreground cursor-pointer hover:bg-muted/50 rounded-md px-2 sm:px-3 py-1 sm:py-2 -mx-2 sm:-mx-3 -my-1 sm:-my-2 transition-colors truncate'
                     onClick={() => setIsEditingTitle(true)}
                   >
                     {card.title}
                   </h2>
                 )}
                 {hasActiveSaveOperations() && (
-                  <div className='flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full border border-amber-200 whitespace-nowrap'>
+                  <div className='hidden sm:flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full border border-amber-200 whitespace-nowrap'>
                     <div className='w-2 h-2 bg-amber-500 rounded-full animate-pulse'></div>
                     Saving...
                   </div>
@@ -2006,26 +2010,26 @@ export function CardModal({
             </div>
 
             {/* Breadcrumb */}
-            <p className='text-sm text-muted-foreground mb-3'>
+            <p className='text-xs sm:text-sm text-muted-foreground mb-3 truncate'>
               in list{' '}
               <span className='font-medium text-foreground'>{listName}</span> on{' '}
               <span className='font-medium text-foreground'>{boardName}</span>
             </p>
 
             {/* Labels Section */}
-            <div className='flex items-center gap-3'>
+            <div className='flex items-center gap-2 sm:gap-3'>
               <div
-                className='flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-lg px-2 py-1 -mx-2 -my-1 transition-colors'
+                className='flex items-center gap-1 sm:gap-2 cursor-pointer hover:bg-muted/50 rounded-lg px-1 sm:px-2 py-1 -mx-1 sm:-mx-2 -my-1 transition-colors'
                 onClick={() => setShowLabelModal(true)}
                 title='Manage labels'
               >
-                <Tag className='w-4 h-4 text-muted-foreground' />
-                <span className='text-sm font-medium text-foreground'>
+                <Tag className='w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground' />
+                <span className='text-xs sm:text-sm font-medium text-foreground hidden sm:inline'>
                   Labels
                 </span>
               </div>
               <div
-                className='flex-1 cursor-pointer hover:bg-muted/30 rounded-lg px-2 py-1 -mx-2 -my-1 transition-colors'
+                className='flex-1 cursor-pointer hover:bg-muted/30 rounded-lg px-1 sm:px-2 py-1 -mx-1 sm:-mx-2 -my-1 transition-colors min-w-0'
                 onClick={() => setShowLabelModal(true)}
                 title='Click to manage labels'
               >
@@ -2043,7 +2047,7 @@ export function CardModal({
           {/* Close Button */}
           <button
             onClick={handleModalClose}
-            className={`p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors ${
+            className={`p-1.5 sm:p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors touch-manipulation ${
               hasActiveSaveOperations()
                 ? 'animate-pulse bg-amber-50 border border-amber-200'
                 : ''
@@ -2054,29 +2058,66 @@ export function CardModal({
                 : 'Close modal'
             }
           >
-            <X className='w-5 h-5' />
+            <X className='w-4 h-4 sm:w-5 sm:h-5' />
           </button>
         </div>
 
-        <div className='flex gap-6 p-6 flex-1 overflow-hidden'>
+        {/* Mobile Tab Navigation */}
+        <div className='lg:hidden border-b border-border bg-muted/30'>
+          <div className='flex p-2'>
+            <button
+              onClick={() => setActiveMobileTab('details')}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+                activeMobileTab === 'details'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+              }`}
+            >
+              <Edit3 className='w-4 h-4' />
+              Details
+            </button>
+            <button
+              onClick={() => setActiveMobileTab('discussion')}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+                activeMobileTab === 'discussion'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+              }`}
+            >
+              <MessageSquare className='w-4 h-4' />
+              Discussion
+              {(comments.length > 0 || activities.length > 0) && (
+                <span className='bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-semibold'>
+                  {comments.length + activities.length}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className='flex flex-col lg:flex-row gap-0 lg:gap-6 p-3 sm:p-6 flex-1 overflow-hidden'>
           {/* Left Side - Main Content */}
-          <div className='flex-1 space-y-6 overflow-y-auto pr-4'>
+          <div
+            className={`flex-1 space-y-4 sm:space-y-6 overflow-y-auto lg:pr-4 ${
+              activeMobileTab === 'discussion' ? 'hidden lg:block' : 'block'
+            }`}
+          >
             {/* Description */}
             <div>
-              <div className='flex items-center gap-2 mb-3'>
-                <MessageSquare className='w-5 h-5 text-muted-foreground' />
-                <h3 className='text-base font-medium text-foreground'>
+              <div className='flex items-center gap-2 mb-2 sm:mb-3'>
+                <MessageSquare className='w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground' />
+                <h3 className='text-sm sm:text-base font-medium text-foreground'>
                   Description
                 </h3>
               </div>
 
               {isEditingDescription ? (
-                <div className='space-y-3'>
+                <div className='space-y-2 sm:space-y-3'>
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     onKeyDown={handleDescriptionKeyPress}
-                    className='w-full min-h-[120px] bg-background text-foreground border border-border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none'
+                    className='w-full min-h-[100px] sm:min-h-[120px] bg-background text-foreground border border-border rounded-md px-2 sm:px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none text-sm'
                     placeholder='Add a more detailed description...'
                     disabled={isSaving}
                   />
@@ -2084,7 +2125,7 @@ export function CardModal({
                     <button
                       onClick={handleSaveDescription}
                       disabled={isSaving}
-                      className='px-3 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-md transition-colors disabled:opacity-50'
+                      className='px-3 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs sm:text-sm font-medium rounded-md transition-colors disabled:opacity-50 touch-manipulation'
                     >
                       {isSaving ? 'Saving...' : 'Save'}
                     </button>
@@ -2094,26 +2135,26 @@ export function CardModal({
                         setIsEditingDescription(false);
                       }}
                       disabled={isSaving}
-                      className='px-3 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-medium rounded-md transition-colors'
+                      className='px-3 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-xs sm:text-sm font-medium rounded-md transition-colors touch-manipulation'
                     >
                       Cancel
                     </button>
                   </div>
-                  <p className='text-xs text-muted-foreground'>
+                  <p className='text-xs text-muted-foreground hidden sm:block'>
                     Press Ctrl+Enter to save quickly
                   </p>
                 </div>
               ) : (
                 <div
-                  className='min-h-[80px] bg-muted/50 border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-muted transition-colors'
+                  className='min-h-[60px] sm:min-h-[80px] bg-muted/50 border border-border rounded-md px-2 sm:px-3 py-2 cursor-pointer hover:bg-muted transition-colors touch-manipulation'
                   onClick={() => setIsEditingDescription(true)}
                 >
                   {card.description ? (
-                    <p className='text-sm text-foreground whitespace-pre-wrap'>
+                    <p className='text-xs sm:text-sm text-foreground whitespace-pre-wrap'>
                       {card.description}
                     </p>
                   ) : (
-                    <p className='text-sm text-muted-foreground'>
+                    <p className='text-xs sm:text-sm text-muted-foreground'>
                       Add a more detailed description...
                     </p>
                   )}
@@ -2642,9 +2683,13 @@ export function CardModal({
           </div>
 
           {/* Right Side - Comments and Activities */}
-          <div className='w-96 flex-shrink-0 border-l border-border pl-6 flex flex-col'>
+          <div
+            className={`w-full lg:w-96 lg:flex-shrink-0 lg:border-l lg:border-border lg:pl-6 flex flex-col mt-4 lg:mt-0 ${
+              activeMobileTab === 'details' ? 'hidden lg:flex' : 'flex'
+            }`}
+          >
             {/* Sticky Action Buttons */}
-            <div className='flex gap-2 mb-4 sticky top-0 bg-card z-30 py-2'>
+            <div className='flex flex-col sm:flex-row lg:flex-col gap-2 mb-4 sticky top-0 bg-card z-30 py-2'>
               {/* Add to Card Dropdown */}
               <div className='relative flex-1'>
                 <button
@@ -2812,31 +2857,33 @@ export function CardModal({
             )}
 
             {/* Sticky Tab Design */}
-            <div className='flex gap-1 mb-4 p-1 bg-muted rounded-lg sticky top-16 bg-card z-20'>
+            <div className='flex gap-1 mb-3 sm:mb-4 p-1 bg-muted rounded-lg sticky top-16 bg-card z-20'>
               <button
                 onClick={() => setActiveTab('comments')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 ${
                   activeTab === 'comments'
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
                 }`}
               >
-                <MessageSquare className='w-4 h-4' />
-                Comments
+                <MessageSquare className='w-3 h-3 sm:w-4 sm:h-4' />
+                <span className='hidden sm:inline'>Comments</span>
+                <span className='sm:hidden'>Chat</span>
                 <span className='bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-semibold'>
                   {comments.length}
                 </span>
               </button>
               <button
                 onClick={() => setActiveTab('activities')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium rounded-md transition-all duration-200 ${
                   activeTab === 'activities'
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
                 }`}
               >
-                <Activity className='w-4 h-4' />
-                Activity
+                <Activity className='w-3 h-3 sm:w-4 sm:h-4' />
+                <span className='hidden sm:inline'>Activity</span>
+                <span className='sm:hidden'>Log</span>
                 <span className='bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs font-semibold'>
                   {activities.length}
                 </span>
@@ -2846,9 +2893,12 @@ export function CardModal({
             {activeTab === 'comments' && (
               <div className='flex flex-col flex-1 overflow-hidden'>
                 {/* Enhanced Add comment form */}
-                <div className='bg-muted/30 rounded-xl p-4 border border-border/50 mb-4'>
+                <div className='bg-muted/30 rounded-xl p-3 sm:p-4 border border-border/50 mb-3 sm:mb-4'>
                   <div className='w-full'>
-                    <form onSubmit={handleSubmitComment} className='space-y-3'>
+                    <form
+                      onSubmit={handleSubmitComment}
+                      className='space-y-2 sm:space-y-3'
+                    >
                       <div className='relative'>
                         <textarea
                           value={newComment}
@@ -2866,17 +2916,17 @@ export function CardModal({
                             }
                           }}
                           placeholder='Write a comment...'
-                          className='w-full p-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 text-sm bg-background placeholder-muted-foreground min-h-[80px]'
+                          className='w-full p-2 sm:p-3 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 text-sm bg-background placeholder-muted-foreground min-h-[60px] sm:min-h-[80px]'
                           disabled={isSubmittingComment}
                         />
                         {newComment.trim() && (
-                          <div className='absolute bottom-3 right-3 text-xs text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded'>
+                          <div className='absolute bottom-2 sm:bottom-3 right-2 sm:right-3 text-xs text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded'>
                             {newComment.length}/1000
                           </div>
                         )}
                       </div>
-                      <div className='flex justify-between items-center'>
-                        <div className='text-xs text-muted-foreground'>
+                      <div className='flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2'>
+                        <div className='text-xs text-muted-foreground hidden sm:block'>
                           Press{' '}
                           <kbd className='px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono border'>
                             Ctrl
@@ -2887,12 +2937,12 @@ export function CardModal({
                           </kbd>{' '}
                           to submit
                         </div>
-                        <div className='flex gap-2'>
+                        <div className='flex gap-2 justify-end'>
                           {newComment.trim() && (
                             <button
                               type='button'
                               onClick={() => setNewComment('')}
-                              className='px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors'
+                              className='px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors touch-manipulation'
                             >
                               Cancel
                             </button>
@@ -2900,17 +2950,23 @@ export function CardModal({
                           <button
                             type='submit'
                             disabled={!newComment.trim() || isSubmittingComment}
-                            className='flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow disabled:hover:shadow-sm'
+                            className='flex items-center gap-1.5 px-3 sm:px-4 py-1.5 bg-primary text-primary-foreground text-xs sm:text-sm rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow disabled:hover:shadow-sm touch-manipulation'
                           >
                             {isSubmittingComment ? (
                               <>
                                 <div className='w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin' />
-                                Posting...
+                                <span className='hidden sm:inline'>
+                                  Posting...
+                                </span>
+                                <span className='sm:hidden'>...</span>
                               </>
                             ) : (
                               <>
                                 <Send className='w-3 h-3' />
-                                Comment
+                                <span className='hidden sm:inline'>
+                                  Comment
+                                </span>
+                                <span className='sm:hidden'>Send</span>
                               </>
                             )}
                           </button>
@@ -2924,12 +2980,15 @@ export function CardModal({
                 <div className='flex-1 overflow-y-auto pr-2 space-y-4'>
                   {/* Comment Filters and Search */}
                   {comments.length > 0 && (
-                    <div className='bg-background rounded-lg border border-border p-4 space-y-3'>
+                    <div className='bg-background rounded-lg border border-border p-3 sm:p-4 space-y-2 sm:space-y-3'>
                       <div className='flex items-center justify-between'>
-                        <div className='flex items-center gap-2'>
-                          <Filter className='w-4 h-4 text-muted-foreground' />
-                          <span className='text-sm font-medium text-foreground'>
-                            Filter & Search Comments
+                        <div className='flex items-center gap-1 sm:gap-2'>
+                          <Filter className='w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground' />
+                          <span className='text-xs sm:text-sm font-medium text-foreground'>
+                            <span className='hidden sm:inline'>
+                              Filter & Search Comments
+                            </span>
+                            <span className='sm:hidden'>Filters</span>
                           </span>
                           <span className='text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded'>
                             {filteredAndSortedComments.length} of{' '}
@@ -2940,9 +2999,9 @@ export function CardModal({
                           onClick={() =>
                             setShowCommentFilters(!showCommentFilters)
                           }
-                          className='text-xs text-primary hover:text-primary/80 transition-colors'
+                          className='text-xs text-primary hover:text-primary/80 transition-colors touch-manipulation'
                         >
-                          {showCommentFilters ? 'Hide filters' : 'Show filters'}
+                          {showCommentFilters ? 'Hide' : 'Show'}
                         </button>
                       </div>
 
