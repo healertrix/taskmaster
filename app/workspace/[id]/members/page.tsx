@@ -1510,20 +1510,20 @@ export default function WorkspaceMembersPage() {
 
       {/* Change Role Modal */}
       {showChangeRoleModal && memberToChangeRole && (
-        <div className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4'>
-          <div className='bg-gradient-to-br from-background via-background to-background/95 border border-border/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden'>
+        <div className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4'>
+          <div className='bg-gradient-to-br from-background via-background to-background/95 border border-border/50 rounded-2xl shadow-2xl w-full max-w-md mx-2 sm:mx-4 overflow-hidden max-h-[90vh] overflow-y-auto'>
             {/* Header */}
-            <div className='relative bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 border-b border-border/50'>
+            <div className='relative bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4 sm:p-6 border-b border-border/50'>
               <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-3'>
-                  <div className='w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center'>
-                    <Shield className='w-5 h-5 text-primary' />
+                <div className='flex items-center gap-2 sm:gap-3'>
+                  <div className='w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-primary/20 flex items-center justify-center'>
+                    <Shield className='w-4 h-4 sm:w-5 sm:h-5 text-primary' />
                   </div>
                   <div>
-                    <h3 className='text-xl font-semibold text-foreground'>
+                    <h3 className='text-lg sm:text-xl font-semibold text-foreground'>
                       Change Role
                     </h3>
-                    <p className='text-sm text-muted-foreground'>
+                    <p className='text-xs sm:text-sm text-muted-foreground'>
                       Update member permissions
                     </p>
                   </div>
@@ -1533,30 +1533,30 @@ export default function WorkspaceMembersPage() {
                     setShowChangeRoleModal(false);
                     setMemberToChangeRole(null);
                   }}
-                  className='w-8 h-8 rounded-full bg-muted/50 hover:bg-muted/80 flex items-center justify-center transition-colors'
+                  className='w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-muted/50 hover:bg-muted/80 active:bg-muted/90 flex items-center justify-center transition-colors touch-manipulation'
                   aria-label='Close modal'
                 >
-                  <X className='w-4 h-4' />
+                  <X className='w-4 h-4 sm:w-5 sm:h-5' />
                 </button>
               </div>
             </div>
 
             {/* Content */}
-            <div className='p-6 space-y-4'>
+            <div className='p-4 sm:p-6 space-y-3 sm:space-y-4'>
               {/* Member Info */}
-              <div className='flex items-center gap-3 p-4 bg-muted/30 rounded-xl'>
-                <div className='w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground font-medium text-lg'>
+              <div className='flex items-center gap-3 p-3 sm:p-4 bg-muted/30 rounded-xl'>
+                <div className='w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground font-medium text-base sm:text-lg flex-shrink-0'>
                   {memberToChangeRole.profile.full_name
                     ?.charAt(0)
                     .toUpperCase() ||
                     memberToChangeRole.profile.email.charAt(0).toUpperCase()}
                 </div>
-                <div>
-                  <div className='font-medium text-foreground'>
+                <div className='min-w-0 flex-1'>
+                  <div className='font-medium text-foreground text-sm sm:text-base truncate'>
                     {memberToChangeRole.profile.full_name ||
                       memberToChangeRole.profile.email}
                   </div>
-                  <div className='text-sm text-muted-foreground'>
+                  <div className='text-xs sm:text-sm text-muted-foreground truncate'>
                     {memberToChangeRole.profile.email}
                   </div>
                   <div className='text-xs text-muted-foreground mt-1'>
@@ -1566,7 +1566,7 @@ export default function WorkspaceMembersPage() {
               </div>
 
               {/* Role Selection */}
-              <div className='space-y-3'>
+              <div className='space-y-2 sm:space-y-3'>
                 <label className='text-sm font-medium text-foreground'>
                   Select new role:
                 </label>
@@ -1574,10 +1574,10 @@ export default function WorkspaceMembersPage() {
                   {(['admin', 'member'] as const).map((role) => (
                     <label
                       key={role}
-                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                      className={`flex items-start sm:items-center gap-3 p-3 sm:p-4 rounded-lg border cursor-pointer transition-all touch-manipulation ${
                         newRole === role
                           ? 'border-primary bg-primary/5'
-                          : 'border-border hover:bg-muted/50'
+                          : 'border-border hover:bg-muted/50 active:bg-muted/70'
                       }`}
                     >
                       <input
@@ -1588,15 +1588,15 @@ export default function WorkspaceMembersPage() {
                         onChange={(e) =>
                           setNewRole(e.target.value as 'admin' | 'member')
                         }
-                        className='w-4 h-4 text-primary'
+                        className='w-4 h-4 text-primary mt-0.5 sm:mt-0 flex-shrink-0'
                       />
-                      <div className='flex items-center gap-2'>
+                      <div className='flex items-center gap-2 flex-shrink-0'>
                         {getRoleIcon(role)}
-                        <span className='font-medium text-foreground'>
+                        <span className='font-medium text-foreground text-sm sm:text-base'>
                           {role === 'admin' ? 'Admin' : 'Member'}
                         </span>
                       </div>
-                      <div className='text-xs text-muted-foreground ml-auto'>
+                      <div className='text-xs text-muted-foreground mt-1 sm:mt-0 sm:ml-auto'>
                         {role === 'admin'
                           ? 'Can manage members and boards'
                           : 'Can view and edit boards'}
@@ -1608,10 +1608,10 @@ export default function WorkspaceMembersPage() {
 
               {/* Warning if changing to admin */}
               {newRole === 'admin' && memberToChangeRole.role === 'member' && (
-                <div className='bg-blue-50 border border-blue-200 rounded-xl p-4 dark:bg-blue-900/20 dark:border-blue-800'>
-                  <div className='flex items-start gap-3'>
-                    <Shield className='w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5' />
-                    <div className='text-sm'>
+                <div className='bg-blue-50 border border-blue-200 rounded-xl p-3 sm:p-4 dark:bg-blue-900/20 dark:border-blue-800'>
+                  <div className='flex items-start gap-2 sm:gap-3'>
+                    <Shield className='w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5' />
+                    <div className='text-xs sm:text-sm'>
                       <p className='font-medium text-blue-800 dark:text-blue-200 mb-1'>
                         Promoting to Admin
                       </p>
@@ -1626,15 +1626,15 @@ export default function WorkspaceMembersPage() {
             </div>
 
             {/* Footer */}
-            <div className='bg-gradient-to-r from-muted/20 to-transparent p-6 border-t border-border/50'>
-              <div className='flex justify-end gap-3'>
+            <div className='bg-gradient-to-r from-muted/20 to-transparent p-4 sm:p-6 border-t border-border/50'>
+              <div className='flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3'>
                 <button
                   onClick={() => {
                     setShowChangeRoleModal(false);
                     setMemberToChangeRole(null);
                   }}
                   disabled={isChangingRole}
-                  className='px-6 py-2.5 text-muted-foreground hover:text-foreground transition-colors font-medium disabled:opacity-50'
+                  className='w-full sm:w-auto px-4 sm:px-6 py-3 sm:py-2.5 text-muted-foreground hover:text-foreground active:text-foreground transition-colors font-medium disabled:opacity-50 touch-manipulation'
                 >
                   Cancel
                 </button>
@@ -1643,10 +1643,10 @@ export default function WorkspaceMembersPage() {
                   disabled={
                     isChangingRole || newRole === memberToChangeRole.role
                   }
-                  className={`px-6 py-2.5 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground font-medium rounded-lg flex items-center gap-2 transition-all duration-200 ${
+                  className={`w-full sm:w-auto px-4 sm:px-6 py-3 sm:py-2.5 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground font-medium rounded-lg flex items-center justify-center gap-2 transition-all duration-200 touch-manipulation ${
                     isChangingRole || newRole === memberToChangeRole.role
                       ? 'opacity-50 cursor-not-allowed'
-                      : 'hover:from-primary/90 hover:to-primary hover:shadow-lg hover:shadow-primary/25 active:scale-95'
+                      : 'hover:from-primary/90 hover:to-primary hover:shadow-lg hover:shadow-primary/25 active:scale-[0.98]'
                   }`}
                 >
                   {isChangingRole ? (
