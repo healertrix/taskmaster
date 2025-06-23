@@ -521,7 +521,7 @@ export default function WorkspaceSettingsPage() {
   const PageLoadingSkeleton = () => (
     <div className='min-h-screen dot-pattern-dark'>
       <DashboardHeader />
-      <main className='container mx-auto max-w-4xl px-4 pt-24 pb-16'>
+      <main className='container mx-auto max-w-4xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
         <div className='space-y-6'>
           {/* Header skeleton */}
           <div className='flex items-center gap-4 mb-8'>
@@ -611,7 +611,7 @@ export default function WorkspaceSettingsPage() {
     return (
       <div className='min-h-screen dot-pattern-dark'>
         <DashboardHeader />
-        <main className='container mx-auto max-w-4xl px-4 pt-24 pb-16'>
+        <main className='container mx-auto max-w-4xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
           <div className='flex items-center justify-center h-64'>
             <div className='text-red-500'>{error || 'Workspace not found'}</div>
           </div>
@@ -624,40 +624,40 @@ export default function WorkspaceSettingsPage() {
     return (
       <div className='min-h-screen dot-pattern-dark'>
         <DashboardHeader />
-        <main className='container mx-auto max-w-4xl px-4 pt-24 pb-16'>
+        <main className='container mx-auto max-w-4xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
           <div className='flex items-center justify-center min-h-[60vh]'>
-            <div className='text-center max-w-md mx-auto'>
+            <div className='text-center max-w-sm sm:max-w-md mx-auto px-4'>
               {/* Access Denied Card */}
-              <div className='bg-card border border-border rounded-2xl p-8 shadow-lg'>
+              <div className='bg-card border border-border rounded-2xl p-6 sm:p-8 shadow-lg'>
                 {/* Icon */}
-                <div className='flex justify-center mb-6'>
-                  <div className='w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center'>
-                    <Shield className='w-8 h-8 text-amber-500' />
+                <div className='flex justify-center mb-4 sm:mb-6'>
+                  <div className='w-12 h-12 sm:w-16 sm:h-16 bg-amber-500/10 rounded-full flex items-center justify-center'>
+                    <Shield className='w-6 h-6 sm:w-8 sm:h-8 text-amber-500' />
                   </div>
                 </div>
 
                 {/* Title */}
-                <h2 className='text-2xl font-bold text-foreground mb-3'>
+                <h2 className='text-lg sm:text-2xl font-bold text-foreground mb-2 sm:mb-3'>
                   Access Restricted
                 </h2>
 
                 {/* Description */}
-                <p className='text-muted-foreground mb-2 leading-relaxed'>
+                <p className='text-sm sm:text-base text-muted-foreground mb-2 leading-relaxed'>
                   You don't have permission to manage settings for this
                   workspace.
                 </p>
-                <p className='text-sm text-muted-foreground mb-6'>
+                <p className='text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6'>
                   Only workspace owners and administrators can modify workspace
                   settings.
                 </p>
 
                 {/* User Role Info */}
                 {userRole && (
-                  <div className='bg-muted/30 rounded-lg p-3 mb-6'>
-                    <div className='flex items-center justify-center gap-2 text-sm'>
+                  <div className='bg-muted/30 rounded-lg p-3 mb-4 sm:mb-6'>
+                    <div className='flex items-center justify-center gap-2 text-xs sm:text-sm'>
                       {userRole === 'member' && (
                         <>
-                          <User className='w-4 h-4 text-muted-foreground' />
+                          <User className='w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground' />
                           <span className='text-muted-foreground font-medium'>
                             You are a member of this workspace
                           </span>
@@ -670,15 +670,15 @@ export default function WorkspaceSettingsPage() {
                 {/* Action Button */}
                 <button
                   onClick={() => router.back()}
-                  className='inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 transition-colors'
+                  className='inline-flex items-center gap-2 px-4 py-2 sm:px-6 sm:py-3 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 transition-colors text-sm sm:text-base'
                 >
-                  <ArrowLeft className='w-4 h-4' />
+                  <ArrowLeft className='w-3 h-3 sm:w-4 sm:h-4' />
                   Go back
                 </button>
               </div>
 
               {/* Help Text */}
-              <p className='text-xs text-muted-foreground mt-4'>
+              <p className='text-xs text-muted-foreground mt-3 sm:mt-4'>
                 Need access? Contact a workspace administrator or owner.
               </p>
             </div>
@@ -694,18 +694,45 @@ export default function WorkspaceSettingsPage() {
     <div className='min-h-screen dot-pattern-dark'>
       <DashboardHeader />
 
-      <main className='container mx-auto max-w-4xl px-4 pt-24 pb-16'>
+      <main className='container mx-auto max-w-4xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
         {/* Header */}
-        <div className='flex items-center justify-between mb-8'>
-          <div className='flex items-center gap-4'>
+        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8'>
+          {/* Mobile: Title first, then description */}
+          <div className='flex flex-col gap-3 sm:hidden min-w-0'>
+            {/* Title with back button - prominent on mobile */}
+            <div className='flex items-center gap-2'>
+              <Link
+                href={`/boards/${workspace.id}`}
+                className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
+                aria-label='Back to workspace'
+              >
+                <ArrowLeft className='w-4 h-4' />
+              </Link>
+              <div className='min-w-0 flex-1'>
+                <h1 className='text-lg font-bold text-foreground truncate'>
+                  {workspace.name} Settings
+                </h1>
+              </div>
+            </div>
+
+            {/* Description - subtle on mobile */}
+            <div className='ml-7'>
+              <p className='text-xs text-muted-foreground'>
+                Manage workspace permissions and access controls
+              </p>
+            </div>
+          </div>
+
+          {/* Desktop: Traditional layout */}
+          <div className='hidden sm:flex items-center gap-4 min-w-0 flex-1'>
             <Link
               href={`/boards/${workspace.id}`}
-              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
               aria-label='Back to workspace'
             >
               <ArrowLeft className='w-5 h-5' />
             </Link>
-            <div>
+            <div className='min-w-0 flex-1'>
               <h1 className='text-2xl font-bold text-foreground'>
                 {workspace.name} Settings
               </h1>
@@ -717,36 +744,36 @@ export default function WorkspaceSettingsPage() {
         </div>
 
         {/* Navigation Tabs */}
-        <div className='mb-8'>
-          <div className='flex items-center gap-1 border-b border-border'>
+        <div className='mb-6 sm:mb-8'>
+          <div className='flex items-center gap-1 border-b border-border overflow-x-auto'>
             <Link
               href={`/workspace/${workspaceId}/members`}
-              className='px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-b-2 hover:border-primary transition-colors'
+              className='px-3 sm:px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-b-2 hover:border-primary transition-colors whitespace-nowrap'
             >
               Members
             </Link>
-            <span className='px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary'>
+            <span className='px-3 sm:px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary whitespace-nowrap'>
               Settings
             </span>
           </div>
         </div>
 
-        <div className='space-y-6'>
+        <div className='space-y-4 sm:space-y-6'>
           {/* Current User Role Info */}
           {userRole && (
-            <div className='card p-4 bg-primary/5 border-primary/20'>
+            <div className='card p-3 sm:p-4 bg-primary/5 border-primary/20'>
               <div className='flex items-center gap-3'>
                 <div className='flex items-center gap-2'>
                   {userRole === 'owner' && (
-                    <Crown className='w-4 h-4 text-yellow-500' />
+                    <Crown className='w-3 h-3 sm:w-4 sm:h-4 text-yellow-500' />
                   )}
                   {userRole === 'admin' && (
-                    <Shield className='w-4 h-4 text-blue-500' />
+                    <Shield className='w-3 h-3 sm:w-4 sm:h-4 text-blue-500' />
                   )}
                   {userRole === 'member' && (
-                    <User className='w-4 h-4 text-gray-500' />
+                    <User className='w-3 h-3 sm:w-4 sm:h-4 text-gray-500' />
                   )}
-                  <span className='text-sm font-medium'>
+                  <span className='text-xs sm:text-sm font-medium'>
                     You are{' '}
                     {userRole === 'owner'
                       ? 'the owner'
@@ -761,8 +788,10 @@ export default function WorkspaceSettingsPage() {
           )}
 
           {/* Workspace Details */}
-          <div className='card p-6'>
-            <h2 className='text-lg font-semibold mb-4'>Workspace details</h2>
+          <div className='card p-4 sm:p-6'>
+            <h2 className='text-base sm:text-lg font-semibold mb-3 sm:mb-4'>
+              Workspace details
+            </h2>
 
             <div className='space-y-3'>
               {/* Workspace Name */}
@@ -783,25 +812,25 @@ export default function WorkspaceSettingsPage() {
                 }`}
                 disabled={!canUpdateSettings}
               >
-                <div className='flex items-center gap-3'>
-                  <div className='w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center'>
+                <div className='flex items-center gap-3 min-w-0 flex-1'>
+                  <div className='w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0'>
                     <span className='text-sm font-medium text-primary'>
                       {workspace?.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
-                  <div>
-                    <div className='font-medium text-foreground'>
+                  <div className='min-w-0 flex-1'>
+                    <div className='font-medium text-foreground text-sm sm:text-base truncate'>
                       {workspace?.name}
                     </div>
-                    <div className='text-sm text-muted-foreground'>
+                    <div className='text-xs sm:text-sm text-muted-foreground'>
                       Workspace name
                     </div>
                   </div>
                 </div>
                 {canUpdateSettings && (
-                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
-                    Edit
-                    <ChevronRight className='w-4 h-4' />
+                  <div className='px-2 sm:px-3 py-1 sm:py-2 text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1 flex-shrink-0'>
+                    <span className='hidden sm:inline'>Edit</span>
+                    <ChevronRight className='w-3 h-3 sm:w-4 sm:h-4' />
                   </div>
                 )}
               </button>

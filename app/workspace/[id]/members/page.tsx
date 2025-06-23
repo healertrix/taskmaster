@@ -673,9 +673,11 @@ export default function WorkspaceMembersPage() {
     return (
       <div className='min-h-screen dot-pattern-dark'>
         <DashboardHeader />
-        <main className='container mx-auto max-w-4xl px-4 pt-24 pb-16'>
+        <main className='container mx-auto max-w-4xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
           <div className='flex items-center justify-center h-64'>
-            <div className='text-red-500'>{error || 'Workspace not found'}</div>
+            <div className='text-red-500 text-center text-sm sm:text-base px-4'>
+              {error || 'Workspace not found'}
+            </div>
           </div>
         </main>
       </div>
@@ -686,18 +688,45 @@ export default function WorkspaceMembersPage() {
     <div className='min-h-screen dot-pattern-dark'>
       <DashboardHeader />
 
-      <main className='container mx-auto max-w-4xl px-4 pt-24 pb-16'>
+      <main className='container mx-auto max-w-4xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
         {/* Header */}
-        <div className='flex items-center justify-between mb-8'>
-          <div className='flex items-center gap-4'>
+        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8'>
+          {/* Mobile: Title first, then description */}
+          <div className='flex flex-col gap-3 sm:hidden min-w-0'>
+            {/* Title with back button - prominent on mobile */}
+            <div className='flex items-center gap-2'>
+              <button
+                onClick={handleGoBack}
+                className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
+                aria-label='Go back'
+              >
+                <ArrowLeft className='w-4 h-4' />
+              </button>
+              <div className='min-w-0 flex-1'>
+                <h1 className='text-lg font-bold text-foreground truncate'>
+                  {workspace.name} Members
+                </h1>
+              </div>
+            </div>
+
+            {/* Description - subtle on mobile */}
+            <div className='ml-7'>
+              <p className='text-xs text-muted-foreground'>
+                Manage workspace members and permissions
+              </p>
+            </div>
+          </div>
+
+          {/* Desktop: Traditional layout */}
+          <div className='hidden sm:flex items-center gap-4 min-w-0 flex-1'>
             <button
               onClick={handleGoBack}
-              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
               aria-label='Go back'
             >
               <ArrowLeft className='w-5 h-5' />
             </button>
-            <div>
+            <div className='min-w-0 flex-1'>
               <h1 className='text-2xl font-bold text-foreground'>
                 {workspace.name} Members
               </h1>
@@ -707,42 +736,42 @@ export default function WorkspaceMembersPage() {
             </div>
           </div>
 
-          <div className='flex items-center gap-3'>
+          {/* Actions - always accessible */}
+          <div className='flex items-center justify-end gap-3 flex-shrink-0'>
             {canAddMembers && (
               <button
                 onClick={() => setShowAddMemberModal(true)}
-                className='inline-flex items-center justify-center gap-2 w-10 h-10 md:w-auto md:px-4 md:py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all duration-200 shadow-sm hover:shadow-md hover:scale-105'
+                className='inline-flex items-center justify-center gap-2 px-3 py-2 sm:w-auto sm:px-4 sm:py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all duration-200 shadow-sm hover:shadow-md text-sm'
                 title='Add Members'
                 aria-label='Add Members'
               >
-                <UserPlus className='w-5 h-5' />
-                <span className='hidden md:inline text-sm font-medium'>
-                  Add Members
-                </span>
+                <UserPlus className='w-4 h-4 sm:w-5 sm:h-5' />
+                <span className='text-sm font-medium'>Add</span>
+                <span className='hidden sm:inline'>Members</span>
               </button>
             )}
           </div>
         </div>
 
         {/* Navigation Tabs */}
-        <div className='mb-8'>
-          <div className='flex items-center gap-1 border-b border-border'>
-            <span className='px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary'>
+        <div className='mb-6 sm:mb-8'>
+          <div className='flex items-center gap-1 border-b border-border overflow-x-auto'>
+            <span className='px-3 sm:px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary whitespace-nowrap'>
               Members
             </span>
             <Link
               href={`/workspace/${workspaceId}/settings`}
-              className='px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-b-2 hover:border-primary transition-colors'
+              className='px-3 sm:px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-b-2 hover:border-primary transition-colors whitespace-nowrap'
             >
               Settings
             </Link>
           </div>
         </div>
 
-        <div className='space-y-6'>
+        <div className='space-y-4 sm:space-y-6'>
           {/* Members List */}
-          <div className='card p-6'>
-            <h2 className='text-lg font-semibold mb-4'>
+          <div className='card p-4 sm:p-6'>
+            <h2 className='text-base sm:text-lg font-semibold mb-3 sm:mb-4'>
               Workspace members ({members.length})
             </h2>
 
@@ -752,17 +781,46 @@ export default function WorkspaceMembersPage() {
                 return (
                   <div
                     key={member.id}
-                    className='flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors'
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border border-border transition-colors gap-3 sm:gap-0 ${
+                      // Make clickable on mobile if user can manage this member
+                      canManageMembers &&
+                      member.profile_id !== currentUser &&
+                      member.role !== 'owner' &&
+                      (currentUserRole === 'owner' ||
+                        (currentUserRole === 'admin' &&
+                          member.role === 'member'))
+                        ? 'sm:hover:bg-muted/50 active:bg-muted/50 cursor-pointer sm:cursor-default'
+                        : 'hover:bg-muted/50 cursor-default'
+                    }`}
+                    onClick={() => {
+                      // Only handle click on mobile for manageable members
+                      const isMobile = window.innerWidth < 640; // sm breakpoint
+                      if (
+                        isMobile &&
+                        canManageMembers &&
+                        member.profile_id !== currentUser &&
+                        member.role !== 'owner' &&
+                        (currentUserRole === 'owner' ||
+                          (currentUserRole === 'admin' &&
+                            member.role === 'member'))
+                      ) {
+                        setMemberToChangeRole(member);
+                        setNewRole(
+                          member.role === 'admin' ? 'member' : 'admin'
+                        );
+                        setShowChangeRoleModal(true);
+                      }
+                    }}
                   >
-                    <div className='flex items-center gap-3'>
-                      <div className='w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center'>
+                    <div className='flex items-center gap-3 min-w-0 flex-1'>
+                      <div className='w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0'>
                         <span className='text-sm font-medium text-primary'>
                           {member.profile.full_name?.charAt(0) ||
                             member.profile.email.charAt(0).toUpperCase()}
                         </span>
                       </div>
-                      <div>
-                        <div className='font-medium text-foreground'>
+                      <div className='min-w-0 flex-1'>
+                        <div className='font-medium text-foreground text-sm sm:text-base truncate'>
                           {member.profile.full_name || member.profile.email}
                           {member.profile_id === currentUser && (
                             <span className='ml-2 text-xs text-muted-foreground'>
@@ -770,42 +828,60 @@ export default function WorkspaceMembersPage() {
                             </span>
                           )}
                         </div>
-                        <div className='text-sm text-muted-foreground'>
+                        <div className='text-xs sm:text-sm text-muted-foreground truncate'>
                           {member.profile.email}
                         </div>
                       </div>
                     </div>
 
-                    <div className='flex items-center gap-3'>
+                    <div className='flex items-center justify-between sm:justify-end gap-3 sm:gap-3'>
                       <div className='flex items-center gap-2'>
                         <roleInfo.icon
-                          className={`w-4 h-4 ${roleInfo.color}`}
+                          className={`w-3 h-3 sm:w-4 sm:h-4 ${roleInfo.color}`}
                         />
-                        <span className={getRoleBadge(member.role)}>
+                        <span
+                          className={`${getRoleBadge(member.role)} text-xs`}
+                        >
                           {roleInfo.text}
                         </span>
                       </div>
 
-                      {/* Member Actions Dropdown */}
+                      {/* Mobile tap hint for manageable members */}
                       {canManageMembers &&
                         member.profile_id !== currentUser &&
                         member.role !== 'owner' &&
                         (currentUserRole === 'owner' ||
                           (currentUserRole === 'admin' &&
                             member.role === 'member')) && (
-                          <div className='relative' data-member-actions>
+                          <div className='sm:hidden text-xs text-muted-foreground/70'>
+                            Tap to change role
+                          </div>
+                        )}
+
+                      {/* Member Actions Dropdown - Desktop only */}
+                      {canManageMembers &&
+                        member.profile_id !== currentUser &&
+                        member.role !== 'owner' &&
+                        (currentUserRole === 'owner' ||
+                          (currentUserRole === 'admin' &&
+                            member.role === 'member')) && (
+                          <div
+                            className='relative hidden sm:block'
+                            data-member-actions
+                          >
                             <button
-                              onClick={() =>
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent triggering the card click
                                 setOpenMemberActions(
                                   openMemberActions === member.id
                                     ? null
                                     : member.id
-                                )
-                              }
-                              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+                                );
+                              }}
+                              className='p-1.5 sm:p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
                               title='Member actions'
                             >
-                              <MoreHorizontal className='w-4 h-4' />
+                              <MoreHorizontal className='w-3.5 h-3.5 sm:w-4 sm:h-4' />
                             </button>
 
                             {/* Dropdown Menu */}

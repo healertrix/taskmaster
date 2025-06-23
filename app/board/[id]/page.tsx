@@ -297,20 +297,20 @@ const BoardNameEditor = ({
 
   if (isEditing) {
     return (
-      <div className='flex items-center gap-2'>
+      <div className='flex items-center gap-2 w-full'>
         <input
           type='text'
           value={editName}
           onChange={(e) => setEditName(e.target.value)}
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
-          className='text-2xl font-bold bg-transparent border-b-2 border-primary focus:outline-none'
+          className='text-lg sm:text-2xl font-bold bg-transparent border-b-2 border-primary focus:outline-none w-full min-w-0'
           autoFocus
           disabled={isSaving}
           placeholder='Board name'
           aria-label='Edit board name'
         />
-        {isSaving && <Loader2 className='w-4 h-4 animate-spin' />}
+        {isSaving && <Loader2 className='w-4 h-4 animate-spin flex-shrink-0' />}
       </div>
     );
   }
@@ -318,10 +318,10 @@ const BoardNameEditor = ({
   return (
     <button
       onClick={() => setIsEditing(true)}
-      className='text-2xl font-bold hover:bg-muted/50 px-2 py-1 rounded transition-colors flex items-center gap-2'
+      className='text-lg sm:text-2xl font-bold hover:bg-muted/50 px-2 py-1 rounded transition-colors flex items-center gap-2 w-full text-left min-w-0'
     >
-      {boardName}
-      <Edit3 className='w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity' />
+      <span className='truncate flex-1'>{boardName}</span>
+      <Edit3 className='w-3 h-3 sm:w-4 sm:h-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0' />
     </button>
   );
 };
@@ -1710,10 +1710,46 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       <DashboardHeader />
 
       {/* Board Header */}
-      <div className='container mx-auto max-w-full px-4 pt-20 sm:pt-24 pb-4 sm:pb-8'>
-        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 group'>
-          {/* Left side - Board info */}
-          <div className='flex items-center gap-3 sm:gap-4 min-w-0 flex-1'>
+      <div className='container mx-auto max-w-full px-3 sm:px-4 pt-16 sm:pt-24 pb-3 sm:pb-8'>
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 group'>
+          {/* Mobile: Board name first, then breadcrumb */}
+          <div className='flex flex-col gap-2 sm:hidden min-w-0'>
+            {/* Board name - prominent on mobile */}
+            <div className='flex items-center gap-2'>
+              <button
+                onClick={handleGoBack}
+                className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
+                title='Go back'
+              >
+                <ArrowLeft className='w-4 h-4' />
+              </button>
+              <div className='min-w-0 flex-1'>
+                <BoardNameEditor
+                  boardName={board.name}
+                  onSave={updateBoardName}
+                />
+              </div>
+            </div>
+
+            {/* Workspace breadcrumb - subtle on mobile */}
+            <div className='flex items-center gap-2 ml-7'>
+              <div
+                className={`w-4 h-4 ${workspaceColorClass} rounded text-white flex items-center justify-center text-xs font-bold flex-shrink-0`}
+              >
+                {board.workspace.name.charAt(0).toUpperCase()}
+              </div>
+              <Link
+                href={`/boards/${board.workspace.id}`}
+                className='text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer truncate'
+                title={`Go to ${board.workspace.name} workspace`}
+              >
+                {board.workspace.name}
+              </Link>
+            </div>
+          </div>
+
+          {/* Desktop: Traditional layout */}
+          <div className='hidden sm:flex items-center gap-4 min-w-0 flex-1'>
             <button
               onClick={handleGoBack}
               className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
@@ -1722,24 +1758,24 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               <ArrowLeft className='w-5 h-5' />
             </button>
 
-            <div className='flex items-center gap-2 sm:gap-3 min-w-0 flex-1'>
+            <div className='flex items-center gap-3 min-w-0 flex-1'>
               {/* Workspace indicator */}
               <div className='flex items-center gap-2 min-w-0'>
                 <div
-                  className={`w-6 h-6 sm:w-8 sm:h-8 ${workspaceColorClass} rounded-lg text-white flex items-center justify-center text-xs sm:text-sm font-bold shadow-md flex-shrink-0`}
+                  className={`w-8 h-8 ${workspaceColorClass} rounded-lg text-white flex items-center justify-center text-sm font-bold shadow-md flex-shrink-0`}
                 >
                   {board.workspace.name.charAt(0).toUpperCase()}
                 </div>
                 <Link
                   href={`/boards/${board.workspace.id}`}
-                  className='text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors cursor-pointer truncate'
+                  className='text-sm text-muted-foreground hover:text-primary transition-colors cursor-pointer truncate'
                   title={`Go to ${board.workspace.name} workspace`}
                 >
                   {board.workspace.name}
                 </Link>
               </div>
 
-              <span className='text-muted-foreground hidden sm:inline'>/</span>
+              <span className='text-muted-foreground'>/</span>
 
               {/* Board name - editable */}
               <div className='min-w-0 flex-1'>
@@ -1751,15 +1787,15 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             </div>
           </div>
 
-          {/* Right side - Board info and actions */}
-          <div className='flex items-center gap-2 sm:gap-4 flex-shrink-0'>
+          {/* Actions - always on the right */}
+          <div className='flex items-center justify-end gap-2 sm:gap-4 flex-shrink-0'>
             {/* Info button */}
             <button
               onClick={() => setIsDescriptionModalOpen(true)}
-              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+              className='p-2 sm:p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
               title='Board information'
             >
-              <Info className='w-5 h-5' />
+              <Info className='w-4 h-4 sm:w-5 sm:h-5' />
             </button>
 
             {/* Last access time */}
@@ -1788,7 +1824,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               title={board.is_starred ? 'Unstar board' : 'Star board'}
             >
               <Star
-                className={`w-5 h-5 transition-transform duration-200 ${
+                className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-200 ${
                   isStarring ? 'scale-110' : ''
                 }`}
                 fill={board.is_starred ? 'currentColor' : 'none'}
@@ -1802,7 +1838,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
                 title='Board settings'
               >
-                <Settings className='w-5 h-5' />
+                <Settings className='w-4 h-4 sm:w-5 sm:h-5' />
               </button>
 
               {/* Settings Dropdown Menu */}

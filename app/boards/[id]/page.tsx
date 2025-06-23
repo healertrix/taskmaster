@@ -66,20 +66,20 @@ const WorkspaceNameEditor = ({
 
   if (isEditing) {
     return (
-      <div className='flex items-center gap-2'>
+      <div className='flex items-center gap-2 w-full'>
         <input
           type='text'
           value={editName}
           onChange={(e) => setEditName(e.target.value)}
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
-          className='text-2xl font-bold bg-transparent border-b-2 border-primary focus:outline-none'
+          className='text-lg sm:text-2xl font-bold bg-transparent border-b-2 border-primary focus:outline-none w-full min-w-0'
           autoFocus
           disabled={isSaving}
           placeholder='Workspace name'
           aria-label='Edit workspace name'
         />
-        {isSaving && <Loader2 className='w-4 h-4 animate-spin' />}
+        {isSaving && <Loader2 className='w-4 h-4 animate-spin flex-shrink-0' />}
       </div>
     );
   }
@@ -87,10 +87,10 @@ const WorkspaceNameEditor = ({
   return (
     <button
       onClick={() => setIsEditing(true)}
-      className='text-2xl font-bold hover:bg-muted/50 px-2 py-1 rounded transition-colors flex items-center gap-2 group'
+      className='text-lg sm:text-2xl font-bold hover:bg-muted/50 px-2 py-1 rounded transition-colors flex items-center gap-2 w-full text-left min-w-0 group'
     >
-      {workspaceName}
-      <Edit3 className='w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity' />
+      <span className='truncate flex-1'>{workspaceName}</span>
+      <Edit3 className='w-3 h-3 sm:w-4 sm:h-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0' />
     </button>
   );
 };
@@ -595,9 +595,11 @@ export default function WorkspaceBoardsPage() {
     return (
       <div className='min-h-screen dot-pattern-dark'>
         <DashboardHeader />
-        <main className='container mx-auto max-w-7xl px-4 pt-24 pb-16'>
+        <main className='container mx-auto max-w-7xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
           <div className='flex items-center justify-center h-64'>
-            <div className='text-red-500'>{error || 'Workspace not found'}</div>
+            <div className='text-red-500 text-center text-sm sm:text-base px-4'>
+              {error || 'Workspace not found'}
+            </div>
           </div>
         </main>
       </div>
@@ -610,28 +612,70 @@ export default function WorkspaceBoardsPage() {
     <div className='min-h-screen dot-pattern-dark'>
       <DashboardHeader />
 
-      <main className='container mx-auto max-w-7xl px-4 pt-24 pb-16'>
+      <main className='container mx-auto max-w-7xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
         {/* Header */}
-        <div className='flex items-center justify-between mb-8'>
-          <div className='flex items-center gap-4'>
+        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8'>
+          {/* Mobile: Workspace name first, then breadcrumb */}
+          <div className='flex flex-col gap-3 sm:hidden min-w-0'>
+            {/* Workspace name - prominent on mobile */}
+            <div className='flex items-center gap-2'>
+              <Link
+                href='/'
+                className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
+                aria-label='Back to home'
+              >
+                <ArrowLeft className='w-4 h-4' />
+              </Link>
+              <div className='min-w-0 flex-1'>
+                {workspaceData ? (
+                  <WorkspaceNameEditor
+                    workspaceName={workspaceData.name}
+                    onSave={updateWorkspaceName}
+                  />
+                ) : (
+                  <h1 className='text-lg font-bold text-foreground truncate'>
+                    {workspace.name}
+                  </h1>
+                )}
+              </div>
+            </div>
+
+            {/* Workspace info - subtle on mobile */}
+            <div className='flex items-center gap-2 ml-7'>
+              <div
+                className={`w-4 h-4 ${
+                  colorDisplay.isCustom ? '' : colorDisplay.className
+                } rounded text-white flex items-center justify-center text-xs font-bold flex-shrink-0`}
+                style={colorDisplay.style}
+              >
+                {workspace.name.charAt(0).toUpperCase()}
+              </div>
+              <p className='text-xs text-muted-foreground truncate'>
+                Workspace Boards
+              </p>
+            </div>
+          </div>
+
+          {/* Desktop: Traditional layout */}
+          <div className='hidden sm:flex items-center gap-4 min-w-0 flex-1'>
             <Link
               href='/'
-              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
               aria-label='Back to home'
             >
               <ArrowLeft className='w-5 h-5' />
             </Link>
 
-            <div className='flex items-center gap-3'>
+            <div className='flex items-center gap-3 min-w-0 flex-1'>
               <div
                 className={`w-10 h-10 ${
                   colorDisplay.isCustom ? '' : colorDisplay.className
-                } rounded-lg text-white flex items-center justify-center text-lg font-bold shadow-md`}
+                } rounded-lg text-white flex items-center justify-center text-lg font-bold shadow-md flex-shrink-0`}
                 style={colorDisplay.style}
               >
                 {workspace.name.charAt(0).toUpperCase()}
               </div>
-              <div>
+              <div className='min-w-0 flex-1'>
                 <div className='flex items-center gap-2'>
                   {workspaceData ? (
                     <WorkspaceNameEditor
@@ -651,14 +695,15 @@ export default function WorkspaceBoardsPage() {
             </div>
           </div>
 
-          <div className='flex items-center gap-2'>
+          {/* Actions - always on the right */}
+          <div className='flex items-center justify-end gap-2 sm:gap-2 flex-shrink-0'>
             <button
               onClick={() => setIsDescriptionModalOpen(true)}
               className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
               aria-label='Workspace information'
               title='Workspace Information'
             >
-              <Info className='w-5 h-5' />
+              <Info className='w-4 h-4 sm:w-5 sm:h-5' />
             </button>
             <Link
               href={`/workspace/${workspace.id}/members`}
@@ -666,7 +711,7 @@ export default function WorkspaceBoardsPage() {
               aria-label='Workspace members'
               title='Members'
             >
-              <Users className='w-5 h-5' />
+              <Users className='w-4 h-4 sm:w-5 sm:h-5' />
             </Link>
             <Link
               href={`/workspace/${workspace.id}/settings`}
@@ -674,24 +719,24 @@ export default function WorkspaceBoardsPage() {
               aria-label='Workspace settings'
               title='Settings'
             >
-              <Settings className='w-5 h-5' />
+              <Settings className='w-4 h-4 sm:w-5 sm:h-5' />
             </Link>
           </div>
         </div>
 
         {/* Boards Grid */}
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'>
+        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6'>
           {/* Create New Board - Only show if user has permission */}
           {canCreateBoards && (
             <button
               onClick={() => setIsCreateBoardModalOpen(true)}
-              className='h-40 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
+              className='h-32 sm:h-40 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
             >
-              <div className='w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-3 group-hover:bg-primary/20 transition-colors'>
-                <Plus className='w-6 h-6 text-primary' />
+              <div className='w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/10 flex items-center justify-center mb-2 sm:mb-3 group-hover:bg-primary/20 transition-colors'>
+                <Plus className='w-5 h-5 sm:w-6 sm:h-6 text-primary' />
               </div>
               <span className='font-semibold text-sm'>Create New Board</span>
-              <span className='text-xs text-muted-foreground mt-1'>
+              <span className='text-xs text-muted-foreground mt-1 px-2 text-center'>
                 Add a board to this workspace
               </span>
             </button>
