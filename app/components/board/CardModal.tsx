@@ -63,6 +63,7 @@ import {
   isOverdue,
   isDueSoon,
 } from '@/utils/dateTime';
+import { useMobile } from '@/hooks/useMobile';
 
 interface Card {
   id: string;
@@ -236,6 +237,7 @@ export function CardModal({
   boardName = 'Board',
 }: CardModalProps) {
   const { user: currentUser } = useAuth();
+  const { isMobile, handleMobileBack } = useMobile();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description || '');
@@ -398,42 +400,44 @@ export function CardModal({
     setSelectedDueTime(extractTime(card.due_date));
   }, [card]);
 
-  // Global keyboard shortcuts
+  // Global keyboard shortcuts and mobile back gesture
   useEffect(() => {
     if (!isOpen) return;
+
+    const handleEscapeAction = () => {
+      if (showAddChecklistModal) {
+        setShowAddChecklistModal(false);
+      } else if (showAttachmentModal) {
+        setShowAttachmentModal(false);
+      } else if (isEditingTitle) {
+        setTitle(card.title);
+        setIsEditingTitle(false);
+      } else if (isEditingDescription) {
+        setDescription(card.description || '');
+        setIsEditingDescription(false);
+      } else if (showDeleteConfirm) {
+        setShowDeleteConfirm(false);
+      } else if (showDeleteModal) {
+        cancelDeleteComment();
+      } else if (showDeleteAttachmentModal) {
+        cancelDeleteAttachment();
+      } else if (showSaveWarningModal) {
+        handleCancelClose();
+      } else if (showMoveModal) {
+        if (isListDropdownOpen) {
+          setIsListDropdownOpen(false);
+        } else {
+          setShowMoveModal(false);
+        }
+      } else {
+        handleModalClose();
+      }
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        if (showAddChecklistModal) {
-          setShowAddChecklistModal(false);
-        } else if (showAttachmentModal) {
-          setShowAttachmentModal(false);
-        } else if (isEditingTitle) {
-          setTitle(card.title);
-          setIsEditingTitle(false);
-        } else if (isEditingDescription) {
-          setDescription(card.description || '');
-          setIsEditingDescription(false);
-        } else if (showDeleteConfirm) {
-          setShowDeleteConfirm(false);
-        } else if (showDeleteModal) {
-          e.stopPropagation();
-          cancelDeleteComment();
-        } else if (showDeleteAttachmentModal) {
-          e.stopPropagation();
-          cancelDeleteAttachment();
-        } else if (showSaveWarningModal) {
-          e.stopPropagation();
-          handleCancelClose();
-        } else if (showMoveModal) {
-          if (isListDropdownOpen) {
-            setIsListDropdownOpen(false);
-          } else {
-            setShowMoveModal(false);
-          }
-        } else {
-          handleModalClose();
-        }
+        handleEscapeAction();
       }
       if (e.key === 'Enter' && e.ctrlKey) {
         if (isEditingTitle) {
@@ -451,10 +455,24 @@ export function CardModal({
         }
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+
+    // Add keyboard listener for desktop
+    if (!isMobile) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+
+    // Add mobile back gesture handler
+    const cleanupMobileBack = handleMobileBack?.(handleEscapeAction);
+
+    return () => {
+      if (!isMobile) {
+        window.removeEventListener('keydown', handleKeyDown);
+      }
+      cleanupMobileBack?.();
+    };
   }, [
     isOpen,
+    isMobile,
     isEditingTitle,
     isEditingDescription,
     showDeleteConfirm,
@@ -468,6 +486,7 @@ export function CardModal({
     activeMobileTab,
     title,
     description,
+    handleMobileBack,
   ]);
 
   // Handle save title
@@ -2070,7 +2089,7 @@ export function CardModal({
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                 activeMobileTab === 'details'
                   ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                  : 'text-muted-foreground'
               }`}
             >
               <Edit3 className='w-4 h-4' />
@@ -2081,7 +2100,7 @@ export function CardModal({
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                 activeMobileTab === 'discussion'
                   ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                  : 'text-muted-foreground'
               }`}
             >
               <MessageSquare className='w-4 h-4' />
@@ -2331,7 +2350,11 @@ export function CardModal({
                                     onClick={() =>
                                       handleRemoveMember(member.profiles.id)
                                     }
-                                    className='p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100'
+                                    className={`p-1.5 text-muted-foreground rounded-lg transition-all duration-200 ${
+                                      isMobile
+                                        ? 'opacity-100 text-red-500 bg-red-50 dark:bg-red-900/20'
+                                        : 'hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100'
+                                    }`}
                                     title='Remove member'
                                   >
                                     <X className='w-3.5 h-3.5' />
@@ -2382,7 +2405,11 @@ export function CardModal({
                       {card.start_date ? (
                         <div
                           onClick={openDatePickerForStart}
-                          className='flex-1 flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors group'
+                          className={`flex-1 flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800 cursor-pointer transition-colors group ${
+                            !isMobile
+                              ? 'hover:bg-green-100 dark:hover:bg-green-900/30'
+                              : ''
+                          }`}
                         >
                           <div className='w-6 h-6 bg-green-100 text-green-600 rounded-md flex items-center justify-center dark:bg-green-900/40 dark:text-green-400'>
                             <Calendar className='w-3 h-3' />
@@ -2395,7 +2422,13 @@ export function CardModal({
                               {formatDate(card.start_date)}
                             </div>
                           </div>
-                          <Edit2 className='w-3 h-3 text-green-600 dark:text-green-400 opacity-0 group-hover:opacity-100 transition-opacity' />
+                          <Edit2
+                            className={`w-3 h-3 text-green-600 dark:text-green-400 transition-opacity ${
+                              isMobile
+                                ? 'opacity-100'
+                                : 'opacity-0 group-hover:opacity-100'
+                            }`}
+                          />
                         </div>
                       ) : (
                         <div

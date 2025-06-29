@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { TaskActionsMenu } from './TaskActionsMenu';
 import { getRelativeDateTime } from '@/utils/dateTime';
+import { useMobile } from '@/hooks/useMobile';
 
 // Define Task type matching page.tsx
 interface Task {
@@ -65,6 +66,7 @@ export function TaskCard({
   onMoveTask,
   onOpenCard,
 }: TaskCardProps) {
+  const { isMobile } = useMobile();
   // Format date for display
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
@@ -299,7 +301,11 @@ export function TaskCard({
               className={`w-6 h-6 rounded-full ${
                 assignee.avatar_url ? 'bg-gray-200' : assignee.color
               } flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-white/20 overflow-hidden
-              transition-all duration-300 ease-out hover:scale-110 hover:ring-4 hover:ring-primary/20 hover:shadow-lg`}
+              transition-all duration-300 ease-out ${
+                !isMobile
+                  ? 'hover:scale-110 hover:ring-4 hover:ring-primary/20 hover:shadow-lg'
+                  : ''
+              }`}
               style={{
                 animationDelay: `${index * 75}ms`,
                 zIndex: task.assignees.length - index, // Ensure proper stacking
@@ -355,10 +361,12 @@ export function TaskCard({
         onClick={handleCardClick}
         className={`group p-3 rounded-lg backdrop-blur-sm border shadow-lg shadow-black/10 cursor-pointer min-h-[80px] h-auto mb-6 last:mb-0
           transition-all duration-300 ease-out transform
-          ${!isDragging ? 'hover:-translate-y-1' : ''}
+          ${!isDragging && !isMobile ? 'hover:-translate-y-1' : ''}
           ${
             isDragTarget
               ? 'border-primary/70 border-2 bg-primary/5'
+              : isMobile
+              ? 'border-white/10 bg-white/5'
               : 'border-white/10 hover:border-white/20 hover:bg-white/10'
           }
           ${isBeingDragged && !isDragging ? 'opacity-50' : ''}

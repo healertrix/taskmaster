@@ -281,3 +281,134 @@
 .animate-slide-in-right {
   animation: slideInFromRight 0.3s ease-out forwards;
 }
+
+/* Mobile-friendly touch targets */
+@media (max-width: 768px) {
+  /* Ensure minimum touch target size */
+  button, a, input[type="button"], input[type="submit"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Remove hover effects on touch devices */
+  .group:hover .group-hover\:opacity-100 {
+    opacity: 1 !important;
+  }
+  
+  .group:hover .group-hover\:scale-100 {
+    transform: scale(1) !important;
+  }
+  
+  /* Disable hover animations on mobile */
+  .hover\:scale-\[1\.02\]:hover {
+    transform: none !important;
+  }
+  
+  .hover\:-translate-y-1:hover {
+    transform: none !important;
+  }
+}
+
+/* Enhanced task card animations */
+.task-card-hover {
+  @apply transition-all duration-300 border border-border;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .task-card-hover {
+    @apply hover:border-primary/80 hover:shadow-lg hover:shadow-primary/15 hover:-translate-y-1;
+  }
+}
+
+/* Smooth animations for various elements */
+.animate-slideUp {
+  animation: slideUp 0.4s ease-out forwards;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.3s ease-out forwards;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Enhanced hover effects for interactive elements */
+.interactive-hover {
+  @apply transition-all duration-300 border border-border;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .interactive-hover {
+    @apply hover:border-primary/80 hover:shadow-lg hover:shadow-primary/15 hover:-translate-y-1;
+  }
+}
+
+/* Touch-friendly scrollbars on mobile */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 2px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+}
+
+/* Disable hover effects globally on touch devices */
+@media (hover: none) {
+  .hover\:bg-muted\/50:hover,
+  .hover\:bg-muted:hover,
+  .hover\:text-foreground:hover,
+  .hover\:text-primary:hover,
+  .hover\:border-primary:hover,
+  .hover\:shadow-lg:hover,
+  .hover\:scale-110:hover,
+  .hover\:-translate-y-1:hover,
+  .hover\:opacity-100:hover {
+    /* Reset all hover effects on touch devices */
+    background-color: inherit !important;
+    color: inherit !important;
+    border-color: inherit !important;
+    box-shadow: inherit !important;
+    transform: inherit !important;
+    opacity: inherit !important;
+  }
+  
+  /* Show interactive elements that are normally hidden */
+  .group-hover\:opacity-100 {
+    opacity: 1 !important;
+  }
+  
+  .group-hover\:scale-100 {
+    transform: scale(1) !important;
+  }
+}

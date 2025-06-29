@@ -12,6 +12,7 @@ import {
   Pipette,
   AlertTriangle,
 } from 'lucide-react';
+import { useMobile } from '@/hooks/useMobile';
 
 interface Label {
   id: string;
@@ -99,6 +100,7 @@ export default function LabelModal({
   boardId,
   onLabelsUpdated,
 }: LabelModalProps) {
+  const { isMobile, handleMobileBack } = useMobile();
   const [boardLabels, setBoardLabels] = useState<Label[]>([]);
   const [cardLabels, setCardLabels] = useState<CardLabel[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -128,30 +130,53 @@ export default function LabelModal({
     }
   }, [isOpen, cardId, boardId]);
 
-  // Handle escape key
+  // Handle escape key and mobile back gesture
   useEffect(() => {
+    if (!isOpen) return;
+
+    const handleEscapeAction = () => {
+      if (deleteConfirm.isOpen) {
+        setDeleteConfirm({ isOpen: false, label: null });
+      } else if (editingLabel) {
+        cancelEdit();
+      } else if (isCreating) {
+        cancelCreate();
+      } else {
+        onClose();
+      }
+    };
+
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-
-        if (deleteConfirm.isOpen) {
-          setDeleteConfirm({ isOpen: false, label: null });
-        } else if (editingLabel) {
-          cancelEdit();
-        } else if (isCreating) {
-          cancelCreate();
-        } else {
-          onClose();
-        }
+        handleEscapeAction();
       }
     };
 
-    if (isOpen) {
+    // Add keyboard listener for desktop
+    if (!isMobile) {
       document.addEventListener('keydown', handleEscape);
-      return () => document.removeEventListener('keydown', handleEscape);
     }
-  }, [isOpen, editingLabel, isCreating, deleteConfirm.isOpen, onClose]);
+
+    // Add mobile back gesture handler
+    const cleanupMobileBack = handleMobileBack?.(handleEscapeAction);
+
+    return () => {
+      if (!isMobile) {
+        document.removeEventListener('keydown', handleEscape);
+      }
+      cleanupMobileBack?.();
+    };
+  }, [
+    isOpen,
+    isMobile,
+    editingLabel,
+    isCreating,
+    deleteConfirm.isOpen,
+    onClose,
+    handleMobileBack,
+  ]);
 
   const fetchLabels = async () => {
     try {

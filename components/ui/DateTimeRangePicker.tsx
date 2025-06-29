@@ -13,6 +13,7 @@ import {
   Edit,
 } from 'lucide-react';
 import { CustomTimePicker } from './CustomTimePicker';
+import { useMobile } from '@/hooks/useMobile';
 import { format, isAfter, isBefore, isEqual, startOfDay } from 'date-fns';
 
 interface DateTimeRangePickerProps {
@@ -41,6 +42,7 @@ export function DateTimeRangePicker({
   isLoading = false,
   initialSelection = 'due',
 }: DateTimeRangePickerProps) {
+  const { isMobile, handleMobileBack } = useMobile();
   const [selectedStartDate, setSelectedStartDate] = useState(startDate || '');
   const [selectedEndDate, setSelectedEndDate] = useState(endDate || '');
   const [selectedStartTime, setSelectedStartTime] = useState(startTime || '');
@@ -186,7 +188,7 @@ export function DateTimeRangePicker({
     return format(new Date(dateStr), 'MMM dd, yyyy');
   };
 
-  // Add keyboard shortcuts
+  // Add keyboard shortcuts and mobile back gesture
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 'Enter') {
@@ -200,9 +202,29 @@ export function DateTimeRangePicker({
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown, true); // Use capture phase
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [selectedStartDate, selectedEndDate, selectedStartTime, selectedDueTime]);
+    // Add keyboard listener for desktop
+    if (!isMobile) {
+      document.addEventListener('keydown', handleKeyDown, true);
+    }
+
+    // Add mobile back gesture handler
+    const cleanupMobileBack = handleMobileBack?.(onClose);
+
+    return () => {
+      if (!isMobile) {
+        document.removeEventListener('keydown', handleKeyDown, true);
+      }
+      cleanupMobileBack?.();
+    };
+  }, [
+    selectedStartDate,
+    selectedEndDate,
+    selectedStartTime,
+    selectedDueTime,
+    isMobile,
+    handleMobileBack,
+    onClose,
+  ]);
 
   return (
     <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4'>

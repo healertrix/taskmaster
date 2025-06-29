@@ -16,6 +16,7 @@ import {
   DragStartEvent,
   PointerSensor,
   KeyboardSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   closestCorners,
@@ -835,6 +836,12 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 8, // Reduced to make it more responsive
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 8,
       },
     }),
     useSensor(KeyboardSensor, {
