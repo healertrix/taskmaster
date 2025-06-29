@@ -89,8 +89,22 @@ export function AttachmentModal({
         handleClose();
       }
     };
+
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      handleClose();
+      // Push a new state to maintain history
+      window.history.pushState(null, '', window.location.href);
+    };
+
+    // Add state to history when opening modal
+    window.history.pushState(null, '', window.location.href);
     document.addEventListener('keydown', handleKeyDown, true); // Use capture phase
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, [isOpen, isLoading]);
 
   const isValidUrl = (string: string): boolean => {

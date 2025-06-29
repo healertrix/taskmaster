@@ -379,6 +379,43 @@ const DescriptionModal = ({
     }
   };
 
+  // Handle ESC key and back button/gesture
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleEscapeAction = () => {
+      if (isEditing) {
+        setEditDescription(description);
+        setIsEditing(false);
+      } else {
+        onClose();
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleEscapeAction();
+      }
+    };
+
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      handleEscapeAction();
+      // Push a new state to maintain history
+      window.history.pushState(null, '', window.location.href);
+    };
+
+    // Add state to history when opening modal
+    window.history.pushState(null, '', window.location.href);
+    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isOpen, isEditing, description, onClose]);
+
   if (!isOpen) return null;
 
   // Handle click outside to close

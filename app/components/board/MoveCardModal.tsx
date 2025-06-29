@@ -176,8 +176,25 @@ export function MoveCardModal({
       }
     };
 
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      if (isListDropdownOpen) {
+        setIsListDropdownOpen(false);
+      } else {
+        onClose();
+      }
+      // Push a new state to maintain history
+      window.history.pushState(null, '', window.location.href);
+    };
+
+    // Add state to history when opening modal
+    window.history.pushState(null, '', window.location.href);
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, [isOpen, isListDropdownOpen, onClose]);
 
   // Handle click outside dropdown

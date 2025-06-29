@@ -149,9 +149,22 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
         }
       };
 
+      const handlePopState = (e: PopStateEvent) => {
+        e.preventDefault();
+        onClose();
+        // Push a new state to maintain history
+        window.history.pushState(null, '', window.location.href);
+      };
+
       if (isOpen) {
+        // Add state to history when opening modal
+        window.history.pushState(null, '', window.location.href);
         document.addEventListener('keydown', handleKeyboard);
-        return () => document.removeEventListener('keydown', handleKeyboard);
+        window.addEventListener('popstate', handlePopState);
+        return () => {
+          document.removeEventListener('keydown', handleKeyboard);
+          window.removeEventListener('popstate', handlePopState);
+        };
       }
     }, [isOpen, onClose]);
 
