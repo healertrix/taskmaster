@@ -20,7 +20,7 @@ import {
   User,
   Users,
 } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 // Search result types
@@ -64,8 +64,6 @@ interface SearchResults {
   workspaces: SearchWorkspace[];
 }
 
-
-
 export default function SearchPage() {
   const searchParams = useSearchParams();
   const queryFromUrl = searchParams?.get('q') || '';
@@ -88,7 +86,7 @@ export default function SearchPage() {
     includeClosedBoards: false,
   });
   const [sortOrder, setSortOrder] = useState('updated');
-  
+
   // Search state
   const [searchResults, setSearchResults] = useState<SearchResults>({
     cards: [],
@@ -97,6 +95,23 @@ export default function SearchPage() {
   });
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const router = useRouter();
+
+  // Handle mobile back button/gesture
+  useEffect(() => {
+    const isMobile = window.matchMedia('(max-width: 640px)').matches;
+    if (!isMobile) return;
+
+    const handlePopState = () => {
+      router.back();
+    };
+
+    // Add history state when page loads
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [router]);
 
   // Set the active tab based on the filter parameter
   useEffect(() => {
@@ -821,7 +836,9 @@ export default function SearchPage() {
                               </p>
                             </div>
                             <div className='text-xs text-muted-foreground whitespace-nowrap'>
-                              {new Date(board.lastActivityAt).toLocaleDateString()}
+                              {new Date(
+                                board.lastActivityAt
+                              ).toLocaleDateString()}
                             </div>
                           </div>
                         </Link>
@@ -890,7 +907,7 @@ export default function SearchPage() {
                       {filteredWorkspaces.map((workspace) => (
                         <Link
                           key={workspace.id}
-                                                        href={`/boards/${workspace.id}`}
+                          href={`/boards/${workspace.id}`}
                           className='block p-4 hover:bg-muted/20 transition-colors'
                         >
                           <div className='flex items-start'>
@@ -918,7 +935,9 @@ export default function SearchPage() {
                               </div>
                             </div>
                             <div className='text-xs text-muted-foreground whitespace-nowrap ml-3'>
-                              {new Date(workspace.updatedAt).toLocaleDateString()}
+                              {new Date(
+                                workspace.updatedAt
+                              ).toLocaleDateString()}
                             </div>
                           </div>
                         </Link>
