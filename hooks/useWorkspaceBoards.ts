@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { useAppStore } from '@/lib/stores/useAppStore';
 
 export interface WorkspaceBoard {
   id: string;
@@ -24,17 +25,75 @@ export interface Workspace {
   created_at: string;
 }
 
+// Memoized color display utility
+const createColorDisplay = (color: string) => {
+  if (color.startsWith('#') || color.startsWith('rgb')) {
+    return {
+      isCustom: true,
+      style: { backgroundColor: color },
+      className: '',
+    };
+  }
+  return {
+    isCustom: false,
+    style: {},
+    className: color,
+  };
+};
+
+// Memoized date formatter
+const createDateFormatter = () => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+
+  return (dateString: string) => formatter.format(new Date(dateString));
+};
+
 export const useWorkspaceBoards = (workspaceId: string) => {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [boards, setBoards] = useState<WorkspaceBoard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
 
   const supabase = createClient();
+  const {
+    getWorkspaceBoardsCache,
+    setWorkspaceBoardsCache,
+    updateBoardInCache,
+    clearWorkspaceBoardsCache,
+  } = useAppStore();
 
-  // Fetch workspace data
+  // Memoized utilities
+  const getColorDisplay = useMemo(() => createColorDisplay, []);
+  const formatDate = useMemo(() => createDateFormatter(), []);
+
+  // Check cache first
+  const checkCache = useCallback(() => {
+    const cached = getWorkspaceBoardsCache(workspaceId);
+    if (cached) {
+      setWorkspace(cached.workspace);
+      setBoards(cached.boards);
+      setLoading(false);
+      setError(null);
+      return true;
+    }
+    return false;
+  }, [workspaceId, getWorkspaceBoardsCache]);
+
+  // Fetch workspace data with caching
   const fetchWorkspace = useCallback(async () => {
     try {
+      // Check cache first
+      const cached = getWorkspaceBoardsCache(workspaceId);
+      if (cached?.workspace) {
+        setWorkspace(cached.workspace);
+        return cached.workspace;
+      }
+
       const { data: workspaceData, error: workspaceError } = await supabase
         .from('workspaces')
         .select('*')
@@ -43,17 +102,19 @@ export const useWorkspaceBoards = (workspaceId: string) => {
 
       if (workspaceError) {
         setError('Workspace not found');
-        return;
+        return null;
       }
 
       setWorkspace(workspaceData);
+      return workspaceData;
     } catch (err) {
       console.error('Error fetching workspace:', err);
       setError('Failed to fetch workspace');
+      return null;
     }
-  }, [supabase, workspaceId]);
+  }, [supabase, workspaceId, getWorkspaceBoardsCache]);
 
-  // Fetch boards with starred status
+  // Fetch boards with starred status and caching
   const fetchBoards = useCallback(async () => {
     try {
       const {
@@ -63,6 +124,13 @@ export const useWorkspaceBoards = (workspaceId: string) => {
       if (!user) {
         setError('User not authenticated');
         return;
+      }
+
+      // Check cache first
+      const cached = getWorkspaceBoardsCache(workspaceId);
+      if (cached?.boards) {
+        setBoards(cached.boards);
+        return cached.boards;
       }
 
       // Check if user has access to this workspace
@@ -94,7 +162,7 @@ export const useWorkspaceBoards = (workspaceId: string) => {
 
       if (!boardsData || boardsData.length === 0) {
         setBoards([]);
-        return;
+        return [];
       }
 
       // Get starred status for these boards
@@ -121,13 +189,15 @@ export const useWorkspaceBoards = (workspaceId: string) => {
       }));
 
       setBoards(boardsWithStarStatus);
+      return boardsWithStarStatus;
     } catch (err) {
       console.error('Error in fetchBoards:', err);
       setError('Failed to fetch boards');
+      return [];
     }
-  }, [supabase, workspaceId]);
+  }, [supabase, workspaceId, getWorkspaceBoardsCache]);
 
-  // Toggle star status for a board
+  // Optimized toggle star status for a board
   const toggleBoardStar = useCallback(
     async (boardId: string) => {
       try {
@@ -138,6 +208,22 @@ export const useWorkspaceBoards = (workspaceId: string) => {
         if (!user) {
           throw new Error('User not authenticated');
         }
+
+        // Optimistic update
+        const currentBoard = boards.find((b) => b.id === boardId);
+        if (!currentBoard) return;
+
+        const newStarred = !currentBoard.starred;
+
+        // Update local state immediately for better UX
+        setBoards((prev) =>
+          prev.map((board) =>
+            board.id === boardId ? { ...board, starred: newStarred } : board
+          )
+        );
+
+        // Update cache
+        updateBoardInCache(workspaceId, boardId, { starred: newStarred });
 
         // Check if board is currently starred
         const { data: existingStar, error: checkError } = await supabase
@@ -160,15 +246,17 @@ export const useWorkspaceBoards = (workspaceId: string) => {
             .eq('profile_id', user.id);
 
           if (deleteError) {
+            // Revert optimistic update on error
+            setBoards((prev) =>
+              prev.map((board) =>
+                board.id === boardId
+                  ? { ...board, starred: !newStarred }
+                  : board
+              )
+            );
+            updateBoardInCache(workspaceId, boardId, { starred: !newStarred });
             throw deleteError;
           }
-
-          // Update local state
-          setBoards((prev) =>
-            prev.map((board) =>
-              board.id === boardId ? { ...board, starred: false } : board
-            )
-          );
         } else {
           // Add star
           const { error: insertError } = await supabase
@@ -179,48 +267,116 @@ export const useWorkspaceBoards = (workspaceId: string) => {
             });
 
           if (insertError) {
+            // Revert optimistic update on error
+            setBoards((prev) =>
+              prev.map((board) =>
+                board.id === boardId
+                  ? { ...board, starred: !newStarred }
+                  : board
+              )
+            );
+            updateBoardInCache(workspaceId, boardId, { starred: !newStarred });
             throw insertError;
           }
-
-          // Update local state
-          setBoards((prev) =>
-            prev.map((board) =>
-              board.id === boardId ? { ...board, starred: true } : board
-            )
-          );
         }
       } catch (err) {
         console.error('Error toggling board star:', err);
         throw err; // Re-throw to handle in component
       }
     },
-    [supabase]
+    [supabase, workspaceId, boards, updateBoardInCache]
   );
 
-  // Initialize data
+  // Initialize data with caching
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       setError(null);
 
-      await Promise.all([fetchWorkspace(), fetchBoards()]);
+      // Check cache first
+      if (checkCache()) {
+        setLastFetchTime(Date.now());
+        return;
+      }
+
+      // Fetch fresh data
+      const [workspaceData, boardsData] = await Promise.all([
+        fetchWorkspace(),
+        fetchBoards(),
+      ]);
+
+      // Cache the results
+      if (workspaceData && boardsData) {
+        setWorkspaceBoardsCache(workspaceId, workspaceData, boardsData);
+      }
 
       setLoading(false);
+      setLastFetchTime(Date.now());
     };
 
     if (workspaceId) {
       loadData();
     }
-  }, [fetchWorkspace, fetchBoards, workspaceId]);
+  }, [
+    workspaceId,
+    checkCache,
+    fetchWorkspace,
+    fetchBoards,
+    setWorkspaceBoardsCache,
+  ]);
+
+  // Memoized refetch function
+  const refetch = useCallback(async () => {
+    // Clear cache to force fresh fetch
+    clearWorkspaceBoardsCache(workspaceId);
+
+    setLoading(true);
+    setError(null);
+
+    const [workspaceData, boardsData] = await Promise.all([
+      fetchWorkspace(),
+      fetchBoards(),
+    ]);
+
+    // Cache the fresh results
+    if (workspaceData && boardsData) {
+      setWorkspaceBoardsCache(workspaceId, workspaceData, boardsData);
+    }
+
+    setLoading(false);
+    setLastFetchTime(Date.now());
+  }, [
+    workspaceId,
+    clearWorkspaceBoardsCache,
+    fetchWorkspace,
+    fetchBoards,
+    setWorkspaceBoardsCache,
+  ]);
+
+  // Memoized sorted boards
+  const sortedBoards = useMemo(() => {
+    return [...boards].sort((a, b) => {
+      // Starred boards first
+      if (a.starred && !b.starred) return -1;
+      if (!a.starred && b.starred) return 1;
+
+      // Then by last activity
+      return (
+        new Date(b.last_activity_at).getTime() -
+        new Date(a.last_activity_at).getTime()
+      );
+    });
+  }, [boards]);
 
   return {
     workspace,
-    boards,
+    boards: sortedBoards,
     loading,
     error,
     toggleBoardStar,
-    refetch: useCallback(async () => {
-      await Promise.all([fetchWorkspace(), fetchBoards()]);
-    }, [fetchWorkspace, fetchBoards]),
+    refetch,
+    lastFetchTime,
+    getColorDisplay,
+    formatDate,
   };
 };

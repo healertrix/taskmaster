@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { DashboardHeader } from '@/app/components/dashboard/header';
 import { CreateBoardModal } from '@/app/components/board/CreateBoardModal';
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useWorkspace } from '@/hooks/useWorkspace';
+import { useSafeNavigation, createSafeClickHandler } from '@/utils/navigation';
 
 // Workspace Name Editor Component
 const WorkspaceNameEditor = ({
@@ -198,35 +199,43 @@ const WorkspaceDescriptionModal = ({
       className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'
       onClick={handleBackdropClick}
     >
-      <div className='bg-card rounded-xl shadow-2xl border border-border max-w-2xl w-full max-h-[80vh] overflow-hidden'>
+      <div className='bg-background rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden'>
         {/* Header */}
-        <div className='flex items-center justify-between p-6 border-b border-border'>
-          <div className='flex items-center gap-3'>
-            <div className='w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center'>
-              <Info className='w-5 h-5 text-primary' />
-            </div>
-            <div>
-              <h2 className='text-xl font-semibold'>Workspace Information</h2>
-              <p className='text-sm text-muted-foreground'>{workspaceName}</p>
-            </div>
+        <div className='px-6 py-4 border-b border-border'>
+          <div className='flex items-center justify-between'>
+            <h2 className='text-lg font-semibold text-foreground'>
+              {workspaceName} Information
+            </h2>
+            <button
+              onClick={onClose}
+              className='p-1 text-muted-foreground hover:text-foreground transition-colors'
+              aria-label='Close modal'
+            >
+              <X className='w-5 h-5' />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className='p-2 hover:bg-muted/50 rounded-lg transition-colors'
-            title='Close'
-          >
-            <X className='w-5 h-5' />
-          </button>
         </div>
 
         {/* Content */}
-        <div className='p-6'>
-          <div className='space-y-4'>
-            <div className='flex items-center justify-between'>
-              <label className='text-sm font-medium text-foreground'>
-                Description
-              </label>
-              {!isEditing && (
+        <div className='px-6 py-4 flex-1 overflow-y-auto'>
+          {!isEditing ? (
+            <div className='space-y-4'>
+              <div>
+                <h3 className='text-sm font-medium text-foreground mb-2'>
+                  Description
+                </h3>
+                {description ? (
+                  <p className='text-sm text-muted-foreground whitespace-pre-wrap'>
+                    {description}
+                  </p>
+                ) : (
+                  <p className='text-sm text-muted-foreground italic'>
+                    No description added yet.
+                  </p>
+                )}
+              </div>
+
+              <div className='flex items-center justify-end'>
                 <button
                   onClick={() => setIsEditing(true)}
                   className='text-sm text-primary hover:text-primary/80 flex items-center gap-1 transition-colors'
@@ -234,87 +243,56 @@ const WorkspaceDescriptionModal = ({
                   <Edit3 className='w-3 h-3' />
                   Edit
                 </button>
-              )}
+              </div>
             </div>
+          ) : (
+            <div className='space-y-3'>
+              <textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className='w-full h-32 p-3 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none text-sm'
+                placeholder='Add a description for this workspace...'
+                disabled={isSaving}
+                autoFocus
+              />
 
-            {isEditing ? (
-              <div className='space-y-3'>
-                <textarea
-                  value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className='w-full h-32 p-3 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none text-sm'
-                  placeholder='Add a description for this workspace...'
-                  disabled={isSaving}
-                  autoFocus
-                />
-
-                <div className='space-y-2'>
-                  <p className='text-xs text-muted-foreground'>
-                    Ctrl + Enter to save, Escape to cancel
-                  </p>
-                  <div className='flex items-center gap-2'>
-                    <button
-                      onClick={() => {
-                        setEditDescription(description);
-                        setIsEditing(false);
-                      }}
-                      className='px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors'
-                      disabled={isSaving}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSave}
-                      disabled={isSaving}
-                      className='px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50'
-                    >
-                      {isSaving ? (
-                        <>
-                          <Loader2 className='w-3 h-3 animate-spin' />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save className='w-3 h-3' />
-                          Save
-                        </>
-                      )}
-                    </button>
-                  </div>
+              <div className='space-y-2'>
+                <p className='text-xs text-muted-foreground'>
+                  Ctrl + Enter to save, Escape to cancel
+                </p>
+                <div className='flex items-center gap-2'>
+                  <button
+                    onClick={() => {
+                      setEditDescription(description);
+                      setIsEditing(false);
+                    }}
+                    className='px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors'
+                    disabled={isSaving}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className='px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50'
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className='w-3 h-3 animate-spin' />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className='w-3 h-3' />
+                        Save
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
-            ) : (
-              <div
-                className='min-h-[128px] p-3 bg-muted/20 border border-border/50 rounded-lg cursor-pointer hover:bg-muted/30 transition-colors group'
-                onClick={() => setIsEditing(true)}
-                title='Click to edit description'
-              >
-                {description && description.trim() ? (
-                  <div className='relative'>
-                    <p className='text-sm text-foreground whitespace-pre-wrap leading-relaxed'>
-                      {description}
-                    </p>
-                    <div className='absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity'>
-                      <Edit3 className='w-3 h-3 text-muted-foreground' />
-                    </div>
-                  </div>
-                ) : (
-                  <div className='flex items-center justify-center h-full'>
-                    <div className='text-center'>
-                      <p className='text-sm text-muted-foreground mb-2'>
-                        No description added yet
-                      </p>
-                      <p className='text-xs text-muted-foreground flex items-center gap-1 justify-center'>
-                        <Edit3 className='w-3 h-3' />
-                        Click here to add one
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -359,6 +337,9 @@ export default function WorkspaceBoardsPage() {
     error,
     toggleBoardStar,
     refetch,
+    lastFetchTime,
+    getColorDisplay,
+    formatDate,
   } = useWorkspaceBoards(workspaceId);
 
   // Notification states
@@ -368,6 +349,23 @@ export default function WorkspaceBoardsPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [isSuccessToastFading, setIsSuccessToastFading] = useState(false);
   const [isErrorToastFading, setIsErrorToastFading] = useState(false);
+
+  // Clean modal open/close handlers
+  const handleCreateBoard = useCallback(() => {
+    setIsCreateBoardModalOpen(true);
+  }, []);
+
+  const handleDescriptionModalOpen = useCallback(() => {
+    setIsDescriptionModalOpen(true);
+  }, []);
+
+  const handleDescriptionModalClose = useCallback(() => {
+    setIsDescriptionModalOpen(false);
+  }, []);
+
+  const handleCreateBoardModalClose = useCallback(() => {
+    setIsCreateBoardModalOpen(false);
+  }, []);
 
   // Notification helper functions
   const showSuccess = (message: string) => {
@@ -479,7 +477,7 @@ export default function WorkspaceBoardsPage() {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isDescriptionModalOpen) {
-        setIsDescriptionModalOpen(false);
+        handleDescriptionModalClose();
       }
     };
 
@@ -487,7 +485,7 @@ export default function WorkspaceBoardsPage() {
       document.addEventListener('keydown', handleEscape);
       return () => document.removeEventListener('keydown', handleEscape);
     }
-  }, [isDescriptionModalOpen]);
+  }, [isDescriptionModalOpen, handleDescriptionModalClose]);
 
   // Optimized workspace permissions - faster check
   useEffect(() => {
@@ -534,57 +532,31 @@ export default function WorkspaceBoardsPage() {
               ]),
           ]);
 
-          const { data: membership, error: membershipError } = membershipResult;
-          const { data: settings, error: settingsError } = settingsResult;
-
-          if (!membershipError && membership) {
-            setUserRole(membership.role);
-
-            // Default to permissive setting for speed
-            let boardCreationPermission = 'any_member';
-
-            if (!settingsError && settings) {
-              // Look for new simplified format first
-              const simplifiedSetting = settings.find(
-                (s) => s.setting_type === 'board_creation_simplified'
-              );
-              if (simplifiedSetting) {
-                try {
-                  boardCreationPermission =
-                    typeof simplifiedSetting.setting_value === 'string'
-                      ? JSON.parse(simplifiedSetting.setting_value)
-                      : simplifiedSetting.setting_value;
-                } catch (error) {
-                  boardCreationPermission = 'any_member';
-                }
-              }
-            }
-
-            // Quick permission check
-            let canCreate = false;
-            switch (boardCreationPermission) {
-              case 'any_member':
-                canCreate = ['admin', 'member'].includes(membership.role);
-                break;
-              case 'admins_only':
-                canCreate = membership.role === 'admin';
-                break;
-              case 'owner_only':
-                canCreate = false; // Only workspace owner can create
-                break;
-              default:
-                canCreate = ['admin', 'member'].includes(membership.role);
-            }
-
-            setCanCreateBoards(canCreate);
-          } else {
+          if (membershipResult.error) {
             setCanCreateBoards(false);
+            setUserRole('');
+            return;
+          }
+
+          const userRole = membershipResult.data.role;
+          setUserRole(userRole);
+
+          // Check workspace settings for board creation restrictions
+          const settings = settingsResult.data || [];
+          const boardCreationRestriction = settings.find(
+            (s) => s.setting_type === 'board_creation_restriction'
+          )?.setting_value;
+
+          if (boardCreationRestriction === 'admin_only') {
+            setCanCreateBoards(userRole === 'admin');
+          } else {
+            // Default: members and admins can create boards
+            setCanCreateBoards(['admin', 'member'].includes(userRole));
           }
         }
       } catch (error) {
         console.error('Error fetching workspace permissions:', error);
-        // Don't disable on error, let the API handle permission rejection
-        setCanCreateBoards(true);
+        setCanCreateBoards(false);
       }
     };
 
@@ -594,34 +566,7 @@ export default function WorkspaceBoardsPage() {
   }, [workspace, workspaceId, router]);
 
   const handleBoardCreated = async (newBoardId: string) => {
-    // Refresh the boards data
-    await refetch();
-    showSuccess('Board created successfully!');
     console.log('Board created:', newBoardId);
-  };
-
-  // Function to determine if a color is a hex code or a tailwind class
-  const getColorDisplay = (color: string) => {
-    if (color.startsWith('#') || color.startsWith('rgb')) {
-      return {
-        isCustom: true,
-        style: { backgroundColor: color },
-        className: '',
-      };
-    }
-    return {
-      isCustom: false,
-      style: {},
-      className: color,
-    };
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
   };
 
   if (isLoading) {
@@ -735,7 +680,7 @@ export default function WorkspaceBoardsPage() {
           {/* Actions - always on the right */}
           <div className='flex items-center justify-end gap-2 sm:gap-2 flex-shrink-0'>
             <button
-              onClick={() => setIsDescriptionModalOpen(true)}
+              onClick={handleDescriptionModalOpen}
               className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
               aria-label='Workspace information'
               title='Workspace Information'
@@ -766,7 +711,7 @@ export default function WorkspaceBoardsPage() {
           {/* Create New Board - Only show if user has permission */}
           {canCreateBoards && (
             <button
-              onClick={() => setIsCreateBoardModalOpen(true)}
+              onClick={handleCreateBoard}
               className='h-32 sm:h-40 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
             >
               <div className='w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/10 flex items-center justify-center mb-2 sm:mb-3 group-hover:bg-primary/20 transition-colors'>
@@ -807,7 +752,7 @@ export default function WorkspaceBoardsPage() {
             </p>
             {canCreateBoards && (
               <button
-                onClick={() => setIsCreateBoardModalOpen(true)}
+                onClick={handleCreateBoard}
                 className='btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center gap-2'
               >
                 <Plus className='w-4 h-4' />
@@ -822,11 +767,22 @@ export default function WorkspaceBoardsPage() {
       {workspace && (
         <CreateBoardModal
           isOpen={isCreateBoardModalOpen}
-          onClose={() => setIsCreateBoardModalOpen(false)}
+          onClose={handleCreateBoardModalClose}
           onSuccess={handleBoardCreated}
           workspaceId={workspace.id}
           workspaceName={workspace.name}
           workspaceColor={workspace.color}
+        />
+      )}
+
+      {/* Workspace description modal */}
+      {workspaceData && (
+        <WorkspaceDescriptionModal
+          isOpen={isDescriptionModalOpen}
+          onClose={handleDescriptionModalClose}
+          workspaceName={workspaceData.name}
+          description={workspaceData.description || ''}
+          onSave={updateWorkspaceDescription}
         />
       )}
 
@@ -853,10 +809,9 @@ export default function WorkspaceBoardsPage() {
                   setTimeout(() => {
                     setShowSuccessToast(false);
                     setIsSuccessToastFading(false);
-                  }, 300);
+                  }, 500);
                 }}
-                className='flex-shrink-0 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 transition-colors'
-                aria-label='Close success notification'
+                className='text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 transition-colors'
               >
                 <X className='w-4 h-4' />
               </button>
@@ -888,27 +843,15 @@ export default function WorkspaceBoardsPage() {
                   setTimeout(() => {
                     setShowErrorToast(false);
                     setIsErrorToastFading(false);
-                  }, 300);
+                  }, 500);
                 }}
-                className='flex-shrink-0 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors'
-                aria-label='Close error notification'
+                className='text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors'
               >
                 <X className='w-4 h-4' />
               </button>
             </div>
           </div>
         </div>
-      )}
-
-      {/* Workspace Description Modal */}
-      {workspaceData && (
-        <WorkspaceDescriptionModal
-          isOpen={isDescriptionModalOpen}
-          onClose={() => setIsDescriptionModalOpen(false)}
-          workspaceName={workspaceData.name}
-          description={workspaceData.description || ''}
-          onSave={updateWorkspaceDescription}
-        />
       )}
     </div>
   );
