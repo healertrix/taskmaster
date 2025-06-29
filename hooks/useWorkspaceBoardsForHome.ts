@@ -79,7 +79,15 @@ export const useWorkspaceBoardsForHome = () => {
           return acc;
         }, {} as { [workspaceId: string]: WorkspaceBoardForHome[] });
 
-        setWorkspaceBoards(boardsByWorkspace);
+        // Merge the newly fetched boards with the existing state instead of
+        // replacing it entirely. This prevents boards from other workspaces
+        // (that were not part of this fetch call) from being removed from the
+        // UI, which previously caused sections to "disappear" when we
+        // refetched a single workspace (e.g., after starring a board).
+        setWorkspaceBoards((prev) => ({
+          ...prev,
+          ...boardsByWorkspace,
+        }));
       } catch (err) {
         console.error('Error in fetchWorkspaceBoards:', err);
         setError('Failed to fetch workspace boards');
