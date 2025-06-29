@@ -120,14 +120,7 @@ export function CardMemberPicker({
     return true;
   });
 
-  // Fetch available members when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      fetchAvailableMembers();
-    }
-  }, [isOpen, workspaceId, boardId]);
-
-  // Handle ESC key to close modal
+  // Handle ESC key and back button/gesture to close modal
   useEffect(() => {
     if (!isOpen) return;
 
@@ -139,9 +132,31 @@ export function CardMemberPicker({
       }
     };
 
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      onClose();
+      // Push a new state to maintain history
+      window.history.pushState(null, '', window.location.href);
+    };
+
+    // Add state to history when opening modal
+    window.history.pushState(null, '', window.location.href);
+
     document.addEventListener('keydown', handleKeyDown, true);
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, [isOpen, onClose]);
+
+  // Fetch available members when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchAvailableMembers();
+    }
+  }, [isOpen, workspaceId, boardId]);
 
   const fetchAvailableMembers = async () => {
     setIsLoadingMembers(true);
@@ -200,24 +215,24 @@ export function CardMemberPicker({
 
       const data = await response.json();
 
-              if (response.ok) {
-                // Replace optimistic member with real data
-                // This will be handled by the parent component
+      if (response.ok) {
+        // Replace optimistic member with real data
+        // This will be handled by the parent component
 
-                // Auto-close modal after successful addition (only if not allowing multiple selections and not on mobile)
-                if (
-                  autoCloseAfterAdd &&
-                  !allowMultipleSelections &&
-                  !window.matchMedia('(max-width: 640px)').matches
-                ) {
-                  setTimeout(() => onClose(), 300); // Small delay for better UX
-                }
-              } else {
-                // Rollback optimistic updates
-                setAvailableMembers((prev) => [...prev, memberToAdd]);
-                console.error('Failed to add member:', data.error);
-                alert(`Failed to add member: ${data.error}`);
-              }
+        // Auto-close modal after successful addition (only if not allowing multiple selections and not on mobile)
+        if (
+          autoCloseAfterAdd &&
+          !allowMultipleSelections &&
+          !window.matchMedia('(max-width: 640px)').matches
+        ) {
+          setTimeout(() => onClose(), 300); // Small delay for better UX
+        }
+      } else {
+        // Rollback optimistic updates
+        setAvailableMembers((prev) => [...prev, memberToAdd]);
+        console.error('Failed to add member:', data.error);
+        alert(`Failed to add member: ${data.error}`);
+      }
     } catch (error) {
       // Rollback optimistic updates
       setAvailableMembers((prev) => [...prev, memberToAdd]);
@@ -236,8 +251,17 @@ export function CardMemberPicker({
   if (!isOpen) return null;
 
   return (
-    <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4'>
-      <div className='bg-card border border-border rounded-xl shadow-2xl w-full max-w-sm sm:max-w-md max-h-[85vh] overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'>
+    <div
+      className='fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4'
+      onClick={(e) => {
+        e.stopPropagation(); // Prevent event from bubbling up
+        onClose();
+      }}
+    >
+      <div
+        className='bg-card border border-border rounded-xl shadow-2xl w-full max-w-sm sm:max-w-md max-h-[85vh] overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'
+        onClick={(e) => e.stopPropagation()} // Prevent clicks on modal content from closing
+      >
         {/* Header */}
         <div className='bg-gradient-to-r from-primary to-primary/90 px-6 py-4'>
           <div className='flex items-center justify-between text-white'>
