@@ -200,20 +200,24 @@ export function CardMemberPicker({
 
       const data = await response.json();
 
-      if (response.ok) {
-        // Replace optimistic member with real data
-        // This will be handled by the parent component
+              if (response.ok) {
+                // Replace optimistic member with real data
+                // This will be handled by the parent component
 
-        // Auto-close modal after successful addition (only if not allowing multiple selections)
-        if (autoCloseAfterAdd && !allowMultipleSelections) {
-          setTimeout(() => onClose(), 300); // Small delay for better UX
-        }
-      } else {
-        // Rollback optimistic updates
-        setAvailableMembers((prev) => [...prev, memberToAdd]);
-        console.error('Failed to add member:', data.error);
-        alert(`Failed to add member: ${data.error}`);
-      }
+                // Auto-close modal after successful addition (only if not allowing multiple selections and not on mobile)
+                if (
+                  autoCloseAfterAdd &&
+                  !allowMultipleSelections &&
+                  !window.matchMedia('(max-width: 640px)').matches
+                ) {
+                  setTimeout(() => onClose(), 300); // Small delay for better UX
+                }
+              } else {
+                // Rollback optimistic updates
+                setAvailableMembers((prev) => [...prev, memberToAdd]);
+                console.error('Failed to add member:', data.error);
+                alert(`Failed to add member: ${data.error}`);
+              }
     } catch (error) {
       // Rollback optimistic updates
       setAvailableMembers((prev) => [...prev, memberToAdd]);
