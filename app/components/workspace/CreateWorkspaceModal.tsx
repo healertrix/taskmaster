@@ -188,8 +188,8 @@ export function CreateWorkspaceModal({
   };
 
   return (
-    <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6'>
-      <div className='bg-card rounded-lg shadow-lg max-w-md w-full p-5 border border-border'>
+    <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-6'>
+      <div className='bg-card rounded-lg shadow-lg max-w-sm sm:max-w-md w-full max-h-[85vh] overflow-y-auto p-5 border border-border'>
         <div className='flex justify-between items-center mb-4'>
           <h3 className='text-xl font-bold text-foreground'>
             Create Workspace

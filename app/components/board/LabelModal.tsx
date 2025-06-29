@@ -361,8 +361,8 @@ export default function LabelModal({
 
   return (
     <>
-      <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'>
-        <div className='bg-card rounded-2xl shadow-2xl w-full max-w-lg border border-border overflow-hidden'>
+      <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4'>
+        <div className='bg-card rounded-2xl shadow-2xl w-full max-w-sm sm:max-w-lg max-h-[85vh] border border-border overflow-hidden'>
           {/* Header */}
           <div className='relative bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 border-b border-border'>
             <div className='flex items-center gap-3'>

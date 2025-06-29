@@ -205,8 +205,8 @@ export function DateTimeRangePicker({
   }, [selectedStartDate, selectedEndDate, selectedStartTime, selectedDueTime]);
 
   return (
-    <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'>
-      <div className='bg-card border border-border rounded-xl shadow-2xl w-full max-w-md h-[600px] flex flex-col overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'>
+    <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4'>
+      <div className='bg-card border border-border rounded-xl shadow-2xl w-full max-w-sm sm:max-w-md h-[75vh] sm:h-[600px] flex flex-col overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'>
         {/* Compact Header */}
         <div className='bg-gradient-to-r from-primary to-primary/80 px-4 py-3'>
           <div className='flex items-center justify-between text-white'>

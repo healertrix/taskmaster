@@ -1964,7 +1964,7 @@ export function CardModal({
 
   return (
     <div
-      className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4'
+      className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-1 sm:p-4'
       onClick={(e) => {
         // Only close if clicking the backdrop (not the modal content)
         if (e.target === e.currentTarget) {
@@ -1972,9 +1972,9 @@ export function CardModal({
         }
       }}
     >
-      <div className='bg-card rounded-xl shadow-2xl w-full max-w-7xl h-[95vh] sm:h-[90vh] border border-border overflow-hidden flex flex-col'>
+      <div className='bg-card rounded-xl shadow-2xl w-full max-w-sm sm:max-w-md md:max-w-4xl lg:max-w-6xl h-[80vh] sm:h-[90vh] border border-border overflow-hidden flex flex-col'>
         {/* Header */}
-        <div className='flex items-start gap-2 sm:gap-4 p-3 sm:p-6 border-b border-border bg-muted/30 flex-shrink-0'>
+        <div className='flex items-start gap-2 sm:gap-4 p-2 sm:p-6 border-b border-border bg-muted/30 flex-shrink-0'>
           <div className='flex-1 min-w-0'>
             {/* Card Title */}
             <div className='flex items-center gap-2 mb-2'>
@@ -2095,7 +2095,7 @@ export function CardModal({
           </div>
         </div>
 
-        <div className='flex flex-col lg:flex-row gap-0 lg:gap-6 p-3 sm:p-6 flex-1 overflow-hidden'>
+        <div className='flex flex-col lg:flex-row gap-0 lg:gap-6 p-2 sm:p-6 flex-1 overflow-hidden'>
           {/* Left Side - Main Content */}
           <div
             className={`flex-1 space-y-4 sm:space-y-6 overflow-y-auto lg:pr-4 ${
@@ -2841,20 +2841,6 @@ export function CardModal({
                 )}
               </div>
             </div>
-
-            {/* Date Time Range Picker */}
-            {showDatePicker && (
-              <DateTimeRangePicker
-                startDate={selectedStartDate}
-                endDate={selectedDueDate}
-                startTime={selectedStartTime}
-                endTime={selectedDueTime}
-                onSaveDateTime={handleSaveDates}
-                onClose={() => setShowDatePicker(false)}
-                isLoading={isSavingDates}
-                initialSelection={datePickerInitialSelection}
-              />
-            )}
 
             {/* Sticky Tab Design */}
             <div className='flex gap-1 mb-3 sm:mb-4 p-1 bg-muted rounded-lg sticky top-16 bg-card z-20'>
@@ -3972,6 +3958,24 @@ export function CardModal({
               ))}
             </div>
           </>
+        )}
+
+        {/* Date Time Range Picker - Rendered at root level for proper mobile display */}
+        {showDatePicker && (
+          <DateTimeRangePicker
+            startDate={
+              card.start_date ? extractDate(card.start_date) : undefined
+            }
+            startTime={
+              card.start_date ? extractTime(card.start_date) : undefined
+            }
+            endDate={card.due_date ? extractDate(card.due_date) : undefined}
+            endTime={card.due_date ? extractTime(card.due_date) : undefined}
+            onSaveDateTime={handleSaveDates}
+            onClose={() => setShowDatePicker(false)}
+            isLoading={isSavingDates}
+            initialSelection={datePickerInitialSelection}
+          />
         )}
       </div>
     </div>
