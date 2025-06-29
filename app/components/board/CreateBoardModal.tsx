@@ -138,34 +138,40 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
       }
     }, [isOpen, isFromWorkspacePage, selectedWorkspaceId, availableWorkspaces]);
 
-    // Handle keyboard shortcuts
+    // Handle mobile back button
     useEffect(() => {
-      const handleKeyboard = (e: KeyboardEvent) => {
-        if (!isOpen) return;
+      if (!isOpen) return;
 
-        // ESC to close modal
-        if (e.key === 'Escape') {
+      const handlePopState = () => {
+        onClose();
+      };
+
+      // Add history state when modal opens
+      window.history.pushState(null, '', window.location.href);
+      window.addEventListener('popstate', handlePopState);
+
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }, [isOpen, onClose]);
+
+    // Handle keyboard shortcuts (desktop only)
+    useEffect(() => {
+      if (!isOpen) return;
+
+      const handleKeyboard = (e: KeyboardEvent) => {
+        if (
+          e.key === 'Escape' &&
+          !window.matchMedia('(max-width: 640px)').matches
+        ) {
           onClose();
         }
       };
 
-      const handlePopState = (e: PopStateEvent) => {
-        e.preventDefault();
-        onClose();
-        // Push a new state to maintain history
-        window.history.pushState(null, '', window.location.href);
+      document.addEventListener('keydown', handleKeyboard);
+      return () => {
+        document.removeEventListener('keydown', handleKeyboard);
       };
-
-      if (isOpen) {
-        // Add state to history when opening modal
-        window.history.pushState(null, '', window.location.href);
-        document.addEventListener('keydown', handleKeyboard);
-        window.addEventListener('popstate', handlePopState);
-        return () => {
-          document.removeEventListener('keydown', handleKeyboard);
-          window.removeEventListener('popstate', handlePopState);
-        };
-      }
     }, [isOpen, onClose]);
 
     if (!isOpen) return null;
