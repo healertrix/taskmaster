@@ -255,6 +255,22 @@ export function DashboardHeader() {
     setSearchError(null);
   };
 
+  // Handle mobile back button/gesture for search modal
+  useEffect(() => {
+    const isMobile = window.matchMedia('(max-width: 640px)').matches;
+    if (!isMobile || !showMobileSearchModal) return;
+
+    const handlePopState = () => {
+      handleMobileSearchClose();
+    };
+
+    // Add history state when search modal opens
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [showMobileSearchModal]);
+
   if (!mounted) {
     return <div className='h-[68px]'></div>;
   }
