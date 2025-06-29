@@ -327,6 +327,64 @@ export default function WorkspaceMembersPage() {
     }
   }, [workspaceId, router]);
 
+  // Handle mobile back button/gesture for modals
+  useEffect(() => {
+    const isMobile = window.matchMedia('(max-width: 640px)').matches;
+    if (!isMobile) return;
+
+    const handlePopState = () => {
+      // Close modals in order of priority
+      if (showChangeRoleModal) {
+        setShowChangeRoleModal(false);
+        setMemberToChangeRole(null);
+      } else if (showRemoveConfirm) {
+        setShowRemoveConfirm(false);
+        setMemberToRemove(null);
+      } else if (showAddMemberModal) {
+        setShowAddMemberModal(false);
+        setSearchQuery('');
+        setSearchResults([]);
+        setSelectedMember(null);
+      }
+    };
+
+    // Add history state when any modal opens
+    if (showChangeRoleModal || showRemoveConfirm || showAddMemberModal) {
+      window.history.pushState(null, '', window.location.href);
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    }
+  }, [showChangeRoleModal, showRemoveConfirm, showAddMemberModal]);
+
+  // Handle ESC key for desktop only
+  useEffect(() => {
+    const isMobile = window.matchMedia('(max-width: 640px)').matches;
+    if (isMobile) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // Close modals in order of priority
+        if (showChangeRoleModal) {
+          setShowChangeRoleModal(false);
+          setMemberToChangeRole(null);
+        } else if (showRemoveConfirm) {
+          setShowRemoveConfirm(false);
+          setMemberToRemove(null);
+        } else if (showAddMemberModal) {
+          setShowAddMemberModal(false);
+          setSearchQuery('');
+          setSearchResults([]);
+          setSelectedMember(null);
+        }
+      }
+    };
+
+    if (showChangeRoleModal || showRemoveConfirm || showAddMemberModal) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [showChangeRoleModal, showRemoveConfirm, showAddMemberModal]);
+
   // Close member actions dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

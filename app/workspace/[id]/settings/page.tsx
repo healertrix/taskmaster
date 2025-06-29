@@ -96,11 +96,72 @@ export default function WorkspaceSettingsPage() {
   const [editField, setEditField] = useState<'name' | 'color' | null>(null);
   const colorPickerRef = useRef<HTMLInputElement>(null);
 
-  // Handle escape key for delete modal
+  // Handle mobile back button/gesture for modals
   useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        if (showWorkspaceDeletionModal && !isDeletingWorkspace) {
+    const isMobile = window.matchMedia('(max-width: 640px)').matches;
+    if (!isMobile) return;
+
+    const handlePopState = () => {
+      // Close modals in order of priority
+      if (showWorkspaceEditModal) {
+        setShowWorkspaceEditModal(false);
+        setEditField(null);
+        setEditWorkspaceName(workspace?.name || '');
+        setEditWorkspaceColor(workspace?.color || '');
+      } else if (showMembershipModal) {
+        setShowMembershipModal(false);
+      } else if (showCreationModal) {
+        setShowCreationModal(false);
+      } else if (showDeletionModal) {
+        setShowDeletionModal(false);
+      } else if (showWorkspaceDeletionModal) {
+        setShowWorkspaceDeletionModal(false);
+        setDeletionConfirmName('');
+        setShowDeletionDetails(false);
+      }
+    };
+
+    // Add history state when any modal opens
+    if (
+      showWorkspaceEditModal ||
+      showMembershipModal ||
+      showCreationModal ||
+      showDeletionModal ||
+      showWorkspaceDeletionModal
+    ) {
+      window.history.pushState(null, '', window.location.href);
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    }
+  }, [
+    showWorkspaceEditModal,
+    showMembershipModal,
+    showCreationModal,
+    showDeletionModal,
+    showWorkspaceDeletionModal,
+    workspace,
+  ]);
+
+  // Handle ESC key for desktop only
+  useEffect(() => {
+    const isMobile = window.matchMedia('(max-width: 640px)').matches;
+    if (isMobile) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // Close modals in order of priority
+        if (showWorkspaceEditModal) {
+          setShowWorkspaceEditModal(false);
+          setEditField(null);
+          setEditWorkspaceName(workspace?.name || '');
+          setEditWorkspaceColor(workspace?.color || '');
+        } else if (showMembershipModal) {
+          setShowMembershipModal(false);
+        } else if (showCreationModal) {
+          setShowCreationModal(false);
+        } else if (showDeletionModal) {
+          setShowDeletionModal(false);
+        } else if (showWorkspaceDeletionModal && !isDeletingWorkspace) {
           setShowWorkspaceDeletionModal(false);
           setDeletionConfirmName('');
           setShowDeletionDetails(false);
@@ -108,11 +169,25 @@ export default function WorkspaceSettingsPage() {
       }
     };
 
-    if (showWorkspaceDeletionModal) {
-      document.addEventListener('keydown', handleEscape);
-      return () => document.removeEventListener('keydown', handleEscape);
+    if (
+      showWorkspaceEditModal ||
+      showMembershipModal ||
+      showCreationModal ||
+      showDeletionModal ||
+      showWorkspaceDeletionModal
+    ) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
     }
-  }, [showWorkspaceDeletionModal, isDeletingWorkspace]);
+  }, [
+    showWorkspaceEditModal,
+    showMembershipModal,
+    showCreationModal,
+    showDeletionModal,
+    showWorkspaceDeletionModal,
+    isDeletingWorkspace,
+    workspace,
+  ]);
 
   // Notification helper functions
   const showSuccess = (message: string) => {
