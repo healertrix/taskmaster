@@ -27,6 +27,17 @@ interface AppState {
     };
   };
 
+  // Workspace members cache
+  workspaceMembersCache: {
+    [workspaceId: string]: {
+      workspace: any;
+      members: any[];
+      settings: any;
+      timestamp: number;
+      ttl: number;
+    };
+  };
+
   // User preferences cache
   userPreferences: {
     theme: 'light' | 'dark' | 'system';
@@ -57,6 +68,25 @@ interface AppState {
   removeBoardFromCache: (workspaceId: string, boardId: string) => void;
   clearWorkspaceBoardsCache: (workspaceId?: string) => void;
 
+  // Workspace members cache actions
+  setWorkspaceMembersCache: (
+    workspaceId: string,
+    workspace: any,
+    members: any[],
+    settings: any
+  ) => void;
+  getWorkspaceMembersCache: (
+    workspaceId: string
+  ) => { workspace: any; members: any[]; settings: any } | null;
+  updateMemberInCache: (
+    workspaceId: string,
+    memberId: string,
+    updates: any
+  ) => void;
+  addMemberToCache: (workspaceId: string, member: any) => void;
+  removeMemberFromCache: (workspaceId: string, memberId: string) => void;
+  clearWorkspaceMembersCache: (workspaceId?: string) => void;
+
   // User preferences actions
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -79,6 +109,7 @@ export const useAppStore = create<AppState>()(
         // Initial state
         cache: {},
         workspaceBoardsCache: {},
+        workspaceMembersCache: {},
         userPreferences: {
           theme: 'system',
           sidebarCollapsed: false,
@@ -278,6 +309,126 @@ export const useAppStore = create<AppState>()(
               return { workspaceBoardsCache: rest };
             }
             return { workspaceBoardsCache: {} };
+          });
+        },
+
+        // Workspace members cache actions
+        setWorkspaceMembersCache: (
+          workspaceId: string,
+          workspace: any,
+          members: any[],
+          settings: any
+        ) => {
+          set((state) => ({
+            workspaceMembersCache: {
+              ...state.workspaceMembersCache,
+              [workspaceId]: {
+                workspace,
+                members,
+                settings,
+                timestamp: Date.now(),
+                ttl: WORKSPACE_BOARDS_TTL,
+              },
+            },
+          }));
+        },
+
+        getWorkspaceMembersCache: (workspaceId: string) => {
+          const state = get();
+          const entry = state.workspaceMembersCache[workspaceId];
+
+          if (!entry) return null;
+
+          const isExpired = Date.now() - entry.timestamp > entry.ttl;
+          if (isExpired) {
+            // Auto-clear expired cache
+            get().clearWorkspaceMembersCache(workspaceId);
+            return null;
+          }
+
+          return {
+            workspace: entry.workspace,
+            members: entry.members,
+            settings: entry.settings,
+          };
+        },
+
+        updateMemberInCache: (
+          workspaceId: string,
+          memberId: string,
+          updates: any
+        ) => {
+          set((state) => {
+            const entry = state.workspaceMembersCache[workspaceId];
+            if (!entry) return state;
+
+            const updatedMembers = entry.members.map((member) =>
+              member.id === memberId ? { ...member, ...updates } : member
+            );
+
+            return {
+              workspaceMembersCache: {
+                ...state.workspaceMembersCache,
+                [workspaceId]: {
+                  ...entry,
+                  members: updatedMembers,
+                },
+              },
+            };
+          });
+        },
+
+        addMemberToCache: (workspaceId: string, member: any) => {
+          set((state) => {
+            const entry = state.workspaceMembersCache[workspaceId];
+            if (!entry) return state;
+
+            // Check if member already exists to avoid duplicates
+            const memberExists = entry.members.some((m) => m.id === member.id);
+            if (memberExists) return state;
+
+            const updatedMembers = [member, ...entry.members];
+
+            return {
+              workspaceMembersCache: {
+                ...state.workspaceMembersCache,
+                [workspaceId]: {
+                  ...entry,
+                  members: updatedMembers,
+                },
+              },
+            };
+          });
+        },
+
+        removeMemberFromCache: (workspaceId: string, memberId: string) => {
+          set((state) => {
+            const entry = state.workspaceMembersCache[workspaceId];
+            if (!entry) return state;
+
+            const updatedMembers = entry.members.filter(
+              (member) => member.id !== memberId
+            );
+
+            return {
+              workspaceMembersCache: {
+                ...state.workspaceMembersCache,
+                [workspaceId]: {
+                  ...entry,
+                  members: updatedMembers,
+                },
+              },
+            };
+          });
+        },
+
+        clearWorkspaceMembersCache: (workspaceId?: string) => {
+          set((state) => {
+            if (workspaceId) {
+              const { [workspaceId]: _, ...rest } = state.workspaceMembersCache;
+              return { workspaceMembersCache: rest };
+            }
+            return { workspaceMembersCache: {} };
           });
         },
 

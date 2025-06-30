@@ -27,15 +27,9 @@ import Link from 'next/link';
 import { canUserInviteMembers } from '@/utils/permissions';
 import { useMembersStore } from '@/lib/stores/useMembersStore';
 import {
-  useWorkspace,
-  useWorkspaceSettings,
   useWorkspaceMembers,
-  useWorkspaceInvitations,
-  useRemoveMember,
-  useChangeMemberRole,
   type WorkspaceMember,
-  type Invitation,
-} from '@/hooks/queries/useWorkspaceMembersQuery';
+} from '@/hooks/useWorkspaceMembers';
 import { MemberCard } from '@/app/components/workspace/MemberCard';
 import { AddMemberModal } from '@/app/components/workspace/AddMemberModal';
 import { PageLoadingSkeleton } from '@/app/components/ui/MembersSkeleton';
@@ -77,19 +71,64 @@ export default function WorkspaceMembersPage() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string>('');
 
-  // Fetch data using TanStack Query
-  const { data: workspace, error: workspaceError } = useWorkspace(workspaceId);
-  const { data: workspaceSettings } = useWorkspaceSettings(workspaceId);
-  const { data: members = [], error: membersError } =
-    useWorkspaceMembers(workspaceId);
-  const { data: invitations = [] } = useWorkspaceInvitations(
-    workspaceId,
-    currentUserRole
-  );
+  // Fetch data using optimized hook
+  const {
+    workspace,
+    members,
+    settings: workspaceSettings,
+    loading: isLoading,
+    error,
+    refetch,
+    updateMemberInCache,
+    removeMemberFromCache,
+  } = useWorkspaceMembers(workspaceId);
 
-  // Mutations
-  const removeMemberMutation = useRemoveMember();
-  const changeRoleMutation = useChangeMemberRole();
+  // Simple mutation functions
+  const removeMember = async (memberId: string) => {
+    try {
+      const supabase = createClient();
+      const { error: removeError } = await supabase
+        .from('workspace_members')
+        .delete()
+        .eq('id', memberId);
+
+      if (removeError) throw removeError;
+
+      // Update cache immediately
+      removeMemberFromCache(workspaceId, memberId);
+
+      // Refresh data
+      await refetch();
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error removing member:', error);
+      return { success: false, error };
+    }
+  };
+
+  const changeMemberRole = async (memberId: string, newRole: string) => {
+    try {
+      const supabase = createClient();
+      const { error: updateError } = await supabase
+        .from('workspace_members')
+        .update({ role: newRole })
+        .eq('id', memberId);
+
+      if (updateError) throw updateError;
+
+      // Update cache immediately
+      updateMemberInCache(workspaceId, memberId, { role: newRole });
+
+      // Refresh data
+      await refetch();
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error changing member role:', error);
+      return { success: false, error };
+    }
+  };
 
   // Get current user and role on mount
   useEffect(() => {
@@ -110,25 +149,25 @@ export default function WorkspaceMembersPage() {
 
         // Get user's role in workspace
         if (workspace) {
-        let userRole = '';
+          let userRole = '';
           if (workspace.owner_id === user.id) {
-          userRole = 'owner';
-        } else {
-          const { data: membershipData, error: membershipError } =
-            await supabase
-              .from('workspace_members')
-              .select('role')
-              .eq('workspace_id', workspaceId)
-              .eq('profile_id', user.id)
-              .single();
+            userRole = 'owner';
+          } else {
+            const { data: membershipData, error: membershipError } =
+              await supabase
+                .from('workspace_members')
+                .select('role')
+                .eq('workspace_id', workspaceId)
+                .eq('profile_id', user.id)
+                .single();
 
-          if (membershipError || !membershipData) {
+            if (membershipError || !membershipData) {
               router.push('/auth/login');
-            return;
+              return;
+            }
+            userRole = membershipData.role;
           }
-          userRole = membershipData.role;
-        }
-        setCurrentUserRole(userRole);
+          setCurrentUserRole(userRole);
         }
       } catch (err) {
         console.error('Error getting current user:', err);
@@ -245,29 +284,34 @@ export default function WorkspaceMembersPage() {
 
     setIsRemovingMember(true);
     try {
-      await removeMemberMutation.mutateAsync({
-      workspaceId,
-        profileId: memberToRemove.profile_id,
-      });
+      const result = await removeMember(memberToRemove.id);
 
+      if (result.success) {
         showSuccess(
           `${
             memberToRemove.profile.full_name || memberToRemove.profile.email
           } has been removed from the workspace`
         );
-      setShowRemoveConfirm(false);
-      setMemberToRemove(null);
-    } catch (error) {
+        setShowRemoveConfirm(false);
+        setMemberToRemove(null);
+      } else {
         showError(
-        error instanceof Error ? error.message : 'Failed to remove member'
+          result.error instanceof Error
+            ? result.error.message
+            : 'Failed to remove member'
         );
+      }
+    } catch (error) {
+      showError(
+        error instanceof Error ? error.message : 'Failed to remove member'
+      );
     } finally {
       setIsRemovingMember(false);
     }
   }, [
     memberToRemove,
     workspaceId,
-    removeMemberMutation,
+    removeMember,
     showSuccess,
     showError,
     setShowRemoveConfirm,
@@ -280,12 +324,9 @@ export default function WorkspaceMembersPage() {
 
     setIsChangingRole(true);
     try {
-      await changeRoleMutation.mutateAsync({
-        workspaceId,
-        profileId: memberToChangeRole.profile_id,
-            role: newRole,
-      });
+      const result = await changeMemberRole(memberToChangeRole.id, newRole);
 
+      if (result.success) {
         showSuccess(
           `${
             memberToChangeRole.profile.full_name ||
@@ -294,6 +335,13 @@ export default function WorkspaceMembersPage() {
         );
         setShowChangeRoleModal(false);
         setMemberToChangeRole(null);
+      } else {
+        showError(
+          result.error instanceof Error
+            ? result.error.message
+            : 'Failed to change member role'
+        );
+      }
     } catch (error) {
       showError(
         error instanceof Error ? error.message : 'Failed to change member role'
@@ -305,7 +353,7 @@ export default function WorkspaceMembersPage() {
     memberToChangeRole,
     workspaceId,
     newRole,
-    changeRoleMutation,
+    changeMemberRole,
     showSuccess,
     showError,
     setShowChangeRoleModal,
@@ -331,25 +379,23 @@ export default function WorkspaceMembersPage() {
   );
 
   // Loading and error states
-  if (workspaceError || membersError) {
+  if (isLoading && !workspace && (!members || members.length === 0)) {
+    return <PageLoadingSkeleton />;
+  }
+
+  if (error) {
     return (
       <div className='min-h-screen dot-pattern-dark'>
         <DashboardHeader />
-        <main className='container mx-auto max-w-4xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+        <main className='container mx-auto max-w-7xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
           <div className='flex items-center justify-center h-64'>
             <div className='text-red-500 text-center text-sm sm:text-base px-4'>
-              {workspaceError?.message ||
-                membersError?.message ||
-                'An error occurred'}
+              {error || 'An error occurred'}
             </div>
           </div>
         </main>
       </div>
     );
-  }
-
-  if (!workspace || !currentUserRole) {
-    return <PageLoadingSkeleton />;
   }
 
   return (
@@ -443,63 +489,43 @@ export default function WorkspaceMembersPage() {
             <div className='space-y-2'>
               {members.map((member) => (
                 <MemberCard
-                    key={member.id}
+                  key={member.id}
                   member={member}
                   currentUser={currentUser}
                   currentUserRole={currentUserRole}
                   canManageMembers={canManageMembers}
-                  onRemoveMember={handleRemoveMemberClick}
-                  onChangeRole={handleChangeRoleClick}
+                  onRemoveMember={handleRemoveMember}
+                  onChangeRole={handleChangeRole}
                   openMemberActions={openMemberActions}
                   setOpenMemberActions={setOpenMemberActions}
                 />
               ))}
-                      </div>
+            </div>
           </div>
 
-          {/* Pending Invitations */}
-          {canAddMembers && invitations.length > 0 && (
-            <div className='card p-6'>
-              <h2 className='text-lg font-semibold mb-4'>
-                Pending invitations ({invitations.length})
-              </h2>
-
-              <div className='space-y-2'>
-                {invitations.map((invitation) => (
-                  <div
-                    key={invitation.id}
-                    className='flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors'
-                  >
-                    <div className='flex items-center gap-3'>
-                      <div className='w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900 flex items-center justify-center'>
-                        <Mail className='w-4 h-4 text-orange-600 dark:text-orange-400' />
-                      </div>
-                      <div>
-                        <div className='font-medium text-foreground'>
-                          {invitation.email}
-                        </div>
-                        <div className='text-sm text-muted-foreground'>
-                          Invited{' '}
-                          {new Date(invitation.created_at).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className='flex items-center gap-3'>
-                      <span className='px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'>
-                        {invitation.role}
-                      </span>
-                      <span className='px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'>
-                        Pending
-                      </span>
-                      <button className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex items-center gap-1'>
-                        Cancel
-                        <X className='w-4 h-4' />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+          {/* Empty state */}
+          {members.length === 0 && (
+            <div className='flex flex-col items-center justify-center py-16 text-center'>
+              <div className='w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mb-4'>
+                <Users className='w-8 h-8 text-muted-foreground' />
               </div>
+              <h3 className='text-lg font-semibold text-foreground mb-2'>
+                No members yet
+              </h3>
+              <p className='text-muted-foreground mb-4 max-w-md'>
+                {canAddMembers
+                  ? 'Get started by inviting members to this workspace. Members can collaborate on boards and projects.'
+                  : "This workspace doesn't have any members yet. Contact an admin to add members to this workspace."}
+              </p>
+              {canAddMembers && (
+                <button
+                  onClick={() => setShowAddMemberModal(true)}
+                  className='btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center gap-2'
+                >
+                  <UserPlus className='w-4 h-4' />
+                  Invite Members
+                </button>
+              )}
             </div>
           )}
         </div>
