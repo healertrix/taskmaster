@@ -2739,7 +2739,7 @@ export function CardModal({
                     onClick={() =>
                       setIsAddToCardDropdownOpen(!isAddToCardDropdownOpen)
                     }
-                    className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors shadow-sm font-medium text-sm'
+                    className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-sm font-medium text-sm'
                     title='Add to card'
                   >
                     <Plus className='w-4 h-4' />
@@ -2818,7 +2818,7 @@ export function CardModal({
                     onClick={() =>
                       setIsActionsDropdownOpen(!isActionsDropdownOpen)
                     }
-                    className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors shadow-sm font-medium text-sm'
+                    className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-sm font-medium text-sm'
                     title='Card actions'
                   >
                     <Settings className='w-4 h-4' />
@@ -3028,46 +3028,44 @@ export function CardModal({
         {/* Card Delete Confirmation Modal */}
         {showDeleteCardConfirm && (
           <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4'>
-            <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full'>
-              <div className='p-6'>
-                <div className='flex items-center gap-3 mb-4'>
-                  <div className='w-10 h-10 bg-red-100 rounded-full flex items-center justify-center'>
-                    <Trash2 className='w-5 h-5 text-red-600' />
-                  </div>
-                  <div>
-                    <h3 className='text-lg font-semibold text-foreground'>
-                      Delete Card
-                    </h3>
-                    <p className='text-sm text-muted-foreground'>
-                      This action is permanent and cannot be undone.
-                    </p>
-                  </div>
+            <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full p-6'>
+              <div className='flex items-center gap-3 mb-4'>
+                <div className='w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center'>
+                  <Trash2 className='w-5 h-5 text-red-500' />
                 </div>
-
-                <p className='text-sm text-foreground mb-6'>
-                  Are you sure you want to delete this card? All of its data,
-                  including checklists, attachments, and comments, will be
-                  permanently removed.
-                </p>
-
-                <div className='flex gap-3 justify-end'>
-                  <button
-                    onClick={() => setShowDeleteCardConfirm(false)}
-                    className='px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors'
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      onDeleteCard?.(card.id);
-                      setShowDeleteCardConfirm(false);
-                    }}
-                    className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors'
-                  >
-                    <Trash2 className='w-4 h-4' />
-                    Confirm Deletion
-                  </button>
+                <div>
+                  <h3 className='text-lg font-semibold text-foreground'>
+                    Delete Card
+                  </h3>
+                  <p className='text-sm text-muted-foreground'>
+                    This action is permanent and cannot be undone.
+                  </p>
                 </div>
+              </div>
+
+              <p className='text-sm text-foreground mb-6'>
+                Are you sure you want to delete this card? All of its data,
+                including checklists, attachments, and comments, will be
+                permanently removed.
+              </p>
+
+              <div className='flex gap-3 justify-end'>
+                <button
+                  onClick={() => setShowDeleteCardConfirm(false)}
+                  className='px-4 py-2 text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded-md transition-colors'
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    onDeleteCard?.(card.id);
+                    setShowDeleteCardConfirm(false);
+                  }}
+                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors'
+                >
+                  <Trash2 className='w-4 h-4' />
+                  Confirm Deletion
+                </button>
               </div>
             </div>
           </div>
@@ -3075,52 +3073,50 @@ export function CardModal({
 
         {showDeleteModal && (
           <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4'>
-            <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full'>
-              <div className='p-6'>
-                <div className='flex items-center gap-3 mb-4'>
-                  <div className='w-10 h-10 bg-red-100 rounded-full flex items-center justify-center'>
-                    <Trash2 className='w-5 h-5 text-red-600' />
-                  </div>
-                  <div>
-                    <h3 className='text-lg font-semibold text-foreground'>
+            <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full p-6'>
+              <div className='flex items-center gap-3 mb-4'>
+                <div className='w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center'>
+                  <Trash2 className='w-5 h-5 text-red-500' />
+                </div>
+                <div>
+                  <h3 className='text-lg font-semibold text-foreground'>
+                    Delete Comment
+                  </h3>
+                  <p className='text-sm text-muted-foreground'>
+                    This action cannot be undone
+                  </p>
+                </div>
+              </div>
+
+              <p className='text-sm text-foreground mb-6'>
+                Are you sure you want to delete this comment? This will
+                permanently remove the comment from the card.
+              </p>
+
+              <div className='flex gap-3 justify-end'>
+                <button
+                  onClick={cancelDeleteComment}
+                  className='px-4 py-2 text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded-md transition-colors'
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteComment}
+                  disabled={deletingCommentId !== null}
+                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
+                >
+                  {deletingCommentId ? (
+                    <>
+                      <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className='w-4 h-4' />
                       Delete Comment
-                    </h3>
-                    <p className='text-sm text-muted-foreground'>
-                      This action cannot be undone
-                    </p>
-                  </div>
-                </div>
-
-                <p className='text-sm text-foreground mb-6'>
-                  Are you sure you want to delete this comment? This will
-                  permanently remove the comment from the card.
-                </p>
-
-                <div className='flex gap-3 justify-end'>
-                  <button
-                    onClick={cancelDeleteComment}
-                    className='px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors'
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={confirmDeleteComment}
-                    disabled={deletingCommentId !== null}
-                    className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
-                  >
-                    {deletingCommentId ? (
-                      <>
-                        <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
-                        Deleting...
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className='w-4 h-4' />
-                        Delete Comment
-                      </>
-                    )}
-                  </button>
-                </div>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
@@ -3128,60 +3124,58 @@ export function CardModal({
 
         {showDeleteAttachmentModal && attachmentToDelete && (
           <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4'>
-            <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full'>
-              <div className='p-6'>
-                <div className='flex items-center gap-3 mb-4'>
-                  <div className='w-10 h-10 bg-red-100 rounded-full flex items-center justify-center'>
-                    <Paperclip className='w-5 h-5 text-red-600' />
-                  </div>
-                  <div>
-                    <h3 className='text-lg font-semibold text-foreground'>
-                      Delete Attachment
-                    </h3>
-                    <p className='text-sm text-muted-foreground'>
-                      This action cannot be undone
-                    </p>
-                  </div>
+            <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full p-6'>
+              <div className='flex items-center gap-3 mb-4'>
+                <div className='w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center'>
+                  <Paperclip className='w-5 h-5 text-red-500' />
                 </div>
+                <div>
+                  <h3 className='text-lg font-semibold text-foreground'>
+                    Delete Attachment
+                  </h3>
+                  <p className='text-sm text-muted-foreground'>
+                    This action cannot be undone
+                  </p>
+                </div>
+              </div>
 
-                <p className='text-sm text-foreground mb-2'>
-                  Are you sure you want to delete this attachment?
+              <p className='text-sm text-foreground mb-2'>
+                Are you sure you want to delete this attachment?
+              </p>
+              <div className='p-3 bg-muted/30 rounded-lg border border-border/50 mb-6'>
+                <p className='text-sm font-medium text-foreground truncate'>
+                  {attachmentToDelete.name}
                 </p>
-                <div className='p-3 bg-muted/30 rounded-lg border border-border/50 mb-6'>
-                  <p className='text-sm font-medium text-foreground truncate'>
-                    {attachmentToDelete.name}
-                  </p>
-                  <p className='text-xs text-muted-foreground truncate'>
-                    {attachmentToDelete.url}
-                  </p>
-                </div>
+                <p className='text-xs text-muted-foreground truncate'>
+                  {attachmentToDelete.url}
+                </p>
+              </div>
 
-                <div className='flex gap-3 justify-end'>
-                  <button
-                    onClick={cancelDeleteAttachment}
-                    className='px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors'
-                    disabled={isDeletingAttachment}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={confirmDeleteAttachment}
-                    disabled={isDeletingAttachment}
-                    className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
-                  >
-                    {isDeletingAttachment ? (
-                      <>
-                        <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
-                        Deleting...
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className='w-4 h-4' />
-                        Delete Attachment
-                      </>
-                    )}
-                  </button>
-                </div>
+              <div className='flex gap-3 justify-end'>
+                <button
+                  onClick={cancelDeleteAttachment}
+                  className='px-4 py-2 text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded-md transition-colors'
+                  disabled={isDeletingAttachment}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteAttachment}
+                  disabled={isDeletingAttachment}
+                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
+                >
+                  {isDeletingAttachment ? (
+                    <>
+                      <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className='w-4 h-4' />
+                      Delete Attachment
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
