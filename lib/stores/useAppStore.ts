@@ -249,6 +249,14 @@ export const cacheUtils = {
   getWorkspaceSettingsKey: (workspaceId: string) =>
     `workspace-settings-${workspaceId}`,
 
+  // Card-related cache keys
+  getCardCommentsKey: (cardId: string) => `card-comments-${cardId}`,
+  getCardActivitiesKey: (cardId: string) => `card-activities-${cardId}`,
+  getCardChecklistsKey: (cardId: string) => `card-checklists-${cardId}`,
+  getCardAttachmentsKey: (cardId: string) => `card-attachments-${cardId}`,
+  getCardMembersKey: (cardId: string) => `card-members-${cardId}`,
+  getCardLabelsKey: (cardId: string) => `card-labels-${cardId}`,
+
   // Cache validation
   isCacheValid: (timestamp: number, ttl: number) => {
     return Date.now() - timestamp <= ttl;

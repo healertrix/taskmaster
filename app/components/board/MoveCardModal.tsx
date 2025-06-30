@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronDown, Move, LayoutGrid, CheckCircle2 } from 'lucide-react';
+import { useAppStore, cacheUtils } from '@/lib/stores/useAppStore';
 
 interface MoveCardModalProps {
   isOpen: boolean;
@@ -12,7 +13,18 @@ interface MoveCardModalProps {
   currentListId: string;
   currentListName: string;
   boardId: string;
-  onMoveSuccess?: () => void;
+  onMoveSuccess?: (newListId: string, newListName: string) => void;
+  moveCard?: (
+    cardId: string,
+    sourceListId: string,
+    targetListId: string,
+    newPosition: number
+  ) => void;
+  lists?: Array<{
+    id: string;
+    name: string;
+    cards: Array<{ id: string; title: string }>;
+  }>;
 }
 
 interface ListOption {
@@ -30,97 +42,75 @@ export function MoveCardModal({
   currentListName,
   boardId,
   onMoveSuccess,
+  moveCard,
+  lists: providedLists,
 }: MoveCardModalProps) {
   const [isMovingCard, setIsMovingCard] = useState(false);
   const [availableLists, setAvailableLists] = useState<ListOption[]>([]);
   const [selectedListId, setSelectedListId] = useState('');
-  const [isLoadingLists, setIsLoadingLists] = useState(false);
   const [isListDropdownOpen, setIsListDropdownOpen] = useState(false);
   const dropdownButtonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fetch available lists when modal opens
-  const fetchAvailableLists = async () => {
-    setIsLoadingLists(true);
-    try {
-      console.log('Fetching lists for board:', boardId);
-      console.log('Current list ID:', currentListId);
+  // Get cached lists from store
+  const { getCache } = useAppStore();
 
-      const response = await fetch(`/api/lists?board_id=${boardId}`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log('API response:', data);
+  // Load available lists from cache or provided lists
+  const loadAvailableLists = () => {
+    let lists = providedLists;
 
-        // Extract lists from the response data structure
-        const lists = data.lists || [];
-        console.log('All lists received:', lists);
+    // If no lists provided, try to get from cache
+    if (!lists) {
+      const cacheKey = cacheUtils.getBoardListsKey(boardId);
+      const cached = getCache(cacheKey);
+      lists = cached || [];
+    }
 
-        // Filter out the current list and format for dropdown
-        console.log('Before filtering - checking each list:');
-        lists.forEach((list: any) => {
-          console.log(
-            `List: ${list.name}, ID: "${list.id}" (type: ${typeof list.id})`
-          );
-          console.log(
-            `Current List ID: "${currentListId}" (type: ${typeof currentListId})`
-          );
-          console.log(`Are they equal? ${list.id === currentListId}`);
-          console.log(`Strict equal? ${list.id === currentListId}`);
-          console.log('---');
-        });
+    // Filter out the current list and format for dropdown
+    const filteredLists = lists
+      .filter((list: any) => {
+        const listId = String(list.id);
+        const currentId = String(currentListId);
+        return listId !== currentId;
+      })
+      .map((list: any) => ({
+        id: list.id,
+        name: list.name,
+        cards_count: list.cards?.length || 0,
+      }));
 
-        const filteredLists = lists
-          .filter((list: any) => {
-            // Convert both to strings to ensure proper comparison
-            const listId = String(list.id);
-            const currentId = String(currentListId);
-            const shouldInclude = listId !== currentId;
-            console.log(
-              `List "${list.name}" (${listId}) should be included: ${shouldInclude}`
-            );
-            return shouldInclude;
-          })
-          .map((list: any) => ({
-            id: list.id,
-            name: list.name,
-            cards_count: list.cards?.length || 0,
-          }));
+    setAvailableLists(filteredLists);
 
-        console.log('Filtered lists (excluding current):', filteredLists);
-
-        setAvailableLists(filteredLists);
-
-        // Auto-select first available list if any
-        if (filteredLists.length > 0) {
-          setSelectedListId(filteredLists[0].id);
-        }
-      } else {
-        console.error('Failed to fetch lists. Status:', response.status);
-        const errorData = await response.text();
-        console.error('Error response:', errorData);
-      }
-    } catch (error) {
-      console.error('Error fetching lists:', error);
-    } finally {
-      setIsLoadingLists(false);
+    // Auto-select first available list if any
+    if (filteredLists.length > 0 && !selectedListId) {
+      setSelectedListId(filteredLists[0].id);
     }
   };
 
-  // Handle moving the card
+  // Handle moving the card with optimistic updates
   const handleMoveCard = async () => {
-    console.log('Move card clicked. Selected list ID:', selectedListId);
-    console.log('Card ID:', cardId);
-    console.log('Is moving:', isMovingCard);
-
     if (!selectedListId || isMovingCard) {
-      console.log('Cannot move: missing selectedListId or already moving');
       return;
     }
 
     setIsMovingCard(true);
 
     try {
-      console.log('Making API call to move card...');
+      // Find the target list name for user feedback
+      const targetList = availableLists.find(
+        (list) => list.id === selectedListId
+      );
+      const targetListName = targetList?.name || 'destination list';
+
+      // Perform optimistic update immediately using moveCard function
+      if (moveCard) {
+        moveCard(cardId, currentListId, selectedListId, 999999);
+      }
+
+      // Close modal immediately
+      onClose();
+
+      // Make the API call in the background
       const response = await fetch(`/api/cards/${cardId}/move`, {
         method: 'POST',
         headers: {
@@ -133,21 +123,26 @@ export function MoveCardModal({
       });
 
       const data = await response.json();
-      console.log('Move API response:', data);
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to move card');
       }
 
-      console.log('Card moved successfully');
-      // Close modal and trigger success callback
-      onClose();
+      // Success - notify parent with new list information
       if (onMoveSuccess) {
-        onMoveSuccess();
+        onMoveSuccess(selectedListId, targetListName);
       }
     } catch (error) {
       console.error('Error moving card:', error);
-      // Handle error - could show a toast notification here
+
+      // If the API call failed, we need to revert the optimistic update
+      // by calling onMoveSuccess to refresh from server
+      if (onMoveSuccess) {
+        onMoveSuccess(currentListId, currentListName); // Revert to original
+      }
+
+      // Optionally show an error message to the user
+      // This could be done via a toast notification system
     } finally {
       setIsMovingCard(false);
     }
@@ -156,11 +151,12 @@ export function MoveCardModal({
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
-      fetchAvailableLists();
-      setSelectedListId('');
+      loadAvailableLists();
       setIsListDropdownOpen(false);
+    } else {
+      setSelectedListId('');
     }
-  }, [isOpen, boardId, currentListId]);
+  }, [isOpen, boardId, currentListId, providedLists]);
 
   // Handle escape key
   useEffect(() => {
@@ -262,16 +258,7 @@ export function MoveCardModal({
 
           {/* Content */}
           <div className='p-6'>
-            {isLoadingLists ? (
-              <div className='flex items-center justify-center py-12'>
-                <div className='flex items-center gap-3'>
-                  <div className='w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
-                  <span className='text-sm text-muted-foreground font-medium'>
-                    Loading lists...
-                  </span>
-                </div>
-              </div>
-            ) : availableLists.length === 0 ? (
+            {availableLists.length === 0 ? (
               <div className='text-center py-12'>
                 <div className='w-16 h-16 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4'>
                   <LayoutGrid className='w-8 h-8 text-muted-foreground' />
@@ -352,6 +339,7 @@ export function MoveCardModal({
                   Cancel
                 </button>
                 <button
+                  type='button'
                   onClick={handleMoveCard}
                   disabled={!selectedListId || isMovingCard}
                   className='px-6 py-3 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2'
@@ -399,7 +387,6 @@ export function MoveCardModal({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('Selecting list:', list.name, list.id);
                 setSelectedListId(list.id);
                 setIsListDropdownOpen(false);
               }}
@@ -438,7 +425,5 @@ export function MoveCardModal({
     </>
   );
 
-  return typeof window !== 'undefined'
-    ? createPortal(modalContent, document.body)
-    : null;
+  return createPortal(modalContent, document.body);
 }

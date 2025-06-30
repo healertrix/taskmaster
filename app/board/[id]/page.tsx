@@ -676,37 +676,43 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   };
 
   // Notification helper functions
-  const showSuccess = (message: string) => {
-    setSuccessMessage(message);
-    setShowSuccessToast(true);
-    setIsSuccessToastFading(false);
-
-    // Start fade out animation after 3.5 seconds
+  const showSuccess = useCallback((message: string) => {
+    // Defer state updates to avoid "Cannot update a component while rendering a different component" warning
     setTimeout(() => {
-      setIsSuccessToastFading(true);
-      // Remove toast after fade animation completes
+      setSuccessMessage(message);
+      setShowSuccessToast(true);
+      setIsSuccessToastFading(false);
+
+      // Start fade out animation after 3.5 seconds
       setTimeout(() => {
-        setShowSuccessToast(false);
-        setIsSuccessToastFading(false);
-      }, 500);
-    }, 3500);
-  };
+        setIsSuccessToastFading(true);
+        // Remove toast after fade animation completes
+        setTimeout(() => {
+          setShowSuccessToast(false);
+          setIsSuccessToastFading(false);
+        }, 500);
+      }, 3500);
+    }, 0);
+  }, []);
 
-  const showError = (message: string) => {
-    setErrorMessage(message);
-    setShowErrorToast(true);
-    setIsErrorToastFading(false);
-
-    // Start fade out animation after 4.5 seconds
+  const showError = useCallback((message: string) => {
+    // Defer state updates to avoid "Cannot update a component while rendering a different component" warning
     setTimeout(() => {
-      setIsErrorToastFading(true);
-      // Remove toast after fade animation completes
+      setErrorMessage(message);
+      setShowErrorToast(true);
+      setIsErrorToastFading(false);
+
+      // Start fade out animation after 4.5 seconds
       setTimeout(() => {
-        setShowErrorToast(false);
-        setIsErrorToastFading(false);
-      }, 500);
-    }, 4500);
-  };
+        setIsErrorToastFading(true);
+        // Remove toast after fade animation completes
+        setTimeout(() => {
+          setShowErrorToast(false);
+          setIsErrorToastFading(false);
+        }, 500);
+      }, 4500);
+    }, 0);
+  }, []);
 
   // Track board access when component mounts (background, non-blocking)
   useEffect(() => {
@@ -856,34 +862,40 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   };
 
   // Handle archiving a list with notifications
-  const handleArchiveList = async (listId: string): Promise<boolean> => {
-    // Find the list name
-    const list = lists.find((l) => l.id === listId);
-    const listName = list?.name || 'List';
+  const handleArchiveList = useCallback(
+    async (listId: string): Promise<boolean> => {
+      // Find the list name
+      const list = lists.find((l) => l.id === listId);
+      const listName = list?.name || 'List';
 
-    const success = await archiveList(listId);
-    if (success) {
-      showSuccess(`List "${listName}" archived successfully`);
-    } else {
-      showError(`Failed to archive list "${listName}"`);
-    }
-    return success;
-  };
+      const success = await archiveList(listId);
+      if (success) {
+        showSuccess(`List "${listName}" archived successfully`);
+      } else {
+        showError(`Failed to archive list "${listName}"`);
+      }
+      return success;
+    },
+    [lists, archiveList, showSuccess, showError]
+  );
 
   // Handle deleting a list with notifications
-  const handleDeleteList = async (listId: string): Promise<boolean> => {
-    // Find the list name
-    const list = lists.find((l) => l.id === listId);
-    const listName = list?.name || 'List';
+  const handleDeleteList = useCallback(
+    async (listId: string): Promise<boolean> => {
+      // Find the list name
+      const list = lists.find((l) => l.id === listId);
+      const listName = list?.name || 'List';
 
-    const success = await deleteList(listId);
-    if (success) {
-      showSuccess(`List "${listName}" deleted successfully`);
-    } else {
-      showError(`Failed to delete list "${listName}"`);
-    }
-    return success;
-  };
+      const success = await deleteList(listId);
+      if (success) {
+        showSuccess(`List "${listName}" deleted successfully`);
+      } else {
+        showError(`Failed to delete list "${listName}"`);
+      }
+      return success;
+    },
+    [lists, deleteList, showSuccess, showError]
+  );
 
   // Task action handlers
   const handleEditTask = (taskId: string) => {
@@ -899,25 +911,28 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     return true;
   };
 
-  const handleDeleteTask = async (taskId: string): Promise<boolean> => {
-    // Find the task to get its title for the notification
-    let taskTitle = 'Task';
-    for (const list of lists) {
-      const task = list.cards.find((card) => card.id === taskId);
-      if (task) {
-        taskTitle = task.title;
-        break;
+  const handleDeleteTask = useCallback(
+    async (taskId: string): Promise<boolean> => {
+      // Find the task to get its title for the notification
+      let taskTitle = 'Task';
+      for (const list of lists) {
+        const task = list.cards.find((card) => card.id === taskId);
+        if (task) {
+          taskTitle = task.title;
+          break;
+        }
       }
-    }
 
-    const success = await deleteCard(taskId);
-    if (success) {
-      showSuccess(`Card "${taskTitle}" deleted successfully`);
-    } else {
-      showError(`Failed to delete card "${taskTitle}"`);
-    }
-    return success;
-  };
+      const success = await deleteCard(taskId);
+      if (success) {
+        showSuccess(`Card "${taskTitle}" deleted successfully`);
+      } else {
+        showError(`Failed to delete card "${taskTitle}"`);
+      }
+      return success;
+    },
+    [lists, deleteCard, showSuccess, showError]
+  );
 
   const handleManageLabels = (taskId: string) => {
     showSuccess('Label management will be implemented soon');
@@ -962,11 +977,11 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     setMoveCardData(null);
   };
 
-  const handleMoveSuccess = () => {
-    // Refresh the board data after successful move
+  const handleMoveSuccess = useCallback(() => {
+    // Trigger optimistic update first for immediate feedback
     refetch();
     showSuccess('Card moved successfully');
-  };
+  }, [refetch, showSuccess]);
 
   // Card modal handlers
   const handleOpenCard = (cardId: string) => {
@@ -978,113 +993,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     setSelectedCardId(null);
     setIsCardModalOpen(false);
   };
-
-  // Super optimized members update - instant UI updates for member changes
-  const handleMembersUpdated = useCallback(
-    debounce(async (memberId?: string, memberData?: any) => {
-      try {
-        setIsUpdatingLabels(true); // Reuse the same loading state
-
-        // Just show success - CardModal handles caching and the lists will auto-update
-        showSuccess('Members updated successfully');
-      } catch (error) {
-        console.error('Error updating members:', error);
-        showError('Failed to update members');
-      } finally {
-        setIsUpdatingLabels(false);
-      }
-    }, 50),
-    [selectedCardId]
-  );
-
-  // Helper function to generate consistent colors for members
-  const generateConsistentColor = (userId: string) => {
-    const colors = [
-      'bg-blue-500',
-      'bg-green-500',
-      'bg-purple-500',
-      'bg-red-500',
-      'bg-yellow-500',
-      'bg-indigo-500',
-      'bg-pink-500',
-      'bg-teal-500',
-    ];
-    const colorIndex = userId.charCodeAt(0) % colors.length;
-    return colors[colorIndex];
-  };
-
-  // Super optimized labels update - instant UI updates for all label changes
-  const handleLabelsUpdated = useCallback(
-    debounce(async (updatedLabelId?: string, updatedLabelData?: any) => {
-      try {
-        setIsUpdatingLabels(true);
-
-        if (updatedLabelId && updatedLabelData && updatedLabelData.oldColor) {
-          // Instant UI update: Update all cards with the old color to the new color
-          setColumns((prevColumns) =>
-            prevColumns.map((column) => ({
-              ...column,
-              cards: column.cards.map((card) => ({
-                ...card,
-                labels:
-                  card.labels?.map((label) =>
-                    label.color === updatedLabelData.oldColor
-                      ? {
-                          ...label,
-                          color: updatedLabelData.color,
-                          text: updatedLabelData.name || label.text,
-                        }
-                      : label
-                  ) || [],
-              })),
-            }))
-          );
-        }
-
-        // For all label operations, trigger a gentle re-fetch of the current card's labels
-        // This ensures consistency without causing skeleton loading
-        if (selectedCardId) {
-          try {
-            const response = await fetch(`/api/cards/${selectedCardId}/labels`);
-            if (response.ok) {
-              const data = await response.json();
-              const cardLabels = data.labels || [];
-
-              // Update the specific card's labels in the columns state
-              setColumns((prevColumns) =>
-                prevColumns.map((column) => ({
-                  ...column,
-                  cards: column.cards.map((card) =>
-                    card.id === selectedCardId
-                      ? {
-                          ...card,
-                          labels: cardLabels.map((cardLabel: any) => ({
-                            color: cardLabel.labels.color,
-                            text: cardLabel.labels.name || '',
-                          })),
-                        }
-                      : card
-                  ),
-                }))
-              );
-            }
-          } catch (error) {
-            console.log(
-              'Background label sync failed, but UI is still updated'
-            );
-          }
-        }
-
-        showSuccess('Labels updated successfully');
-      } catch (error) {
-        console.error('Error updating labels:', error);
-        showError('Failed to update labels');
-      } finally {
-        setIsUpdatingLabels(false);
-      }
-    }, 50), // Very fast debounce for instant feel
-    [selectedCardId]
-  );
 
   // Debounce utility function
   function debounce(func: Function, wait: number) {
@@ -1099,129 +1007,168 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     };
   }
 
-  const handleUpdateCard = async (
-    cardId: string,
-    updates: any
-  ): Promise<boolean> => {
-    try {
-      // If only updating timestamp (from activity refresh), just update local state
-      if (Object.keys(updates).length === 1 && updates.updated_at) {
-        // Update the local state with just the timestamp
-        setColumns((prevColumns) =>
-          prevColumns.map((column) => ({
-            ...column,
-            cards: column.cards.map((card) =>
-              card.id === cardId
-                ? {
-                    ...card,
-                    updated_at: updates.updated_at,
-                  }
-                : card
-            ),
-          }))
-        );
+  const handleUpdateCard = useCallback(
+    async (cardId: string, updates: any): Promise<boolean> => {
+      try {
+        // If only updating timestamp (from activity refresh), just update local state
+        if (Object.keys(updates).length === 1 && updates.updated_at) {
+          // Defer state updates to avoid setState during render warning
+          setTimeout(() => {
+            setColumns((prevColumns) =>
+              prevColumns.map((column) => ({
+                ...column,
+                cards: column.cards.map((card) =>
+                  card.id === cardId
+                    ? {
+                        ...card,
+                        updated_at: updates.updated_at,
+                      }
+                    : card
+                ),
+              }))
+            );
+
+            // Update the card in lists state for CardModal
+            updateCard(cardId, {
+              updated_at: updates.updated_at,
+            });
+          }, 0);
+
+          return true;
+        }
+
+        // For actual field updates, make API call
+        const response = await fetch(`/api/cards/${cardId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updates),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to update card');
+        }
+
+        // Update handled by useLists hook cache
 
         // Update the card in lists state for CardModal
         updateCard(cardId, {
-          updated_at: updates.updated_at,
+          title: data.card.title,
+          description: data.card.description,
+          start_date: data.card.start_date,
+          due_date: data.card.due_date,
+          due_status: data.card.due_status,
+          updated_at: data.card.updated_at,
         });
 
+        showSuccess('Card updated successfully');
         return true;
-      }
-
-      // For actual field updates, make API call
-      const response = await fetch(`/api/cards/${cardId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updates),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update card');
-      }
-
-      // Update handled by useLists hook cache
-
-      // Update the card in lists state for CardModal
-      updateCard(cardId, {
-        title: data.card.title,
-        description: data.card.description,
-        start_date: data.card.start_date,
-        due_date: data.card.due_date,
-        due_status: data.card.due_status,
-        updated_at: data.card.updated_at,
-      });
-
-      showSuccess('Card updated successfully');
-      return true;
-    } catch (error) {
-      console.error('Error updating card:', error);
-      showError(
-        error instanceof Error ? error.message : 'Failed to update card'
-      );
-      return false;
-    }
-  };
-
-  // Handle adding a new card to a column
-  const handleAddCard = async (
-    columnId: string,
-    cardTitle: string
-  ): Promise<boolean> => {
-    if (!cardTitle.trim()) return false;
-
-    try {
-      // Use the hook's createCard function to save to database
-      const newCard = await createCard(columnId, cardTitle.trim());
-
-      if (!newCard) {
-        showError('Failed to create card');
+      } catch (error) {
+        console.error('Error updating card:', error);
+        showError(
+          error instanceof Error ? error.message : 'Failed to update card'
+        );
         return false;
       }
+    },
+    [updateCard, showSuccess, showError]
+  );
 
-      // Convert the database card to the UI Task format and update columns state
-      const newTask: Task = {
-        id: newCard.id,
-        title: newCard.title,
-        labels: newCard.card_labels
-          ? newCard.card_labels.map((cardLabel: any) => ({
-              color: cardLabel.labels.color,
-              text: cardLabel.labels.name || '',
-            }))
-          : [],
-        assignees: newCard.profiles
-          ? [
-              {
-                initials: newCard.profiles.full_name
-                  .split(' ')
-                  .map((n) => n[0])
-                  .join('')
-                  .toUpperCase(),
-                color: 'bg-blue-500',
-              },
-            ]
-          : [],
-        attachments: 0,
-        comments: 0,
-        start_date: newCard.start_date,
-        due_date: newCard.due_date,
-        due_status: newCard.due_status,
-      };
+  // Handle labels updated - optimistic update for better UX
+  const handleLabelsUpdated = useCallback(
+    (labelId?: string, labelData?: any) => {
+      if (selectedCardId) {
+        // Find the card and trigger optimistic update
+        handleUpdateCard(selectedCardId, {
+          updated_at: new Date().toISOString(),
+        });
+      }
+    },
+    [selectedCardId, handleUpdateCard]
+  );
 
-      // The createCard function already updates the lists state
+  // Handle members updated - optimistic update for better UX
+  const handleMembersUpdated = useCallback(
+    (memberId?: string, memberData?: any) => {
+      if (selectedCardId) {
+        // Find the card and trigger optimistic update
+        handleUpdateCard(selectedCardId, {
+          updated_at: new Date().toISOString(),
+        });
+      }
+    },
+    [selectedCardId, handleUpdateCard]
+  );
 
-      showSuccess(`Card "${cardTitle}" added successfully`);
-      return true;
-    } catch (error) {
-      console.error('Error adding card:', error);
-      showError('Failed to add card');
-      return false;
-    }
-  };
+  // Enhanced move success handler that doesn't close the card modal
+  const handleCardMoveSuccess = useCallback(
+    (newListId: string, newListName: string) => {
+      // Update the board data in the background
+      refetch();
+      showSuccess(`Card moved to "${newListName}" successfully`);
+      // Note: We don't close the card modal here - it stays open for better UX
+    },
+    [refetch, showSuccess]
+  );
+
+  // Handle adding a new card to a column
+  const handleAddCard = useCallback(
+    async (columnId: string, cardTitle: string): Promise<boolean> => {
+      if (!cardTitle.trim()) return false;
+
+      try {
+        // Use the hook's createCard function to save to database
+        const newCard = await createCard(columnId, cardTitle.trim());
+
+        if (!newCard) {
+          showError('Failed to create card');
+          return false;
+        }
+
+        // Convert the database card to the UI Task format and update columns state
+        const newTask: Task = {
+          id: newCard.id,
+          title: newCard.title,
+          labels: newCard.card_labels
+            ? newCard.card_labels.map((cardLabel: any) => ({
+                color: cardLabel.labels.color,
+                text: cardLabel.labels.name || '',
+              }))
+            : [],
+          assignees: newCard.profiles
+            ? [
+                {
+                  initials: newCard.profiles.full_name
+                    .split(' ')
+                    .map((n) => n[0])
+                    .join('')
+                    .toUpperCase(),
+                  color: 'bg-blue-500',
+                },
+              ]
+            : [],
+          attachments: 0,
+          comments: 0,
+          start_date: newCard.start_date,
+          due_date: newCard.due_date,
+          due_status: newCard.due_status,
+        };
+
+        // The createCard function already updates the lists state
+
+        showSuccess(`Card "${cardTitle}" added successfully`);
+        return true;
+      } catch (error) {
+        console.error('Error adding card:', error);
+        showError('Failed to add card');
+        return false;
+      }
+    },
+    [createCard, showSuccess, showError]
+  );
 
   // Show loading state
   if (loading || listsLoading) {
@@ -1440,7 +1387,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     moveCard(activeId, sourceListId, targetListId, newPosition);
 
     try {
-      // Persist to database
+      // Persist to database in the background
       const response = await fetch(`/api/cards/${activeId}/move`, {
         method: 'POST',
         headers: {
@@ -1456,8 +1403,12 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         const data = await response.json();
         throw new Error(data.error || 'Failed to move card');
       }
+
+      // Success - show feedback
+      showSuccess('Card moved successfully');
     } catch (error) {
       console.error('Error moving card:', error);
+      showError('Failed to move card');
       // Revert optimistic update by refetching latest lists from server
       refetch();
     }
@@ -1929,6 +1880,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               onMembersUpdated={handleMembersUpdated}
               listName={listName}
               boardName={board?.name || 'Board'}
+              onMoveSuccess={handleCardMoveSuccess}
+              moveCard={moveCard}
+              lists={lists}
             />
           ) : null;
         })()}
@@ -1943,7 +1897,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           currentListId={moveCardData.currentListId}
           currentListName={moveCardData.currentListName}
           boardId={params.id}
-          onMoveSuccess={handleMoveSuccess}
+          onMoveSuccess={handleCardMoveSuccess}
+          moveCard={moveCard}
+          lists={lists}
         />
       )}
 

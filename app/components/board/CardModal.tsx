@@ -65,6 +65,7 @@ import {
 } from '@/utils/dateTime';
 import { useMobile } from '@/hooks/useMobile';
 import { useAppStore, cacheUtils } from '@/lib/stores/useAppStore';
+import { MoveCardModal } from './MoveCardModal';
 
 interface Card {
   id: string;
@@ -171,6 +172,18 @@ interface CardModalProps {
   onMembersUpdated?: (memberId?: string, memberData?: any) => void;
   listName?: string;
   boardName?: string;
+  onMoveSuccess?: (newListId: string, newListName: string) => void;
+  moveCard?: (
+    cardId: string,
+    sourceListId: string,
+    targetListId: string,
+    newPosition: number
+  ) => void;
+  lists?: Array<{
+    id: string;
+    name: string;
+    cards: Array<{ id: string; title: string }>;
+  }>;
 }
 
 // Avatar Components with proper error handling
@@ -236,6 +249,9 @@ export function CardModal({
   onMembersUpdated,
   listName = 'List',
   boardName = 'Board',
+  onMoveSuccess,
+  moveCard,
+  lists,
 }: CardModalProps) {
   const { user: currentUser } = useAuth();
   const { isMobile, handleMobileBack } = useMobile();
@@ -348,15 +364,10 @@ export function CardModal({
   const [showSaveWarningModal, setShowSaveWarningModal] = useState(false);
 
   // Move card modal state
-  const [showMoveModal, setShowMoveModal] = useState(false);
-  const [isMovingCard, setIsMovingCard] = useState(false);
-  const [availableLists, setAvailableLists] = useState<
-    Array<{ id: string; name: string; cards_count: number }>
-  >([]);
-  const [selectedListId, setSelectedListId] = useState('');
-  const [isLoadingLists, setIsLoadingLists] = useState(false);
-  const [isListDropdownOpen, setIsListDropdownOpen] = useState(false);
-  const dropdownButtonRef = useRef<HTMLButtonElement>(null);
+  const [showMoveCardModal, setShowMoveCardModal] = useState(false);
+
+  // Current list tracking (can change when card is moved)
+  const [currentListName, setCurrentListName] = useState(listName || 'List');
 
   // Check if there are any active save operations
   const hasActiveSaveOperations = () => {
@@ -431,12 +442,8 @@ export function CardModal({
         cancelDeleteAttachment();
       } else if (showSaveWarningModal) {
         handleCancelClose();
-      } else if (showMoveModal) {
-        if (isListDropdownOpen) {
-          setIsListDropdownOpen(false);
-        } else {
-          setShowMoveModal(false);
-        }
+      } else if (showMoveCardModal) {
+        setShowMoveCardModal(false);
       } else {
         handleModalClose();
       }
@@ -489,8 +496,7 @@ export function CardModal({
     showAddChecklistModal,
     showAttachmentModal,
     showSaveWarningModal,
-    showMoveModal,
-    isListDropdownOpen,
+    showMoveCardModal,
     activeMobileTab,
     title,
     description,
@@ -1894,141 +1900,27 @@ export function CardModal({
     }
   };
 
-  // Fetch available lists for moving the card
-  const fetchAvailableLists = async () => {
-    setIsLoadingLists(true);
-    try {
-      console.log(
-        'CardModal - fetchAvailableLists called for card:',
-        card.id,
-        'in list:',
-        card.list_id
-      );
-
-      const response = await fetch(`/api/lists?board_id=${card.board_id}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch board lists');
-      }
-
-      console.log('CardModal - Raw API response:', data);
-      console.log(
-        'CardModal - Card list_id:',
-        card.list_id,
-        'type:',
-        typeof card.list_id
-      );
-
-      // Prepare the lists data with card counts, excluding current list
-      const allLists = data.lists || [];
-      const listsWithCounts = [];
-
-      for (const list of allLists) {
-        const listId = String(list.id);
-        const currentId = String(card.list_id);
-        const isCurrentList = listId === currentId;
-
-        console.log(`CardModal - Processing list "${list.name}":`, {
-          listId,
-          currentId,
-          isCurrentList,
-          shouldInclude: !isCurrentList,
-        });
-
-        if (!isCurrentList) {
-          listsWithCounts.push({
-            id: list.id,
-            name: list.name,
-            cards_count: list.cards?.length || 0,
-          });
-        } else {
-          console.log(`CardModal - EXCLUDING current list "${list.name}"`);
-        }
-      }
-
-      console.log('CardModal - Final filtered lists:', listsWithCounts);
-      setAvailableLists(listsWithCounts);
-
-      // Set default selection to first available list (since current list is excluded)
-      if (listsWithCounts.length > 0) {
-        setSelectedListId(listsWithCounts[0].id);
-      }
-    } catch (error) {
-      console.error('Error fetching lists:', error);
-    } finally {
-      setIsLoadingLists(false);
-    }
-  };
-
-  // Handle moving the card
-  const handleMoveCard = async () => {
-    if (!selectedListId || isMovingCard) return;
-
-    setIsMovingCard(true);
-
-    try {
-      const response = await fetch(`/api/cards/${card.id}/move`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          list_id: selectedListId,
-          position: 999999, // Move to end of list
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to move card');
-      }
-
-      // Close the move modal and card modal
-      setShowMoveModal(false);
-      onClose(); // Close the card modal
-
-      // Refresh the page to show the updated board state
-      window.location.reload();
-    } catch (error) {
-      console.error('Error moving card:', error);
-      // Handle error - could show a toast notification here
-    } finally {
-      setIsMovingCard(false);
-    }
-  };
-
   // Handle opening move modal
   const handleOpenMoveModal = () => {
-    console.log(
-      'CardModal - Opening move modal for card:',
-      card.id,
-      'in list:',
-      card.list_id
-    );
-    // Clear any existing lists first
-    setAvailableLists([]);
-    setSelectedListId('');
-    setShowMoveModal(true);
-    fetchAvailableLists();
+    setShowMoveCardModal(true);
   };
 
-  // Handle ESC key for move modal
-  useEffect(() => {
-    if (!showMoveModal) return;
+  // Handle successful move operation
+  const handleMoveSuccessInternal = (
+    newListId: string,
+    newListName: string
+  ) => {
+    // Update the current list name in the modal
+    setCurrentListName(newListName);
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showMoveModal) {
-        e.preventDefault();
-        e.stopPropagation();
-        setShowMoveModal(false);
-      }
-    };
+    // Close the move modal
+    setShowMoveCardModal(false);
 
-    document.addEventListener('keydown', handleKeyDown, true); // Use capture phase
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [showMoveModal]);
+    // Call the parent's onMoveSuccess callback
+    if (onMoveSuccess) {
+      onMoveSuccess(newListId, newListName);
+    }
+  };
 
   const getActivityIcon = (actionType: string) => {
     switch (actionType) {
@@ -2129,7 +2021,10 @@ export function CardModal({
             {/* Breadcrumb */}
             <p className='text-xs sm:text-sm text-muted-foreground mb-3 truncate'>
               in list{' '}
-              <span className='font-medium text-foreground'>{listName}</span> on{' '}
+              <span className='font-medium text-foreground'>
+                {currentListName}
+              </span>{' '}
+              on{' '}
               <span className='font-medium text-foreground'>{boardName}</span>
             </p>
 
@@ -3864,233 +3759,6 @@ export function CardModal({
           editingAttachment={editingAttachment}
         />
 
-        {/* Move Card Modal */}
-        {showMoveModal && (
-          <>
-            {/* Backdrop */}
-            <div
-              className='fixed inset-0 bg-black/50 backdrop-blur-sm z-[70]'
-              onClick={() => !isMovingCard && setShowMoveModal(false)}
-            />
-
-            <div className='fixed inset-0 z-[80] flex items-center justify-center p-4 pointer-events-none'>
-              <div className='bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200 pointer-events-auto'>
-                {/* Header */}
-                <div className='bg-gradient-to-r from-primary to-primary/90 px-6 py-4'>
-                  <div className='flex items-center justify-between text-white'>
-                    <div className='flex items-center gap-3'>
-                      <div className='w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center'>
-                        <Move className='w-4 h-4' />
-                      </div>
-                      <div>
-                        <h3 className='text-lg font-semibold'>Move Card</h3>
-                        <p className='text-sm text-white/80'>
-                          Choose destination list
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setShowMoveModal(false)}
-                      className='p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200'
-                      title='Close modal'
-                      aria-label='Close modal'
-                      disabled={isMovingCard}
-                    >
-                      <X className='w-5 h-5' />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Content */}
-                <div className='p-6'>
-                  {isLoadingLists ? (
-                    <div className='flex items-center justify-center py-12'>
-                      <div className='flex items-center gap-3'>
-                        <div className='w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
-                        <span className='text-sm text-muted-foreground font-medium'>
-                          Loading lists...
-                        </span>
-                      </div>
-                    </div>
-                  ) : availableLists.length === 0 ? (
-                    <div className='text-center py-12'>
-                      <div className='w-16 h-16 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4'>
-                        <LayoutGrid className='w-8 h-8 text-muted-foreground' />
-                      </div>
-                      <p className='text-sm text-muted-foreground'>
-                        No other lists available to move to
-                      </p>
-                    </div>
-                  ) : (
-                    <div className='space-y-4'>
-                      {/* Current location info - more compact */}
-                      <div className='text-sm text-muted-foreground'>
-                        Moving from{' '}
-                        <span className='font-medium text-foreground'>
-                          "{listName}"
-                        </span>
-                      </div>
-
-                      {/* List Selection */}
-                      <div className='space-y-2'>
-                        <label className='block text-sm font-medium text-foreground'>
-                          Move to list
-                        </label>
-
-                        <div className='relative'>
-                          <button
-                            ref={dropdownButtonRef}
-                            onClick={() =>
-                              !isMovingCard &&
-                              setIsListDropdownOpen(!isListDropdownOpen)
-                            }
-                            className='w-full bg-background border-2 border-border hover:border-primary/50 rounded-xl px-4 py-3 text-left flex items-center justify-between transition-all duration-200 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20 group'
-                            disabled={isMovingCard}
-                          >
-                            <div className='flex items-center gap-3'>
-                              {selectedListId ? (
-                                <>
-                                  <div className='w-3 h-3 bg-gradient-to-r from-green-400 to-blue-500 rounded-full' />
-                                  <span className='font-medium text-foreground'>
-                                    {
-                                      availableLists.find(
-                                        (list) => list.id === selectedListId
-                                      )?.name
-                                    }
-                                  </span>
-                                  <span className='text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full'>
-                                    {
-                                      availableLists.find(
-                                        (list) => list.id === selectedListId
-                                      )?.cards_count
-                                    }{' '}
-                                    cards
-                                  </span>
-                                </>
-                              ) : (
-                                <>
-                                  <div className='w-3 h-3 bg-muted rounded-full' />
-                                  <span className='text-muted-foreground'>
-                                    Choose a list...
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                            <ChevronDown
-                              className={`w-5 h-5 text-muted-foreground transition-transform duration-200 group-hover:text-foreground ${
-                                isListDropdownOpen ? 'rotate-180' : ''
-                              }`}
-                            />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  {availableLists.length > 0 && (
-                    <div className='flex gap-3 justify-end mt-8 pt-6 border-t border-border'>
-                      <button
-                        onClick={() => setShowMoveModal(false)}
-                        className='px-6 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-all duration-200'
-                        disabled={isMovingCard}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleMoveCard}
-                        disabled={!selectedListId || isMovingCard}
-                        className='px-6 py-3 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2'
-                      >
-                        {isMovingCard ? (
-                          <>
-                            <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
-                            Moving...
-                          </>
-                        ) : (
-                          <>
-                            <Move className='w-4 h-4' />
-                            Move Card
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Custom Dropdown - positioned outside modal to avoid clipping */}
-        {showMoveModal && isListDropdownOpen && (
-          <>
-            <div
-              className='fixed inset-0 z-[100]'
-              onClick={() => setIsListDropdownOpen(false)}
-            />
-            <div
-              className='fixed bg-card border-2 border-border rounded-xl shadow-2xl z-[101] overflow-hidden max-h-64 overflow-y-auto'
-              style={{
-                top: dropdownButtonRef.current
-                  ? `${
-                      dropdownButtonRef.current.getBoundingClientRect().bottom +
-                      8
-                    }px`
-                  : '50%',
-                left: dropdownButtonRef.current
-                  ? `${
-                      dropdownButtonRef.current.getBoundingClientRect().left
-                    }px`
-                  : '50%',
-                width: dropdownButtonRef.current
-                  ? `${
-                      dropdownButtonRef.current.getBoundingClientRect().width
-                    }px`
-                  : '300px',
-              }}
-            >
-              {availableLists.map((list, index) => (
-                <button
-                  key={list.id}
-                  onClick={() => {
-                    setSelectedListId(list.id);
-                    setIsListDropdownOpen(false);
-                  }}
-                  className={`w-full px-4 py-3 text-left hover:bg-muted/80 transition-colors duration-200 flex items-center gap-3 border-b border-border/50 last:border-b-0 ${
-                    selectedListId === list.id
-                      ? 'bg-primary/10 dark:bg-primary/10'
-                      : ''
-                  }`}
-                >
-                  <div
-                    className={`w-3 h-3 rounded-full ${
-                      index % 4 === 0
-                        ? 'bg-gradient-to-r from-red-400 to-pink-500'
-                        : index % 4 === 1
-                        ? 'bg-gradient-to-r from-blue-400 to-purple-500'
-                        : index % 4 === 2
-                        ? 'bg-gradient-to-r from-green-400 to-blue-500'
-                        : 'bg-gradient-to-r from-yellow-400 to-orange-500'
-                    }`}
-                  />
-                  <div className='flex-1'>
-                    <div className='font-medium text-foreground'>
-                      {list.name}
-                    </div>
-                  </div>
-                  <span className='text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full'>
-                    {list.cards_count} cards
-                  </span>
-                  {selectedListId === list.id && (
-                    <CheckCircle2 className='w-4 h-4 text-primary' />
-                  )}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
         {/* Date Time Range Picker - Rendered at root level for proper mobile display */}
         {showDatePicker && (
           <DateTimeRangePicker
@@ -4108,6 +3776,29 @@ export function CardModal({
             initialSelection={datePickerInitialSelection}
           />
         )}
+
+        {isSubmittingComment && shouldCloseAfterSubmit ? (
+          <div className='absolute inset-0 bg-background/80 flex items-center justify-center z-20'>
+            <div className='w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
+          </div>
+        ) : null}
+
+        {showMoveCardModal && (
+          <MoveCardModal
+            isOpen={showMoveCardModal}
+            onClose={() => setShowMoveCardModal(false)}
+            cardId={card.id}
+            cardTitle={card.title}
+            currentListId={card.list_id}
+            currentListName={currentListName}
+            boardId={card.board_id}
+            onMoveSuccess={handleMoveSuccessInternal}
+            moveCard={moveCard}
+            lists={lists}
+          />
+        )}
+
+        {/* Main Modal Content - Scrollable when needed */}
       </div>
     </div>
   );
