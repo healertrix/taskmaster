@@ -53,6 +53,8 @@ interface AppState {
     boardId: string,
     updates: any
   ) => void;
+  addBoardToCache: (workspaceId: string, board: any) => void;
+  removeBoardFromCache: (workspaceId: string, boardId: string) => void;
   clearWorkspaceBoardsCache: (workspaceId?: string) => void;
 
   // User preferences actions
@@ -180,6 +182,50 @@ export const useAppStore = create<AppState>()(
 
             const updatedBoards = entry.boards.map((board) =>
               board.id === boardId ? { ...board, ...updates } : board
+            );
+
+            return {
+              workspaceBoardsCache: {
+                ...state.workspaceBoardsCache,
+                [workspaceId]: {
+                  ...entry,
+                  boards: updatedBoards,
+                },
+              },
+            };
+          });
+        },
+
+        addBoardToCache: (workspaceId: string, board: any) => {
+          set((state) => {
+            const entry = state.workspaceBoardsCache[workspaceId];
+            if (!entry) return state;
+
+            // Check if board already exists to avoid duplicates
+            const boardExists = entry.boards.some((b) => b.id === board.id);
+            if (boardExists) return state;
+
+            const updatedBoards = [board, ...entry.boards];
+
+            return {
+              workspaceBoardsCache: {
+                ...state.workspaceBoardsCache,
+                [workspaceId]: {
+                  ...entry,
+                  boards: updatedBoards,
+                },
+              },
+            };
+          });
+        },
+
+        removeBoardFromCache: (workspaceId: string, boardId: string) => {
+          set((state) => {
+            const entry = state.workspaceBoardsCache[workspaceId];
+            if (!entry) return state;
+
+            const updatedBoards = entry.boards.filter(
+              (board) => board.id !== boardId
             );
 
             return {

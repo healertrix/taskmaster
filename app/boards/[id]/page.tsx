@@ -340,6 +340,8 @@ export default function WorkspaceBoardsPage() {
     lastFetchTime,
     getColorDisplay,
     formatDate,
+    removeBoardFromCache,
+    addBoardToCache,
   } = useWorkspaceBoards(workspaceId);
 
   // Notification states
@@ -567,6 +569,42 @@ export default function WorkspaceBoardsPage() {
 
   const handleBoardCreated = async (newBoardId: string) => {
     console.log('Board created:', newBoardId);
+
+    // Get the newly created board data from the API
+    try {
+      const response = await fetch(`/api/boards/${newBoardId}`);
+      const data = await response.json();
+
+      if (response.ok && data.board) {
+        // Add the new board to cache immediately for better UX
+        const newBoard = {
+          ...data.board,
+          starred: false, // New boards are not starred by default
+        };
+        addBoardToCache(workspaceId, newBoard);
+      }
+    } catch (error) {
+      console.error('Error fetching new board data:', error);
+    }
+
+    // Also refresh the boards data to ensure consistency
+    await refetch();
+
+    // Show success message
+    showSuccess('Board created successfully!');
+  };
+
+  const handleBoardDeleted = async (boardId: string) => {
+    console.log('Board deleted:', boardId);
+
+    // Remove the board from cache immediately for better UX
+    removeBoardFromCache(workspaceId, boardId);
+
+    // Refresh the boards data to ensure consistency
+    await refetch();
+
+    // Show success message
+    showSuccess('Board deleted successfully!');
   };
 
   if (isLoading) {

@@ -64,6 +64,8 @@ export const useWorkspaceBoards = (workspaceId: string) => {
     getWorkspaceBoardsCache,
     setWorkspaceBoardsCache,
     updateBoardInCache,
+    addBoardToCache,
+    removeBoardFromCache,
     clearWorkspaceBoardsCache,
   } = useAppStore();
 
@@ -378,5 +380,7 @@ export const useWorkspaceBoards = (workspaceId: string) => {
     lastFetchTime,
     getColorDisplay,
     formatDate,
+    addBoardToCache,
+    removeBoardFromCache,
   };
 };
