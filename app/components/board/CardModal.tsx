@@ -265,8 +265,8 @@ export function CardModal({
   const [comments, setComments] = useState<Comment[]>([]);
   const [activities, setActivities] = useState<ActivityData[]>([]);
   const [newComment, setNewComment] = useState('');
-  const [isLoadingComments, setIsLoadingComments] = useState(true);
-  const [isLoadingActivities, setIsLoadingActivities] = useState(true);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [isLoadingActivities, setIsLoadingActivities] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [shouldCloseAfterSubmit, setShouldCloseAfterSubmit] = useState(false);
   const [editingSavingCommentId, setEditingSavingCommentId] = useState<
