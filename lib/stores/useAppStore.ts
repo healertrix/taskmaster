@@ -240,6 +240,8 @@ export const useAppStore = create<AppState>()(
 // Utility functions for cache management
 export const cacheUtils = {
   // Generate cache keys
+  getBoardKey: (boardId: string) => `board-${boardId}`,
+  getBoardListsKey: (boardId: string) => `board-lists-${boardId}`,
   getWorkspaceBoardsKey: (workspaceId: string) =>
     `workspace-boards-${workspaceId}`,
   getWorkspaceKey: (workspaceId: string) => `workspace-${workspaceId}`,

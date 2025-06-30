@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { useAppStore, cacheUtils } from '@/lib/stores/useAppStore';
 
 export interface List {
   id: string;
@@ -54,12 +55,24 @@ export const useLists = (boardId: string) => {
 
   const supabase = createClient();
 
+  // Cache helpers
+  const { getCache, setCache } = useAppStore();
+  const CACHE_KEY = cacheUtils.getBoardListsKey(boardId);
+  const CACHE_TTL = 60 * 1000; // 1 minute TTL
+
   const fetchLists = useCallback(async () => {
     if (!boardId) return;
 
     try {
-      setLoading(true);
+      if (lists.length === 0) setLoading(true);
       setError(null);
+
+      // Serve from cache immediately if present
+      const cached = getCache<List[]>(CACHE_KEY);
+      if (cached) {
+        setLists(cached);
+        setLoading(false);
+      }
 
       const response = await fetch(`/api/lists?board_id=${boardId}`);
       const data = await response.json();
@@ -68,14 +81,18 @@ export const useLists = (boardId: string) => {
         throw new Error(data.error || 'Failed to fetch lists');
       }
 
-      setLists(data.lists || []);
+      const freshLists = data.lists || [];
+      setLists(freshLists);
+
+      // Update cache
+      setCache(CACHE_KEY, freshLists, CACHE_TTL);
     } catch (err) {
       console.error('Error fetching lists:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch lists');
     } finally {
       setLoading(false);
     }
-  }, [boardId]);
+  }, [boardId, lists.length, getCache, setCache]);
 
   const createList = useCallback(
     async (name: string) => {
@@ -108,7 +125,11 @@ export const useLists = (boardId: string) => {
           cards: [],
         };
 
-        setLists((prev) => [...prev, newList]);
+        setLists((prev) => {
+          const updated = [...prev, newList];
+          setCache(CACHE_KEY, updated, CACHE_TTL);
+          return updated;
+        });
         return newList;
       } catch (err) {
         console.error('Error creating list:', err);
@@ -118,7 +139,7 @@ export const useLists = (boardId: string) => {
         setIsCreating(false);
       }
     },
-    [boardId]
+    [boardId, setCache]
   );
 
   const createCard = useCallback(
@@ -152,13 +173,15 @@ export const useLists = (boardId: string) => {
           profiles: data.card.profiles || null,
         };
 
-        setLists((prev) =>
-          prev.map((list) =>
+        setLists((prev) => {
+          const updated = prev.map((list) =>
             list.id === listId
               ? { ...list, cards: [...list.cards, newCard] }
               : list
-          )
-        );
+          );
+          setCache(CACHE_KEY, updated, CACHE_TTL);
+          return updated;
+        });
 
         return newCard;
       } catch (err) {
@@ -167,7 +190,7 @@ export const useLists = (boardId: string) => {
         return null;
       }
     },
-    [boardId]
+    [boardId, setCache]
   );
 
   const deleteCard = useCallback(
@@ -175,12 +198,14 @@ export const useLists = (boardId: string) => {
       try {
         // Optimistically remove from UI
         const originalLists = lists;
-        setLists((prev) =>
-          prev.map((list) => ({
+        setLists((prev) => {
+          const updated = prev.map((list) => ({
             ...list,
             cards: list.cards.filter((card) => card.id !== cardId),
-          }))
-        );
+          }));
+          setCache(CACHE_KEY, updated, CACHE_TTL);
+          return updated;
+        });
 
         const response = await fetch(`/api/cards/${cardId}`, {
           method: 'DELETE',
@@ -201,7 +226,7 @@ export const useLists = (boardId: string) => {
         return false;
       }
     },
-    [lists]
+    [lists, setCache]
   );
 
   const updateListName = useCallback(
@@ -211,11 +236,13 @@ export const useLists = (boardId: string) => {
       try {
         // Optimistically update the UI
         const originalLists = lists;
-        setLists((prev) =>
-          prev.map((list) =>
+        setLists((prev) => {
+          const updated = prev.map((list) =>
             list.id === listId ? { ...list, name: newName.trim() } : list
-          )
-        );
+          );
+          setCache(CACHE_KEY, updated, CACHE_TTL);
+          return updated;
+        });
 
         const response = await fetch('/api/lists', {
           method: 'PUT',
@@ -238,33 +265,45 @@ export const useLists = (boardId: string) => {
       } catch (err) {
         console.error('Error updating list name:', err);
         // Revert the optimistic update
-        setLists(lists);
+        setLists((prev) => {
+          setCache(CACHE_KEY, prev, CACHE_TTL);
+          return prev;
+        });
         setError(
           err instanceof Error ? err.message : 'Failed to update list name'
         );
         return false;
       }
     },
-    [lists]
+    [lists, setCache]
   );
 
-  const updateCard = useCallback((cardId: string, updates: Partial<Card>) => {
-    setLists((prev) =>
-      prev.map((list) => ({
-        ...list,
-        cards: list.cards.map((card) =>
-          card.id === cardId ? { ...card, ...updates } : card
-        ),
-      }))
-    );
-  }, []);
+  const updateCard = useCallback(
+    (cardId: string, updates: Partial<Card>) => {
+      setLists((prev) => {
+        const updated = prev.map((list) => ({
+          ...list,
+          cards: list.cards.map((card) =>
+            card.id === cardId ? { ...card, ...updates } : card
+          ),
+        }));
+        setCache(CACHE_KEY, updated, CACHE_TTL);
+        return updated;
+      });
+    },
+    [setCache]
+  );
 
   const deleteList = useCallback(
     async (listId: string) => {
       try {
         // Optimistically remove from UI
         const originalLists = lists;
-        setLists((prev) => prev.filter((list) => list.id !== listId));
+        setLists((prev) => {
+          const updated = prev.filter((list) => list.id !== listId);
+          setCache(CACHE_KEY, updated, CACHE_TTL);
+          return updated;
+        });
 
         const response = await fetch(`/api/lists?id=${listId}`, {
           method: 'DELETE',
@@ -280,12 +319,15 @@ export const useLists = (boardId: string) => {
       } catch (err) {
         console.error('Error deleting list:', err);
         // Revert the optimistic update
-        setLists(lists);
+        setLists((prev) => {
+          setCache(CACHE_KEY, prev, CACHE_TTL);
+          return prev;
+        });
         setError(err instanceof Error ? err.message : 'Failed to delete list');
         return false;
       }
     },
-    [lists]
+    [lists, setCache]
   );
 
   const archiveList = useCallback(
@@ -293,7 +335,11 @@ export const useLists = (boardId: string) => {
       try {
         // Optimistically remove from UI (archive = hide from view)
         const originalLists = lists;
-        setLists((prev) => prev.filter((list) => list.id !== listId));
+        setLists((prev) => {
+          const updated = prev.filter((list) => list.id !== listId);
+          setCache(CACHE_KEY, updated, CACHE_TTL);
+          return updated;
+        });
 
         const response = await fetch('/api/lists', {
           method: 'PATCH',
@@ -316,12 +362,79 @@ export const useLists = (boardId: string) => {
       } catch (err) {
         console.error('Error archiving list:', err);
         // Revert the optimistic update
-        setLists(lists);
+        setLists((prev) => {
+          setCache(CACHE_KEY, prev, CACHE_TTL);
+          return prev;
+        });
         setError(err instanceof Error ? err.message : 'Failed to archive list');
         return false;
       }
     },
-    [lists]
+    [lists, setCache]
+  );
+
+  const moveCard = useCallback(
+    (
+      cardId: string,
+      sourceListId: string,
+      targetListId: string,
+      newPosition: number
+    ) => {
+      setLists((prev) => {
+        // Find the card being moved
+        let cardToMove: Card | null = null;
+        let oldIndex = -1;
+
+        // Remove card from source list and capture the old index
+        const listsWithCardRemoved = prev.map((list) => {
+          if (list.id === sourceListId) {
+            oldIndex = list.cards.findIndex((c) => c.id === cardId);
+
+            const updatedCards = list.cards.filter((card) => {
+              if (card.id === cardId) {
+                cardToMove = card;
+                return false;
+              }
+              return true;
+            });
+            return { ...list, cards: updatedCards };
+          }
+          return list;
+        });
+
+        if (!cardToMove) return prev;
+
+        // Add card to target list at the specified position
+        const updatedLists = listsWithCardRemoved.map((list) => {
+          if (list.id === targetListId) {
+            const updatedCards = [...list.cards];
+            let insertIndex = newPosition;
+
+            // If moving within the same list, adjust index if necessary
+            if (sourceListId === targetListId) {
+              // After removal, if the original index was before the new index, the new index decreases by 1
+              if (oldIndex !== -1 && oldIndex < newPosition) {
+                insertIndex = newPosition - 1;
+              }
+            }
+
+            if (insertIndex < 0) insertIndex = 0;
+            if (insertIndex > updatedCards.length) {
+              insertIndex = updatedCards.length;
+            }
+
+            updatedCards.splice(insertIndex, 0, cardToMove!);
+            return { ...list, cards: updatedCards };
+          }
+          return list;
+        });
+
+        // Update cache with new list state
+        setCache(CACHE_KEY, updatedLists, CACHE_TTL);
+        return updatedLists;
+      });
+    },
+    [setCache]
   );
 
   useEffect(() => {
@@ -338,6 +451,7 @@ export const useLists = (boardId: string) => {
     deleteCard,
     updateListName,
     updateCard,
+    moveCard,
     deleteList,
     archiveList,
     refetch: fetchLists,

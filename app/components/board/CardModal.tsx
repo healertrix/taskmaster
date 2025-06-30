@@ -64,6 +64,7 @@ import {
   isDueSoon,
 } from '@/utils/dateTime';
 import { useMobile } from '@/hooks/useMobile';
+import { useAppStore, cacheUtils } from '@/lib/stores/useAppStore';
 
 interface Card {
   id: string;
@@ -311,7 +312,6 @@ export function CardModal({
   const [isUpdatingChecklistItem, setIsUpdatingChecklistItem] = useState(false);
   const [isDeletingChecklistItem, setIsDeletingChecklistItem] = useState(false);
   const [showLabelModal, setShowLabelModal] = useState(false);
-  const [labelsRefreshKey, setLabelsRefreshKey] = useState(0);
 
   // Attachment state
   const [attachments, setAttachments] = useState<AttachmentData[]>([]);
@@ -329,6 +329,14 @@ export function CardModal({
   // Member state
   const [cardMembers, setCardMembers] = useState<CardMemberData[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+
+  // Labels state
+  const [cardLabels, setCardLabels] = useState<any[]>([]);
+  const [isLoadingLabels, setIsLoadingLabels] = useState(false);
+
+  // Zustand cache helpers for card-level data
+  const { getCache, setCache } = useAppStore();
+  const CACHE_TTL = 60 * 1000; // 1 min TTL
   const [showMemberPicker, setShowMemberPicker] = useState(false);
   const [workspaceId, setWorkspaceId] = useState<string>('');
   const [isSavingMember, setIsSavingMember] = useState(false);
@@ -606,7 +614,7 @@ export function CardModal({
     return details.length > 0 ? details.join('\n') : null;
   };
 
-  // Fetch comments, activities, checklists, attachments, and members only when modal first opens
+  // Fetch comments, activities, checklists, attachments, labels, and members only when modal first opens
   useEffect(() => {
     if (isOpen && card) {
       fetchComments();
@@ -614,20 +622,41 @@ export function CardModal({
       fetchChecklists();
       fetchAttachments();
       fetchCardMembers();
+      fetchCardLabels();
       fetchWorkspaceId();
+    } else if (!isOpen) {
+      // Reset loading states when modal closes to prevent stale loading states
+      setIsLoadingComments(false);
+      setIsLoadingActivities(false);
+      setIsLoadingChecklists(false);
+      setIsLoadingAttachments(false);
+      setIsLoadingMembers(false);
+      setIsLoadingLabels(false);
     }
   }, [isOpen, card.id]); // Only depend on card.id, not the entire card object
 
   const fetchComments = async () => {
     if (!card) return;
 
-    setIsLoadingComments(true);
+    const cacheKey = cacheUtils.getCardCommentsKey(card.id);
+
+    // Serve cache first
+    const cached = getCache<Comment[]>(cacheKey);
+    if (cached) {
+      setComments(cached);
+      // Don't show loading if we have cache
+    } else {
+      // Only show loading if no cache
+      setIsLoadingComments(true);
+    }
+
     try {
       const response = await fetch(`/api/cards/${card.id}/comments`);
       const data = await response.json();
 
       if (response.ok) {
         setComments(data.comments || []);
+        setCache(cacheKey, data.comments || [], CACHE_TTL);
       } else {
         console.error('Failed to fetch comments:', data.error);
       }
@@ -641,17 +670,24 @@ export function CardModal({
   const fetchActivities = async () => {
     if (!card) return;
 
-    setIsLoadingActivities(true);
+    const cacheKey = cacheUtils.getCardActivitiesKey(card.id);
+    const cached = getCache<ActivityData[]>(cacheKey);
+    if (cached) {
+      setActivities(cached);
+    } else {
+      setIsLoadingActivities(true);
+    }
+
     try {
       const response = await fetch(`/api/cards/${card.id}/activities`);
       const data = await response.json();
 
       if (response.ok) {
         setActivities(data.activities || []);
+        setCache(cacheKey, data.activities || [], CACHE_TTL);
 
-        // Update card's updated_at timestamp to latest activity time
         if (data.activities && data.activities.length > 0 && onUpdateCard) {
-          const latestActivity = data.activities[0]; // Activities are sorted by created_at DESC
+          const latestActivity = data.activities[0];
           await onUpdateCard(card.id, {
             updated_at: latestActivity.created_at,
           });
@@ -669,13 +705,21 @@ export function CardModal({
   const fetchChecklists = async () => {
     if (!card) return;
 
-    setIsLoadingChecklists(true);
+    const cacheKey = cacheUtils.getCardChecklistsKey(card.id);
+    const cached = getCache<ChecklistData[]>(cacheKey);
+    if (cached) {
+      setChecklists(cached);
+    } else {
+      setIsLoadingChecklists(true);
+    }
+
     try {
       const response = await fetch(`/api/cards/${card.id}/checklists`);
       const data = await response.json();
 
       if (response.ok) {
         setChecklists(data.checklists || []);
+        setCache(cacheKey, data.checklists || [], CACHE_TTL);
       } else {
         console.error('Failed to fetch checklists:', data.error);
       }
@@ -689,13 +733,21 @@ export function CardModal({
   const fetchAttachments = async () => {
     if (!card) return;
 
-    setIsLoadingAttachments(true);
+    const cacheKey = cacheUtils.getCardAttachmentsKey(card.id);
+    const cached = getCache<AttachmentData[]>(cacheKey);
+    if (cached) {
+      setAttachments(cached);
+    } else {
+      setIsLoadingAttachments(true);
+    }
+
     try {
       const response = await fetch(`/api/cards/${card.id}/attachments`);
       const data = await response.json();
 
       if (response.ok) {
         setAttachments(data.attachments || []);
+        setCache(cacheKey, data.attachments || [], CACHE_TTL);
       } else {
         console.error('Failed to fetch attachments:', data.error);
       }
@@ -709,13 +761,21 @@ export function CardModal({
   const fetchCardMembers = async () => {
     if (!card) return;
 
-    setIsLoadingMembers(true);
+    const cacheKey = cacheUtils.getCardMembersKey(card.id);
+    const cached = getCache<CardMemberData[]>(cacheKey);
+    if (cached) {
+      setCardMembers(cached);
+    } else {
+      setIsLoadingMembers(true);
+    }
+
     try {
       const response = await fetch(`/api/cards/${card.id}/members`);
       const data = await response.json();
 
       if (response.ok) {
         setCardMembers(data.members || []);
+        setCache(cacheKey, data.members || [], CACHE_TTL);
       } else {
         console.error('Failed to fetch card members:', data.error);
       }
@@ -723,6 +783,34 @@ export function CardModal({
       console.error('Error fetching card members:', error);
     } finally {
       setIsLoadingMembers(false);
+    }
+  };
+
+  const fetchCardLabels = async () => {
+    if (!card) return;
+
+    const cacheKey = cacheUtils.getCardLabelsKey(card.id);
+    const cached = getCache<any[]>(cacheKey);
+    if (cached) {
+      setCardLabels(cached);
+    } else {
+      setIsLoadingLabels(true);
+    }
+
+    try {
+      const response = await fetch(`/api/cards/${card.id}/labels`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setCardLabels(data.labels || []);
+        setCache(cacheKey, data.labels || [], CACHE_TTL);
+      } else {
+        console.error('Failed to fetch card labels:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching card labels:', error);
+    } finally {
+      setIsLoadingLabels(false);
     }
   };
 
@@ -769,7 +857,12 @@ export function CardModal({
       const data = await response.json();
 
       if (response.ok) {
-        setComments((prev) => [data.comment, ...prev]);
+        setComments((prev) => {
+          const updated = [data.comment, ...prev];
+          const commentsKey = cacheUtils.getCardCommentsKey(card.id);
+          setCache(commentsKey, updated, CACHE_TTL);
+          return updated;
+        });
         setNewComment('');
         // Refresh activities to show the new comment activity
         fetchActivities();
@@ -1221,7 +1314,12 @@ export function CardModal({
       const data = await response.json();
 
       if (response.ok) {
-        setChecklists((prev) => [...prev, data.checklist]);
+        setChecklists((prev) => {
+          const updated = [...prev, data.checklist];
+          const checklistsKey = cacheUtils.getCardChecklistsKey(card.id);
+          setCache(checklistsKey, updated, CACHE_TTL);
+          return updated;
+        });
         // Refresh activities to show the new checklist activity
         fetchActivities();
         return true;
@@ -2053,11 +2151,11 @@ export function CardModal({
                 title='Click to manage labels'
               >
                 <CardLabels
-                  key={labelsRefreshKey}
-                  cardId={card.id}
+                  labels={cardLabels}
                   maxVisible={8}
                   showNames={true}
                   size='md'
+                  isLoading={isLoadingLabels}
                 />
               </div>
             </div>
@@ -3686,8 +3784,8 @@ export function CardModal({
           cardId={card.id}
           boardId={card.board_id}
           onLabelsUpdated={(labelId, labelData) => {
-            // Refresh the labels display by updating the key
-            setLabelsRefreshKey((prev) => prev + 1);
+            // Refresh the labels display by fetching fresh data
+            fetchCardLabels();
             // Refresh activities to show the label change activity
             fetchActivities();
             // Notify parent component to refresh board data

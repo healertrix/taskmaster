@@ -110,25 +110,25 @@ export default function WorkspaceMembersPage() {
 
         // Get user's role in workspace
         if (workspace) {
-          let userRole = '';
+        let userRole = '';
           if (workspace.owner_id === user.id) {
-            userRole = 'owner';
-          } else {
-            const { data: membershipData, error: membershipError } =
-              await supabase
-                .from('workspace_members')
-                .select('role')
-                .eq('workspace_id', workspaceId)
-                .eq('profile_id', user.id)
-                .single();
+          userRole = 'owner';
+        } else {
+          const { data: membershipData, error: membershipError } =
+            await supabase
+              .from('workspace_members')
+              .select('role')
+              .eq('workspace_id', workspaceId)
+              .eq('profile_id', user.id)
+              .single();
 
-            if (membershipError || !membershipData) {
+          if (membershipError || !membershipData) {
               router.push('/auth/login');
-              return;
-            }
-            userRole = membershipData.role;
+            return;
           }
-          setCurrentUserRole(userRole);
+          userRole = membershipData.role;
+        }
+        setCurrentUserRole(userRole);
         }
       } catch (err) {
         console.error('Error getting current user:', err);
@@ -246,21 +246,21 @@ export default function WorkspaceMembersPage() {
     setIsRemovingMember(true);
     try {
       await removeMemberMutation.mutateAsync({
-        workspaceId,
+      workspaceId,
         profileId: memberToRemove.profile_id,
       });
 
-      showSuccess(
-        `${
-          memberToRemove.profile.full_name || memberToRemove.profile.email
-        } has been removed from the workspace`
-      );
+        showSuccess(
+          `${
+            memberToRemove.profile.full_name || memberToRemove.profile.email
+          } has been removed from the workspace`
+        );
       setShowRemoveConfirm(false);
       setMemberToRemove(null);
     } catch (error) {
-      showError(
+        showError(
         error instanceof Error ? error.message : 'Failed to remove member'
-      );
+        );
     } finally {
       setIsRemovingMember(false);
     }
@@ -283,17 +283,17 @@ export default function WorkspaceMembersPage() {
       await changeRoleMutation.mutateAsync({
         workspaceId,
         profileId: memberToChangeRole.profile_id,
-        role: newRole,
+            role: newRole,
       });
 
-      showSuccess(
-        `${
-          memberToChangeRole.profile.full_name ||
-          memberToChangeRole.profile.email
-        }'s role changed to ${newRole}`
-      );
-      setShowChangeRoleModal(false);
-      setMemberToChangeRole(null);
+        showSuccess(
+          `${
+            memberToChangeRole.profile.full_name ||
+            memberToChangeRole.profile.email
+          }'s role changed to ${newRole}`
+        );
+        setShowChangeRoleModal(false);
+        setMemberToChangeRole(null);
     } catch (error) {
       showError(
         error instanceof Error ? error.message : 'Failed to change member role'
@@ -443,7 +443,7 @@ export default function WorkspaceMembersPage() {
             <div className='space-y-2'>
               {members.map((member) => (
                 <MemberCard
-                  key={member.id}
+                    key={member.id}
                   member={member}
                   currentUser={currentUser}
                   currentUserRole={currentUserRole}
@@ -454,7 +454,7 @@ export default function WorkspaceMembersPage() {
                   setOpenMemberActions={setOpenMemberActions}
                 />
               ))}
-            </div>
+                      </div>
           </div>
 
           {/* Pending Invitations */}

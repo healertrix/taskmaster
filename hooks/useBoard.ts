@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { useAppStore, cacheUtils } from '@/lib/stores/useAppStore';
 
 export interface BoardData {
   id: string;
@@ -42,12 +43,24 @@ export const useBoard = (boardId: string) => {
 
   const supabase = createClient();
 
+  // Cache helpers
+  const { getCache, setCache } = useAppStore();
+  const CACHE_KEY = cacheUtils.getBoardKey(boardId);
+  const CACHE_TTL = 2 * 60 * 1000; // 2 minutes TTL
+
   const fetchBoard = useCallback(async () => {
     if (!boardId) return;
 
     try {
-      setLoading(true);
+      if (!board) setLoading(true);
       setError(null);
+
+      // Return early from cache if available (still do background fetch for freshness)
+      const cached = getCache<BoardData>(CACHE_KEY);
+      if (cached) {
+        setBoard(cached);
+        setLoading(false);
+      }
 
       // Get current user for starred status
       const {
@@ -105,18 +118,23 @@ export const useBoard = (boardId: string) => {
         }
       }
 
-      setBoard({
+      const freshBoard: BoardData = {
         ...boardData,
         workspace: boardData.workspaces,
         is_starred: isStarred,
-      });
+      };
+
+      setBoard(freshBoard);
+
+      // Update cache
+      setCache(CACHE_KEY, freshBoard, CACHE_TTL);
     } catch (err) {
       console.error('Error fetching board:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch board');
     } finally {
       setLoading(false);
     }
-  }, [boardId, supabase]);
+  }, [boardId, supabase, board]);
 
   const fetchMembers = useCallback(async () => {
     if (!boardId) return;
@@ -173,7 +191,12 @@ export const useBoard = (boardId: string) => {
 
         if (error) throw error;
 
-        setBoard((prev) => (prev ? { ...prev, is_starred: false } : null));
+        setBoard((prev) => {
+          if (!prev) return null;
+          const updated = { ...prev, is_starred: false };
+          setCache(CACHE_KEY, updated, CACHE_TTL);
+          return updated;
+        });
       } else {
         // Add star
         const { error } = await supabase.from('board_stars').insert({
@@ -183,7 +206,12 @@ export const useBoard = (boardId: string) => {
 
         if (error) throw error;
 
-        setBoard((prev) => (prev ? { ...prev, is_starred: true } : null));
+        setBoard((prev) => {
+          if (!prev) return null;
+          const updated = { ...prev, is_starred: true };
+          setCache(CACHE_KEY, updated, CACHE_TTL);
+          return updated;
+        });
       }
     } catch (err) {
       console.error('Error toggling star:', err);
@@ -205,7 +233,12 @@ export const useBoard = (boardId: string) => {
 
         if (error) throw error;
 
-        setBoard((prev) => (prev ? { ...prev, name: newName.trim() } : null));
+        setBoard((prev) => {
+          if (!prev) return null;
+          const updated = { ...prev, name: newName.trim() } as BoardData;
+          setCache(CACHE_KEY, updated, CACHE_TTL);
+          return updated;
+        });
         return true;
       } catch (err) {
         console.error('Error updating board name:', err);
@@ -227,9 +260,15 @@ export const useBoard = (boardId: string) => {
 
         if (error) throw error;
 
-        setBoard((prev) =>
-          prev ? { ...prev, description: newDescription.trim() || null } : null
-        );
+        setBoard((prev) => {
+          if (!prev) return null;
+          const updated = {
+            ...prev,
+            description: newDescription.trim() || null,
+          } as BoardData;
+          setCache(CACHE_KEY, updated, CACHE_TTL);
+          return updated;
+        });
         return true;
       } catch (err) {
         console.error('Error updating board description:', err);

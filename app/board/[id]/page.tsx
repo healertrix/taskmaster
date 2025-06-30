@@ -1,12 +1,6 @@
 'use client';
 
-import React, {
-  useState,
-  useMemo,
-  useEffect,
-  useRef,
-  useCallback,
-} from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -580,7 +574,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   const searchParams = useSearchParams();
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
 
-  const [columns, setColumns] = useState<Column[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
@@ -638,10 +631,44 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     deleteCard,
     updateListName,
     updateCard,
+    moveCard,
     archiveList,
     deleteList,
     refetch,
   } = useLists(params.id);
+
+  // Local UI state for columns (needed for optimistic updates)
+  const [columns, setColumns] = useState<Column[]>([]);
+
+  // Keep columns in sync with the latest lists from the hook
+  useEffect(() => {
+    const converted = lists.map((list) => ({
+      id: list.id,
+      title: list.name,
+      cards: list.cards.map((card) => ({
+        id: card.id,
+        title: card.title,
+        labels: card.card_labels?.map((label) => ({
+          color: label.labels.color,
+          text: label.labels.name,
+        })),
+        assignees: card.card_members?.map((member) => ({
+          initials: member.profiles.full_name
+            .split(' ')
+            .map((n) => n[0])
+            .join(''),
+          color: 'bg-primary',
+          avatar_url: member.profiles.avatar_url,
+          full_name: member.profiles.full_name,
+        })),
+        start_date: card.start_date,
+        due_date: card.due_date,
+        due_status: card.due_status,
+        updated_at: card.updated_at,
+      })),
+    }));
+    setColumns(converted);
+  }, [lists]);
 
   // Simple back navigation using browser history
   const handleGoBack = () => {
@@ -681,83 +708,19 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     }, 4500);
   };
 
-  // Convert lists to columns format for existing components
+  // Track board access when component mounts (background, non-blocking)
   useEffect(() => {
-    if (lists) {
-      const convertedColumns: Column[] = lists.map((list) => ({
-        id: list.id,
-        title: list.name,
-        cards: list.cards.map((card) => {
-          // Generate assignees from card members
-          const assignees = card.card_members
-            ? card.card_members.map((member: any) => {
-                const fullName = member.profiles.full_name || 'Unknown User';
-                const initials = fullName
-                  .split(' ')
-                  .map((n: string) => n[0])
-                  .join('')
-                  .toUpperCase()
-                  .substring(0, 2); // Limit to 2 characters
-
-                // Generate a consistent color based on the user's ID
-                const colors = [
-                  'bg-blue-500',
-                  'bg-green-500',
-                  'bg-purple-500',
-                  'bg-red-500',
-                  'bg-yellow-500',
-                  'bg-indigo-500',
-                  'bg-pink-500',
-                  'bg-teal-500',
-                ];
-                const colorIndex =
-                  member.profiles.id.charCodeAt(0) % colors.length;
-
-                return {
-                  initials,
-                  color: colors[colorIndex],
-                  avatar_url: member.profiles.avatar_url,
-                  full_name: fullName,
-                };
-              })
-            : [];
-
-          return {
-            id: card.id,
-            title: card.title,
-            labels: card.card_labels
-              ? card.card_labels.map((cardLabel: any) => ({
-                  color: cardLabel.labels.color,
-                  text: cardLabel.labels.name || '',
-                }))
-              : [],
-            assignees,
-            attachments: 0,
-            comments: 0,
-            start_date: card.start_date,
-            due_date: card.due_date,
-            due_status: card.due_status,
-          };
-        }),
-      }));
-      setColumns(convertedColumns);
-    }
-  }, [lists]);
-
-  // Track board access when component mounts
-  useEffect(() => {
-    const trackAccess = async () => {
-      if (params.id) {
+    if (params.id) {
+      // Use setTimeout to defer tracking until after initial render
+      setTimeout(async () => {
         try {
           const { trackBoardAccess } = await import('@/utils/boardAccess');
           await trackBoardAccess(params.id);
         } catch (error) {
           console.error('Error tracking board access:', error);
         }
-      }
-    };
-
-    trackAccess();
+      }, 0);
+    }
   }, [params.id]);
 
   // Handle opening card from URL parameter
@@ -857,8 +820,8 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   };
 
   const [dragOverInfo, setDragOverInfo] = useState<{
-    id: UniqueIdentifier | null;
-    type: 'task' | 'column' | null;
+    id: string | null;
+    type: 'column' | 'task' | null;
     index: number | null;
     columnId: string | null;
   }>({
@@ -1022,124 +985,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       try {
         setIsUpdatingLabels(true); // Reuse the same loading state
 
-        if (memberId && memberData && selectedCardId) {
-          if (memberData.action === 'added') {
-            // Optimistically add member to the card's assignees
-            setColumns((prevColumns) =>
-              prevColumns.map((column) => ({
-                ...column,
-                cards: column.cards.map((card) =>
-                  card.id === selectedCardId
-                    ? {
-                        ...card,
-                        assignees: [
-                          ...(card.assignees || []),
-                          {
-                            initials: memberData.member.profiles.full_name
-                              .split(' ')
-                              .map((n: string) => n[0])
-                              .join('')
-                              .toUpperCase()
-                              .substring(0, 2),
-                            color: generateConsistentColor(
-                              memberData.member.profiles.id
-                            ),
-                            avatar_url: memberData.member.profiles.avatar_url,
-                            full_name: memberData.member.profiles.full_name,
-                          },
-                        ],
-                      }
-                    : card
-                ),
-              }))
-            );
-          } else if (memberData.action === 'removed') {
-            // Optimistically remove member from the card's assignees
-            // For removal, we need to fetch the updated card members to ensure accuracy
-            try {
-              const response = await fetch(
-                `/api/cards/${selectedCardId}/members`
-              );
-              if (response.ok) {
-                const data = await response.json();
-                const cardMembers = data.members || [];
-
-                // Update the specific card's assignees based on the fresh data
-                setColumns((prevColumns) =>
-                  prevColumns.map((column) => ({
-                    ...column,
-                    cards: column.cards.map((card) =>
-                      card.id === selectedCardId
-                        ? {
-                            ...card,
-                            assignees: cardMembers.map((member: any) => ({
-                              initials: member.profiles.full_name
-                                .split(' ')
-                                .map((n: string) => n[0])
-                                .join('')
-                                .toUpperCase()
-                                .substring(0, 2),
-                              color: generateConsistentColor(
-                                member.profiles.id
-                              ),
-                              avatar_url: member.profiles.avatar_url,
-                              full_name: member.profiles.full_name,
-                            })),
-                          }
-                        : card
-                    ),
-                  }))
-                );
-              }
-            } catch (error) {
-              console.log('Background member sync failed for removal');
-            }
-          }
-        }
-
-        // For all member operations, trigger a gentle re-fetch of the current card's members
-        // This ensures consistency without causing skeleton loading (same as labels)
-        if (selectedCardId) {
-          try {
-            const response = await fetch(
-              `/api/cards/${selectedCardId}/members`
-            );
-            if (response.ok) {
-              const data = await response.json();
-              const cardMembers = data.members || [];
-
-              // Update the specific card's members in the columns state
-              setColumns((prevColumns) =>
-                prevColumns.map((column) => ({
-                  ...column,
-                  cards: column.cards.map((card) =>
-                    card.id === selectedCardId
-                      ? {
-                          ...card,
-                          assignees: cardMembers.map((member: any) => ({
-                            initials: member.profiles.full_name
-                              .split(' ')
-                              .map((n: string) => n[0])
-                              .join('')
-                              .toUpperCase()
-                              .substring(0, 2),
-                            color: generateConsistentColor(member.profiles.id),
-                            avatar_url: member.profiles.avatar_url,
-                            full_name: member.profiles.full_name,
-                          })),
-                        }
-                      : card
-                  ),
-                }))
-              );
-            }
-          } catch (error) {
-            console.log(
-              'Background member sync failed, but UI is still updated'
-            );
-          }
-        }
-
+        // Just show success - CardModal handles caching and the lists will auto-update
         showSuccess('Members updated successfully');
       } catch (error) {
         console.error('Error updating members:', error);
@@ -1298,25 +1144,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         throw new Error(data.error || 'Failed to update card');
       }
 
-      // Update the local state with the updated card data
-      setColumns((prevColumns) =>
-        prevColumns.map((column) => ({
-          ...column,
-          cards: column.cards.map((card) =>
-            card.id === cardId
-              ? {
-                  ...card,
-                  title: data.card.title,
-                  description: data.card.description,
-                  start_date: data.card.start_date,
-                  due_date: data.card.due_date,
-                  due_status: data.card.due_status,
-                  updated_at: data.card.updated_at,
-                }
-              : card
-          ),
-        }))
-      );
+      // Update handled by useLists hook cache
 
       // Update the card in lists state for CardModal
       updateCard(cardId, {
@@ -1384,14 +1212,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         due_status: newCard.due_status,
       };
 
-      // Update the columns state to add the new task
-      setColumns((prevColumns) =>
-        prevColumns.map((column) =>
-          column.id === columnId
-            ? { ...column, cards: [...column.cards, newTask] }
-            : column
-        )
-      );
+      // The createCard function already updates the lists state
 
       showSuccess(`Card "${cardTitle}" added successfully`);
       return true;
@@ -1568,15 +1389,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
     // Create smooth transition for the DOM update by waiting for the animation frame
     window.requestAnimationFrame(() => {
-      // Clear the active task state and drag over info
+      // Clear the active task state
       setActiveTask(null);
       setActiveColumnId(null);
-      setDragOverInfo({
-        id: null,
-        type: null,
-        index: null,
-        columnId: null,
-      });
     });
 
     // If there's no over element, we can't do anything
@@ -1592,144 +1407,59 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     const activeTaskInfo = findTaskById(activeId);
     if (!activeTaskInfo) return;
 
-    const { task: activeTask, columnId: activeColumnId } = activeTaskInfo;
+    const { columnId: sourceListId } = activeTaskInfo;
 
     // Check if over is a column or a task
     const isOverAColumn = columns.some((col) => col.id === overId);
 
-    let targetColumnId: string;
+    let targetListId: string;
     let newPosition: number;
 
     if (isOverAColumn) {
       // Handle dropping on a column
-      targetColumnId = overId;
-
-      // If it's the same column, no need to move between columns
-      if (targetColumnId === activeColumnId) return;
-
-      // Position at the end of the target column
-      const targetColumn = columns.find((col) => col.id === targetColumnId);
+      targetListId = overId;
+      const targetColumn = columns.find((col) => col.id === targetListId);
       newPosition = targetColumn ? targetColumn.cards.length : 0;
-
-      // Update local state optimistically
-      setColumns((prevColumns) => {
-        return prevColumns.map((column) => {
-          // Remove from source column
-          if (column.id === activeColumnId) {
-            return {
-              ...column,
-              cards: column.cards.filter((card) => card.id !== activeId),
-            };
-          }
-
-          // Add to target column
-          if (column.id === targetColumnId) {
-            return {
-              ...column,
-              cards: [...column.cards, activeTask],
-            };
-          }
-
-          return column;
-        });
-      });
     } else {
       // Handle dropping on a task
       const overTaskInfo = findTaskById(overId);
       if (!overTaskInfo) return;
 
       const { columnId: overColumnId } = overTaskInfo;
-      targetColumnId = overColumnId;
+      targetListId = overColumnId;
+      const targetColumn = columns.find((col) => col.id === targetListId);
+      if (!targetColumn) return;
 
-      if (activeColumnId === overColumnId) {
-        // Same column - reorder tasks
-        const column = columns.find((col) => col.id === activeColumnId);
-        if (!column) return;
-
-        const oldIndex = column.cards.findIndex((card) => card.id === activeId);
-        const newIndex = column.cards.findIndex((card) => card.id === overId);
-
-        // Don't do anything if trying to move to the same position
-        if (oldIndex === newIndex) return;
-
-        newPosition = newIndex;
-
-        // Update local state optimistically
-        setColumns((prevColumns) => {
-          return prevColumns.map((column) => {
-            if (column.id !== activeColumnId) return column;
-
-            return {
-              ...column,
-              cards: arrayMove(column.cards, oldIndex, newIndex),
-            };
-          });
-        });
-      } else {
-        // Different columns - move task
-        const targetColumn = columns.find((col) => col.id === overColumnId);
-        if (!targetColumn) return;
-
-        const insertIndex = targetColumn.cards.findIndex(
-          (card) => card.id === overId
-        );
-        newPosition = insertIndex;
-
-        // Update local state optimistically
-        setColumns((prevColumns) => {
-          return prevColumns.map((column) => {
-            // Remove from source column
-            if (column.id === activeColumnId) {
-              return {
-                ...column,
-                cards: column.cards.filter((card) => card.id !== activeId),
-              };
-            }
-
-            // Add to target column at the position of the over task
-            if (column.id === overColumnId) {
-              const newCards = [...column.cards];
-              newCards.splice(insertIndex, 0, activeTask);
-              return {
-                ...column,
-                cards: newCards,
-              };
-            }
-
-            return column;
-          });
-        });
-      }
+      const insertIndex = targetColumn.cards.findIndex(
+        (card) => card.id === overId
+      );
+      newPosition = insertIndex;
     }
 
-    // Persist to database for both cross-list moves AND same-list reordering
+    // Apply optimistic update using moveCard from useLists hook
+    moveCard(activeId, sourceListId, targetListId, newPosition);
+
     try {
+      // Persist to database
       const response = await fetch(`/api/cards/${activeId}/move`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          target_list_id: targetColumnId,
-          new_position: newPosition,
+          list_id: targetListId,
+          position: newPosition,
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
+        const data = await response.json();
         throw new Error(data.error || 'Failed to move card');
       }
-
-      // No need to refetch - the optimistic update is already applied
-      // Success is implicit - user can see the card moved visually
     } catch (error) {
       console.error('Error moving card:', error);
-
-      // Revert the optimistic update on error by refetching
-      await refetch();
-
-      showError(error instanceof Error ? error.message : 'Failed to move card');
+      // Revert optimistic update by refetching latest lists from server
+      refetch();
     }
   }
 
@@ -1748,6 +1478,50 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       return `${Math.floor(diffInSeconds / 3600)}h ago`;
     return `${Math.floor(diffInSeconds / 86400)}d ago`;
   };
+
+  // Show loading skeleton if board or lists are still loading
+  if (loading || listsLoading || !board || !lists) {
+    return <BoardSkeleton />;
+  }
+
+  // Handle error states
+  if (error) {
+    return (
+      <div className='min-h-screen dot-pattern-dark flex flex-col items-center justify-center'>
+        <div className='text-center'>
+          <h1 className='text-2xl font-bold text-destructive mb-2'>
+            Error loading board
+          </h1>
+          <p className='text-muted-foreground mb-4'>{error}</p>
+          <button
+            onClick={() => router.back()}
+            className='px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors'
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (listsError) {
+    return (
+      <div className='min-h-screen dot-pattern-dark flex flex-col items-center justify-center'>
+        <div className='text-center'>
+          <h1 className='text-2xl font-bold text-destructive mb-2'>
+            Error loading board data
+          </h1>
+          <p className='text-muted-foreground mb-4'>{listsError}</p>
+          <button
+            onClick={() => router.back()}
+            className='px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors'
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className='min-h-screen dot-pattern-dark flex flex-col'>

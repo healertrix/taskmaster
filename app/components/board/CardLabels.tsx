@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 interface Label {
   id: string;
@@ -18,10 +18,11 @@ interface CardLabel {
 }
 
 interface CardLabelsProps {
-  cardId: string;
+  labels?: CardLabel[];
   maxVisible?: number;
   showNames?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  isLoading?: boolean;
 }
 
 // Helper function to determine if a color is light (needs black text)
@@ -35,32 +36,12 @@ const isColorLight = (hexColor: string): boolean => {
 };
 
 export default function CardLabels({
-  cardId,
+  labels = [],
   maxVisible = 5,
   showNames = false,
   size = 'sm',
+  isLoading = false,
 }: CardLabelsProps) {
-  const [labels, setLabels] = useState<CardLabel[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    fetchLabels();
-  }, [cardId]);
-
-  const fetchLabels = async () => {
-    try {
-      const response = await fetch(`/api/cards/${cardId}/labels`);
-      if (response.ok) {
-        const data = await response.json();
-        setLabels(data.labels || []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch card labels:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   if (isLoading) {
     return (
       <div className='flex gap-2'>
