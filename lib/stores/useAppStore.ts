@@ -244,6 +244,8 @@ export const cacheUtils = {
     `workspace-boards-${workspaceId}`,
   getWorkspaceKey: (workspaceId: string) => `workspace-${workspaceId}`,
   getBoardsKey: (workspaceId: string) => `boards-${workspaceId}`,
+  getWorkspaceSettingsKey: (workspaceId: string) =>
+    `workspace-settings-${workspaceId}`,
 
   // Cache validation
   isCacheValid: (timestamp: number, ttl: number) => {

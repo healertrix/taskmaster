@@ -206,23 +206,23 @@ const WorkspaceDescriptionModal = ({
             <h2 className='text-lg font-semibold text-foreground'>
               {workspaceName} Information
             </h2>
-            <button
-              onClick={onClose}
+          <button
+            onClick={onClose}
               className='p-1 text-muted-foreground hover:text-foreground transition-colors'
               aria-label='Close modal'
-            >
-              <X className='w-5 h-5' />
-            </button>
+          >
+            <X className='w-5 h-5' />
+          </button>
           </div>
         </div>
 
         {/* Content */}
         <div className='px-6 py-4 flex-1 overflow-y-auto'>
           {!isEditing ? (
-            <div className='space-y-4'>
+          <div className='space-y-4'>
               <div>
                 <h3 className='text-sm font-medium text-foreground mb-2'>
-                  Description
+                Description
                 </h3>
                 {description ? (
                   <p className='text-sm text-muted-foreground whitespace-pre-wrap'>
@@ -243,56 +243,56 @@ const WorkspaceDescriptionModal = ({
                   <Edit3 className='w-3 h-3' />
                   Edit
                 </button>
-              </div>
+            </div>
             </div>
           ) : (
-            <div className='space-y-3'>
-              <textarea
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className='w-full h-32 p-3 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none text-sm'
-                placeholder='Add a description for this workspace...'
-                disabled={isSaving}
-                autoFocus
-              />
+              <div className='space-y-3'>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className='w-full h-32 p-3 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none text-sm'
+                  placeholder='Add a description for this workspace...'
+                  disabled={isSaving}
+                  autoFocus
+                />
 
-              <div className='space-y-2'>
-                <p className='text-xs text-muted-foreground'>
-                  Ctrl + Enter to save, Escape to cancel
-                </p>
-                <div className='flex items-center gap-2'>
-                  <button
-                    onClick={() => {
-                      setEditDescription(description);
-                      setIsEditing(false);
-                    }}
-                    className='px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors'
-                    disabled={isSaving}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className='px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50'
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className='w-3 h-3 animate-spin' />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className='w-3 h-3' />
-                        Save
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+                <div className='space-y-2'>
+                  <p className='text-xs text-muted-foreground'>
+                    Ctrl + Enter to save, Escape to cancel
+                  </p>
+                  <div className='flex items-center gap-2'>
+                    <button
+                      onClick={() => {
+                        setEditDescription(description);
+                        setIsEditing(false);
+                      }}
+                      className='px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors'
+                      disabled={isSaving}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className='px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50'
+                    >
+                      {isSaving ? (
+                        <>
+                          <Loader2 className='w-3 h-3 animate-spin' />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className='w-3 h-3' />
+                          Save
+                        </>
+                      )}
+                    </button>
+                  </div>
+                    </div>
+                  </div>
+                )}
         </div>
 
         {/* Footer */}

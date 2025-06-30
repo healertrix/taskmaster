@@ -187,3 +187,4 @@ export const MemberCard = React.memo<MemberCardProps>(
 );
 
 MemberCard.displayName = 'MemberCard';
+ 

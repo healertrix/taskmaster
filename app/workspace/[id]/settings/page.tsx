@@ -27,6 +27,7 @@ import {
   FileText,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useAppStore, cacheUtils } from '@/lib/stores/useAppStore';
 
 // Predefined workspace colors matching the create workspace modal
 const workspaceColors = [
@@ -54,6 +55,11 @@ export default function WorkspaceSettingsPage() {
   const params = useParams();
   const router = useRouter();
   const workspaceId = params.id as string;
+
+  // Cache helper constants
+  const WORKSPACE_CACHE_KEY = cacheUtils.getWorkspaceKey(workspaceId);
+  const SETTINGS_CACHE_KEY = cacheUtils.getWorkspaceSettingsKey(workspaceId);
+  const CACHE_TTL = 2 * 60 * 1000; // 2 minutes TTL for workspace settings cache
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +101,8 @@ export default function WorkspaceSettingsPage() {
   const [customColor, setCustomColor] = useState('#3B82F6');
   const [editField, setEditField] = useState<'name' | 'color' | null>(null);
   const colorPickerRef = useRef<HTMLInputElement>(null);
+
+  const { getCache, setCache, clearCache } = useAppStore();
 
   // Handle mobile back button/gesture for modals
   useEffect(() => {
@@ -247,6 +255,34 @@ export default function WorkspaceSettingsPage() {
       try {
         const supabase = createClient();
 
+        // Check cache first for workspace & settings to provide instant UI
+        const cachedWorkspace = getCache<WorkspaceData>(WORKSPACE_CACHE_KEY);
+        const cachedSettings = getCache<WorkspaceSettings>(SETTINGS_CACHE_KEY);
+
+        if (cachedWorkspace) {
+          setWorkspace(cachedWorkspace);
+
+          // Initialize edit form values from cache for instant responsiveness
+          setEditWorkspaceName(cachedWorkspace.name);
+          setEditWorkspaceColor(cachedWorkspace.color);
+
+          const isCustomColorLocal =
+            cachedWorkspace.color?.startsWith('#') ||
+            cachedWorkspace.color?.startsWith('rgb');
+          if (isCustomColorLocal) {
+            setSelectedColor('custom');
+            setCustomColor(cachedWorkspace.color);
+          } else {
+            setSelectedColor(cachedWorkspace.color || 'bg-blue-600');
+          }
+        }
+
+        if (cachedSettings) {
+          setSettings(cachedSettings);
+        }
+
+        // Always continue with fetch to ensure data freshness (will be fast if cache is valid)
+
         // Get current user
         const {
           data: { user },
@@ -272,6 +308,22 @@ export default function WorkspaceSettingsPage() {
         }
 
         setWorkspace(workspaceData);
+        // Update cache
+        setCache(WORKSPACE_CACHE_KEY, workspaceData, CACHE_TTL);
+
+        // Initialize edit form with latest workspace data (may differ from cache)
+        setEditWorkspaceName(workspaceData.name);
+        setEditWorkspaceColor(workspaceData.color);
+
+        const isCustomColor =
+          workspaceData.color?.startsWith('#') ||
+          workspaceData.color?.startsWith('rgb');
+        if (isCustomColor) {
+          setSelectedColor('custom');
+          setCustomColor(workspaceData.color);
+        } else {
+          setSelectedColor(workspaceData.color || 'bg-blue-600');
+        }
 
         // Check user's role in the workspace
         const { data: memberData, error: memberError } = await supabase
@@ -390,21 +442,8 @@ export default function WorkspaceSettingsPage() {
         }
 
         setSettings(processedSettings);
-
-        // Initialize edit form with current workspace data
-        setEditWorkspaceName(workspaceData.name);
-        setEditWorkspaceColor(workspaceData.color);
-
-        // Initialize color selection state
-        const isCustomColor =
-          workspaceData.color?.startsWith('#') ||
-          workspaceData.color?.startsWith('rgb');
-        if (isCustomColor) {
-          setSelectedColor('custom');
-          setCustomColor(workspaceData.color);
-        } else {
-          setSelectedColor(workspaceData.color || 'bg-blue-600');
-        }
+        // Update cache
+        setCache(SETTINGS_CACHE_KEY, processedSettings, CACHE_TTL);
       } catch (err) {
         console.error('Error fetching workspace data:', err);
         setError(
@@ -447,10 +486,12 @@ export default function WorkspaceSettingsPage() {
         throw new Error(error);
       }
 
-      setSettings((prev) => ({
-        ...prev,
-        [settingType]: settingValue,
-      }));
+      // Optimistically update local state and cache
+      setSettings((prev) => {
+        const updated = { ...prev, [settingType]: settingValue };
+        setCache(SETTINGS_CACHE_KEY, updated, CACHE_TTL);
+        return updated;
+      });
 
       // Close modals
       setShowMembershipModal(false);
@@ -502,10 +543,12 @@ export default function WorkspaceSettingsPage() {
 
       setWorkspace((prev) => {
         if (!prev) return null;
-        return {
+        const updated = {
           ...prev,
           ...updateData,
         };
+        setCache(WORKSPACE_CACHE_KEY, updated, CACHE_TTL);
+        return updated;
       });
 
       setShowWorkspaceEditModal(false);
@@ -660,6 +703,10 @@ export default function WorkspaceSettingsPage() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to delete workspace');
       }
+
+      // Clear cached workspace & settings so UI reflects deletion immediately
+      clearCache(WORKSPACE_CACHE_KEY);
+      clearCache(SETTINGS_CACHE_KEY);
 
       setDeletionStats(data.deletionStats);
       showSuccess('Workspace deleted successfully');
