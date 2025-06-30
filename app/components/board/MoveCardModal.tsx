@@ -145,6 +145,7 @@ export function MoveCardModal({
       // This could be done via a toast notification system
     } finally {
       setIsMovingCard(false);
+      useAppStore.setState({ draggedItem: null, overListId: null });
     }
   };
 
