@@ -607,7 +607,7 @@ export default function WorkspaceBoardsPage() {
     showSuccess('Board deleted successfully!');
   };
 
-  if (isLoading) {
+  if (isLoading && !workspace && boards.length === 0) {
     return <PageLoadingSkeleton />;
   }
 

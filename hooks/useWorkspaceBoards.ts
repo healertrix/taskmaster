@@ -148,44 +148,38 @@ export const useWorkspaceBoards = (workspaceId: string) => {
         return;
       }
 
-      // Fetch boards in this workspace
-      const { data: boardsData, error: boardsError } = await supabase
-        .from('boards')
-        .select('*')
-        .eq('workspace_id', workspaceId)
-        .eq('is_archived', false)
-        .order('updated_at', { ascending: false });
+      // Optimized: Fetch boards and starred status in parallel
+      const [boardsResult, starsResult] = await Promise.all([
+        supabase
+          .from('boards')
+          .select('*')
+          .eq('workspace_id', workspaceId)
+          .eq('is_archived', false)
+          .order('updated_at', { ascending: false }),
+        supabase
+          .from('board_stars')
+          .select('board_id')
+          .eq('profile_id', user.id),
+      ]);
 
-      if (boardsError) {
-        console.error('Error fetching boards:', boardsError);
+      if (boardsResult.error) {
+        console.error('Error fetching boards:', boardsResult.error);
         setError('Failed to fetch boards');
         return;
       }
 
-      if (!boardsData || boardsData.length === 0) {
+      if (!boardsResult.data || boardsResult.data.length === 0) {
         setBoards([]);
         return [];
       }
 
-      // Get starred status for these boards
-      const boardIds = boardsData.map((board) => board.id);
-
-      const { data: starsData, error: starsError } = await supabase
-        .from('board_stars')
-        .select('board_id')
-        .eq('profile_id', user.id)
-        .in('board_id', boardIds);
-
-      if (starsError) {
-        console.error('Error fetching stars:', starsError);
-        // Continue without starred status
-      }
-
+      // Create a set of starred board IDs for fast lookup
       const starredBoardIds = new Set(
-        starsData?.map((star) => star.board_id) || []
+        starsResult.data?.map((star) => star.board_id) || []
       );
 
-      const boardsWithStarStatus = boardsData.map((board) => ({
+      // Combine boards with starred status
+      const boardsWithStarStatus = boardsResult.data.map((board) => ({
         ...board,
         starred: starredBoardIds.has(board.id),
       }));
@@ -295,13 +289,37 @@ export const useWorkspaceBoards = (workspaceId: string) => {
       setLoading(true);
       setError(null);
 
-      // Check cache first
-      if (checkCache()) {
+      // Check cache first - show cached data immediately if available
+      const cached = getWorkspaceBoardsCache(workspaceId);
+      if (cached) {
+        setWorkspace(cached.workspace);
+        setBoards(cached.boards);
+        setLoading(false);
         setLastFetchTime(Date.now());
+        
+        // Background refresh: fetch fresh data without blocking UI
+        setTimeout(async () => {
+          try {
+            const [workspaceData, boardsData] = await Promise.all([
+              fetchWorkspace(),
+              fetchBoards(),
+            ]);
+            
+            if (workspaceData && boardsData) {
+              setWorkspaceBoardsCache(workspaceId, workspaceData, boardsData);
+              setWorkspace(workspaceData);
+              setBoards(boardsData);
+              setLastFetchTime(Date.now());
+            }
+          } catch (error) {
+            console.error('Background refresh failed:', error);
+          }
+        }, 100);
+        
         return;
       }
 
-      // Fetch fresh data
+      // No cache available - fetch fresh data
       const [workspaceData, boardsData] = await Promise.all([
         fetchWorkspace(),
         fetchBoards(),
@@ -321,7 +339,7 @@ export const useWorkspaceBoards = (workspaceId: string) => {
     }
   }, [
     workspaceId,
-    checkCache,
+    getWorkspaceBoardsCache,
     fetchWorkspace,
     fetchBoards,
     setWorkspaceBoardsCache,

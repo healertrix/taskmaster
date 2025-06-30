@@ -60,11 +60,17 @@ interface AppState {
   // User preferences actions
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
+
+  // Preload cache for better performance
+  preloadWorkspaceBoards: (
+    workspaceId: string,
+    fetchFunction: () => Promise<{ workspace: any; boards: any[] }>
+  ) => Promise<{ workspace: any; boards: any[] }>;
 }
 
 // Default TTL values
-const DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
-const WORKSPACE_BOARDS_TTL = 2 * 60 * 1000; // 2 minutes
+const DEFAULT_TTL = 10 * 60 * 1000; // 10 minutes
+const WORKSPACE_BOARDS_TTL = 10 * 60 * 1000; // 10 minutes
 
 export const useAppStore = create<AppState>()(
   devtools(
@@ -238,6 +244,31 @@ export const useAppStore = create<AppState>()(
               },
             };
           });
+        },
+
+        // Preload cache for better performance
+        preloadWorkspaceBoards: async (
+          workspaceId: string,
+          fetchFunction: () => Promise<{ workspace: any; boards: any[] }>
+        ) => {
+          try {
+            const data = await fetchFunction();
+            set((state) => ({
+              workspaceBoardsCache: {
+                ...state.workspaceBoardsCache,
+                [workspaceId]: {
+                  workspace: data.workspace,
+                  boards: data.boards,
+                  timestamp: Date.now(),
+                  ttl: WORKSPACE_BOARDS_TTL,
+                },
+              },
+            }));
+            return data;
+          } catch (error) {
+            console.error('Preload failed:', error);
+            throw error;
+          }
         },
 
         clearWorkspaceBoardsCache: (workspaceId?: string) => {
