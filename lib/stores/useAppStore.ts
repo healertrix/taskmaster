@@ -38,6 +38,17 @@ interface AppState {
     };
   };
 
+  // Workspace settings cache
+  workspaceSettingsCache: {
+    [workspaceId: string]: {
+      workspace: any;
+      settings: any;
+      userRole: string;
+      timestamp: number;
+      ttl: number;
+    };
+  };
+
   // User preferences cache
   userPreferences: {
     theme: 'light' | 'dark' | 'system';
@@ -87,6 +98,26 @@ interface AppState {
   removeMemberFromCache: (workspaceId: string, memberId: string) => void;
   clearWorkspaceMembersCache: (workspaceId?: string) => void;
 
+  // Workspace settings cache actions
+  setWorkspaceSettingsCache: (
+    workspaceId: string,
+    workspace: any,
+    settings: any,
+    userRole: string
+  ) => void;
+  getWorkspaceSettingsCache: (
+    workspaceId: string
+  ) => { workspace: any; settings: any; userRole: string } | null;
+  updateSettingsInCache: (
+    workspaceId: string,
+    settings: any
+  ) => void;
+  updateWorkspaceInSettingsCache: (
+    workspaceId: string,
+    workspace: any
+  ) => void;
+  clearWorkspaceSettingsCache: (workspaceId?: string) => void;
+
   // User preferences actions
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -110,6 +141,7 @@ export const useAppStore = create<AppState>()(
         cache: {},
         workspaceBoardsCache: {},
         workspaceMembersCache: {},
+        workspaceSettingsCache: {},
         userPreferences: {
           theme: 'system',
           sidebarCollapsed: false,
@@ -429,6 +461,97 @@ export const useAppStore = create<AppState>()(
               return { workspaceMembersCache: rest };
             }
             return { workspaceMembersCache: {} };
+          });
+        },
+
+        // Workspace settings cache actions
+        setWorkspaceSettingsCache: (
+          workspaceId: string,
+          workspace: any,
+          settings: any,
+          userRole: string
+        ) => {
+          set((state) => ({
+            workspaceSettingsCache: {
+              ...state.workspaceSettingsCache,
+              [workspaceId]: {
+                workspace,
+                settings,
+                userRole,
+                timestamp: Date.now(),
+                ttl: WORKSPACE_BOARDS_TTL,
+              },
+            },
+          }));
+        },
+
+        getWorkspaceSettingsCache: (workspaceId: string) => {
+          const state = get();
+          const entry = state.workspaceSettingsCache[workspaceId];
+
+          if (!entry) return null;
+
+          const isExpired = Date.now() - entry.timestamp > entry.ttl;
+          if (isExpired) {
+            // Auto-clear expired cache
+            get().clearWorkspaceSettingsCache(workspaceId);
+            return null;
+          }
+
+          return {
+            workspace: entry.workspace,
+            settings: entry.settings,
+            userRole: entry.userRole,
+          };
+        },
+
+        updateSettingsInCache: (
+          workspaceId: string,
+          settings: any
+        ) => {
+          set((state) => {
+            const entry = state.workspaceSettingsCache[workspaceId];
+            if (!entry) return state;
+
+            return {
+              workspaceSettingsCache: {
+                ...state.workspaceSettingsCache,
+                [workspaceId]: {
+                  ...entry,
+                  settings,
+                },
+              },
+            };
+          });
+        },
+
+        updateWorkspaceInSettingsCache: (
+          workspaceId: string,
+          workspace: any
+        ) => {
+          set((state) => {
+            const entry = state.workspaceSettingsCache[workspaceId];
+            if (!entry) return state;
+
+            return {
+              workspaceSettingsCache: {
+                ...state.workspaceSettingsCache,
+                [workspaceId]: {
+                  ...entry,
+                  workspace,
+                },
+              },
+            };
+          });
+        },
+
+        clearWorkspaceSettingsCache: (workspaceId?: string) => {
+          set((state) => {
+            if (workspaceId) {
+              const { [workspaceId]: _, ...rest } = state.workspaceSettingsCache;
+              return { workspaceSettingsCache: rest };
+            }
+            return { workspaceSettingsCache: {} };
           });
         },
 

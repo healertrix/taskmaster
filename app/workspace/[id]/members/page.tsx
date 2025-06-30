@@ -94,8 +94,12 @@ export default function WorkspaceMembersPage() {
 
       if (removeError) throw removeError;
 
-      // Update cache immediately
-      removeMemberFromCache(workspaceId, memberId);
+      // Find the member to get their profile_id for cache update
+      const memberToRemove = members.find((m) => m.id === memberId);
+      if (memberToRemove) {
+        // Update cache immediately
+        removeMemberFromCache(workspaceId, memberToRemove.profile_id);
+      }
 
       // Refresh data
       await refetch();
@@ -117,8 +121,14 @@ export default function WorkspaceMembersPage() {
 
       if (updateError) throw updateError;
 
-      // Update cache immediately
-      updateMemberInCache(workspaceId, memberId, { role: newRole });
+      // Find the member to get their profile_id for cache update
+      const memberToUpdate = members.find((m) => m.id === memberId);
+      if (memberToUpdate) {
+        // Update cache immediately
+        updateMemberInCache(workspaceId, memberToUpdate.profile_id, {
+          role: newRole,
+        });
+      }
 
       // Refresh data
       await refetch();
@@ -494,8 +504,8 @@ export default function WorkspaceMembersPage() {
                   currentUser={currentUser}
                   currentUserRole={currentUserRole}
                   canManageMembers={canManageMembers}
-                  onRemoveMember={handleRemoveMember}
-                  onChangeRole={handleChangeRole}
+                  onRemoveMember={handleRemoveMemberClick}
+                  onChangeRole={handleChangeRoleClick}
                   openMemberActions={openMemberActions}
                   setOpenMemberActions={setOpenMemberActions}
                 />

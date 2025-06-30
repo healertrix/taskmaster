@@ -27,7 +27,7 @@ import {
   FileText,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useAppStore, cacheUtils } from '@/lib/stores/useAppStore';
+import { useWorkspaceSettings } from '@/hooks/useWorkspaceSettings';
 
 // Predefined workspace colors matching the create workspace modal
 const workspaceColors = [
@@ -38,38 +38,22 @@ const workspaceColors = [
   { name: 'Yellow', value: 'bg-yellow-600' },
 ];
 
-type WorkspaceSettings = {
-  membership_restriction: 'anyone' | 'admins_only' | 'owner_only';
-  board_creation_simplified: 'any_member' | 'admins_only' | 'owner_only';
-  board_deletion_simplified: 'any_member' | 'admins_only' | 'owner_only';
-};
-
-type WorkspaceData = {
-  id: string;
-  name: string;
-  color: string;
-  owner_id: string;
-};
-
 export default function WorkspaceSettingsPage() {
   const params = useParams();
   const router = useRouter();
   const workspaceId = params.id as string;
 
-  // Cache helper constants
-  const WORKSPACE_CACHE_KEY = cacheUtils.getWorkspaceKey(workspaceId);
-  const SETTINGS_CACHE_KEY = cacheUtils.getWorkspaceSettingsKey(workspaceId);
-  const CACHE_TTL = 2 * 60 * 1000; // 2 minutes TTL for workspace settings cache
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [workspace, setWorkspace] = useState<WorkspaceData | null>(null);
-  const [settings, setSettings] = useState<WorkspaceSettings>({
-    membership_restriction: 'anyone',
-    board_creation_simplified: 'any_member',
-    board_deletion_simplified: 'any_member',
-  });
+  // Use optimized hook for fast loading
+  const {
+    workspace,
+    settings,
+    userRole,
+    loading,
+    error,
+    refetch,
+    updateSettingsInCache,
+    updateWorkspaceInSettingsCache,
+  } = useWorkspaceSettings(workspaceId);
 
   // Modal states
   const [showMembershipModal, setShowMembershipModal] = useState(false);
@@ -102,7 +86,22 @@ export default function WorkspaceSettingsPage() {
   const [editField, setEditField] = useState<'name' | 'color' | null>(null);
   const colorPickerRef = useRef<HTMLInputElement>(null);
 
-  const { getCache, setCache, clearCache } = useAppStore();
+  // Initialize edit form when workspace data is available
+  useEffect(() => {
+    if (workspace) {
+      setEditWorkspaceName(workspace.name);
+      setEditWorkspaceColor(workspace.color);
+
+      const isCustomColor =
+        workspace.color?.startsWith('#') || workspace.color?.startsWith('rgb');
+      if (isCustomColor) {
+        setSelectedColor('custom');
+        setCustomColor(workspace.color);
+      } else {
+        setSelectedColor(workspace.color || 'bg-blue-600');
+      }
+    }
+  }, [workspace]);
 
   // Handle mobile back button/gesture for modals
   useEffect(() => {
@@ -246,227 +245,12 @@ export default function WorkspaceSettingsPage() {
     };
   };
 
-  // Fetch workspace data and settings
-  useEffect(() => {
-    const fetchWorkspaceData = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const supabase = createClient();
-
-        // Check cache first for workspace & settings to provide instant UI
-        const cachedWorkspace = getCache<WorkspaceData>(WORKSPACE_CACHE_KEY);
-        const cachedSettings = getCache<WorkspaceSettings>(SETTINGS_CACHE_KEY);
-
-        if (cachedWorkspace) {
-          setWorkspace(cachedWorkspace);
-
-          // Initialize edit form values from cache for instant responsiveness
-          setEditWorkspaceName(cachedWorkspace.name);
-          setEditWorkspaceColor(cachedWorkspace.color);
-
-          const isCustomColorLocal =
-            cachedWorkspace.color?.startsWith('#') ||
-            cachedWorkspace.color?.startsWith('rgb');
-          if (isCustomColorLocal) {
-            setSelectedColor('custom');
-            setCustomColor(cachedWorkspace.color);
-          } else {
-            setSelectedColor(cachedWorkspace.color || 'bg-blue-600');
-          }
-        }
-
-        if (cachedSettings) {
-          setSettings(cachedSettings);
-        }
-
-        // Always continue with fetch to ensure data freshness (will be fast if cache is valid)
-
-        // Get current user
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) {
-          router.push('/auth/login');
-          return;
-        }
-
-        // Fetch workspace data
-        const { data: workspaceData, error: workspaceError } = await supabase
-          .from('workspaces')
-          .select('*')
-          .eq('id', workspaceId)
-          .single();
-
-        if (workspaceError) {
-          throw new Error(workspaceError.message);
-        }
-
-        if (!workspaceData) {
-          throw new Error('Workspace not found');
-        }
-
-        setWorkspace(workspaceData);
-        // Update cache
-        setCache(WORKSPACE_CACHE_KEY, workspaceData, CACHE_TTL);
-
-        // Initialize edit form with latest workspace data (may differ from cache)
-        setEditWorkspaceName(workspaceData.name);
-        setEditWorkspaceColor(workspaceData.color);
-
-        const isCustomColor =
-          workspaceData.color?.startsWith('#') ||
-          workspaceData.color?.startsWith('rgb');
-        if (isCustomColor) {
-          setSelectedColor('custom');
-          setCustomColor(workspaceData.color);
-        } else {
-          setSelectedColor(workspaceData.color || 'bg-blue-600');
-        }
-
-        // Check user's role in the workspace
-        const { data: memberData, error: memberError } = await supabase
-          .from('workspace_members')
-          .select('role')
-          .eq('workspace_id', workspaceId)
-          .eq('profile_id', user.id)
-          .single();
-
-        if (memberError && memberError.code !== 'PGRST116') {
-          throw new Error(memberError.message);
-        }
-
-        // Set user role - check if user is owner first, then check membership
-        if (workspaceData.owner_id === user.id) {
-          setUserRole('owner');
-        } else if (memberData) {
-          setUserRole(memberData.role);
-        } else {
-          router.push('/');
-          return;
-        }
-
-        // Fetch workspace settings
-        const { data: settingsData, error: settingsError } = await supabase
-          .from('workspace_settings')
-          .select('setting_type, setting_value')
-          .eq('workspace_id', workspaceId);
-
-        if (settingsError) {
-          throw new Error(settingsError.message);
-        }
-
-        // Process settings data with backward compatibility
-        const processedSettings = { ...settings };
-
-        if (settingsData && settingsData.length > 0) {
-          settingsData.forEach((setting) => {
-            const settingType = setting.setting_type;
-
-            // Handle membership restriction (unchanged)
-            if (settingType === 'membership_restriction') {
-              let value;
-              try {
-                if (typeof setting.setting_value === 'string') {
-                  value = JSON.parse(setting.setting_value);
-                } else {
-                  value = setting.setting_value;
-                }
-              } catch (error) {
-                value = processedSettings.membership_restriction;
-              }
-              processedSettings.membership_restriction = value;
-            }
-
-            // Handle new simplified format
-            else if (settingType === 'board_creation_simplified') {
-              let value;
-              try {
-                if (typeof setting.setting_value === 'string') {
-                  value = JSON.parse(setting.setting_value);
-                } else {
-                  value = setting.setting_value;
-                }
-              } catch (error) {
-                value = processedSettings.board_creation_simplified;
-              }
-              processedSettings.board_creation_simplified = value;
-            } else if (settingType === 'board_deletion_simplified') {
-              let value;
-              try {
-                if (typeof setting.setting_value === 'string') {
-                  value = JSON.parse(setting.setting_value);
-                } else {
-                  value = setting.setting_value;
-                }
-              } catch (error) {
-                value = processedSettings.board_deletion_simplified;
-              }
-              processedSettings.board_deletion_simplified = value;
-            }
-
-            // Backward compatibility: Handle old complex format
-            else if (settingType === 'board_creation_restriction') {
-              let oldValue;
-              try {
-                if (typeof setting.setting_value === 'string') {
-                  oldValue = JSON.parse(setting.setting_value);
-                } else {
-                  oldValue = setting.setting_value;
-                }
-                // Extract workspace visible boards setting from old format
-                processedSettings.board_creation_simplified =
-                  oldValue?.workspace_visible_boards || 'any_member';
-              } catch (error) {
-                processedSettings.board_creation_simplified = 'any_member';
-              }
-            } else if (settingType === 'board_deletion_restriction') {
-              let oldValue;
-              try {
-                if (typeof setting.setting_value === 'string') {
-                  oldValue = JSON.parse(setting.setting_value);
-                } else {
-                  oldValue = setting.setting_value;
-                }
-                // Extract workspace visible boards setting from old format
-                processedSettings.board_deletion_simplified =
-                  oldValue?.workspace_visible_boards || 'any_member';
-              } catch (error) {
-                processedSettings.board_deletion_simplified = 'any_member';
-              }
-            }
-
-            // Ignore old board_sharing_restriction - no longer used
-          });
-        }
-
-        setSettings(processedSettings);
-        // Update cache
-        setCache(SETTINGS_CACHE_KEY, processedSettings, CACHE_TTL);
-      } catch (err) {
-        console.error('Error fetching workspace data:', err);
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'An error occurred while fetching workspace data'
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchWorkspaceData();
-  }, [workspaceId, router]);
-
-  const canUpdateSettings = userRole === 'admin' || userRole === 'owner';
-
   // Function to update workspace settings
   const updateWorkspaceSetting = async (
     settingType: keyof WorkspaceSettings,
     settingValue: any
   ) => {
-    if (!canUpdateSettings) return;
+    if (!userRole || userRole !== 'admin') return;
 
     setIsUpdating(true);
     try {
@@ -487,10 +271,9 @@ export default function WorkspaceSettingsPage() {
       }
 
       // Optimistically update local state and cache
-      setSettings((prev) => {
-        const updated = { ...prev, [settingType]: settingValue };
-        setCache(SETTINGS_CACHE_KEY, updated, CACHE_TTL);
-        return updated;
+      updateSettingsInCache(workspaceId, {
+        ...settings,
+        [settingType]: settingValue,
       });
 
       // Close modals
@@ -515,7 +298,7 @@ export default function WorkspaceSettingsPage() {
 
   // Function to update workspace details (name and color)
   const updateWorkspaceDetails = async () => {
-    if (!canUpdateSettings) return;
+    if (!userRole || userRole !== 'admin') return;
 
     // Validate based on edit field
     if (editField === 'name' && !editWorkspaceName.trim()) return;
@@ -541,14 +324,9 @@ export default function WorkspaceSettingsPage() {
 
       if (error) throw error;
 
-      setWorkspace((prev) => {
-        if (!prev) return null;
-        const updated = {
-          ...prev,
-          ...updateData,
-        };
-        setCache(WORKSPACE_CACHE_KEY, updated, CACHE_TTL);
-        return updated;
+      updateWorkspaceInSettingsCache(workspaceId, {
+        ...workspace,
+        ...updateData,
       });
 
       setShowWorkspaceEditModal(false);
@@ -705,8 +483,7 @@ export default function WorkspaceSettingsPage() {
       }
 
       // Clear cached workspace & settings so UI reflects deletion immediately
-      clearCache(WORKSPACE_CACHE_KEY);
-      clearCache(SETTINGS_CACHE_KEY);
+      refetch();
 
       setDeletionStats(data.deletionStats);
       showSuccess('Workspace deleted successfully');
@@ -725,7 +502,7 @@ export default function WorkspaceSettingsPage() {
     }
   };
 
-  if (isLoading) {
+  if (loading && !workspace) {
     return <PageLoadingSkeleton />;
   }
 
@@ -742,7 +519,7 @@ export default function WorkspaceSettingsPage() {
     );
   }
 
-  if (!canUpdateSettings) {
+  if (userRole !== 'admin') {
     return (
       <div className='min-h-screen dot-pattern-dark'>
         <DashboardHeader />
@@ -769,22 +546,17 @@ export default function WorkspaceSettingsPage() {
                   workspace.
                 </p>
                 <p className='text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6'>
-                  Only workspace owners and administrators can modify workspace
-                  settings.
+                  Only workspace administrators can modify workspace settings.
                 </p>
 
                 {/* User Role Info */}
                 {userRole && (
                   <div className='bg-muted/30 rounded-lg p-3 mb-4 sm:mb-6'>
                     <div className='flex items-center justify-center gap-2 text-xs sm:text-sm'>
-                      {userRole === 'member' && (
-                        <>
-                          <User className='w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground' />
-                          <span className='text-muted-foreground font-medium'>
-                            You are a member of this workspace
-                          </span>
-                        </>
-                      )}
+                      <User className='w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground' />
+                      <span className='text-muted-foreground font-medium'>
+                        You are a member of this workspace
+                      </span>
                     </div>
                   </div>
                 )}
@@ -919,7 +691,7 @@ export default function WorkspaceSettingsPage() {
               {/* Workspace Name */}
               <button
                 onClick={
-                  canUpdateSettings
+                  userRole === 'admin'
                     ? () => {
                         setEditField('name');
                         setEditWorkspaceName(workspace?.name || '');
@@ -928,11 +700,11 @@ export default function WorkspaceSettingsPage() {
                     : undefined
                 }
                 className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                  canUpdateSettings
+                  userRole === 'admin'
                     ? 'hover:bg-muted/50 cursor-pointer'
                     : 'cursor-default'
                 }`}
-                disabled={!canUpdateSettings}
+                disabled={userRole !== 'admin'}
               >
                 <div className='flex items-center gap-3 min-w-0 flex-1'>
                   <div className='w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0'>
@@ -949,7 +721,7 @@ export default function WorkspaceSettingsPage() {
                     </div>
                   </div>
                 </div>
-                {canUpdateSettings && (
+                {userRole === 'admin' && (
                   <div className='px-2 sm:px-3 py-1 sm:py-2 text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1 flex-shrink-0'>
                     <span className='hidden sm:inline'>Edit</span>
                     <ChevronRight className='w-3 h-3 sm:w-4 sm:h-4' />
@@ -960,7 +732,7 @@ export default function WorkspaceSettingsPage() {
               {/* Workspace Color */}
               <button
                 onClick={
-                  canUpdateSettings
+                  userRole === 'admin'
                     ? () => {
                         setEditField('color');
                         setEditWorkspaceColor(workspace?.color || '');
@@ -979,11 +751,11 @@ export default function WorkspaceSettingsPage() {
                     : undefined
                 }
                 className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                  canUpdateSettings
+                  userRole === 'admin'
                     ? 'hover:bg-muted/50 cursor-pointer'
                     : 'cursor-default'
                 }`}
-                disabled={!canUpdateSettings}
+                disabled={userRole !== 'admin'}
               >
                 <div className='flex items-center gap-3'>
                   <div
@@ -1011,7 +783,7 @@ export default function WorkspaceSettingsPage() {
                     </div>
                   </div>
                 </div>
-                {canUpdateSettings && (
+                {userRole === 'admin' && (
                   <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
                     Edit
                     <ChevronRight className='w-4 h-4' />
@@ -1029,16 +801,16 @@ export default function WorkspaceSettingsPage() {
 
             <button
               onClick={
-                canUpdateSettings
+                userRole === 'admin'
                   ? () => setShowMembershipModal(true)
                   : undefined
               }
               className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                canUpdateSettings
+                userRole === 'admin'
                   ? 'hover:bg-muted/50 cursor-pointer'
                   : 'cursor-default'
               }`}
-              disabled={!canUpdateSettings}
+              disabled={userRole !== 'admin'}
             >
               <div className='flex items-center gap-3'>
                 <div
@@ -1057,7 +829,7 @@ export default function WorkspaceSettingsPage() {
                   </div>
                 </div>
               </div>
-              {canUpdateSettings && (
+              {userRole === 'admin' && (
                 <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors items-center gap-1 hidden md:flex'>
                   Change
                   <ChevronRight className='w-4 h-4' />
@@ -1074,14 +846,16 @@ export default function WorkspaceSettingsPage() {
 
             <button
               onClick={
-                canUpdateSettings ? () => setShowCreationModal(true) : undefined
+                userRole === 'admin'
+                  ? () => setShowCreationModal(true)
+                  : undefined
               }
               className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                canUpdateSettings
+                userRole === 'admin'
                   ? 'hover:bg-muted/50 cursor-pointer'
                   : 'cursor-default'
               }`}
-              disabled={!canUpdateSettings}
+              disabled={userRole !== 'admin'}
             >
               <div className='flex items-center gap-3'>
                 <div className='w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center'>
@@ -1098,7 +872,7 @@ export default function WorkspaceSettingsPage() {
                   </div>
                 </div>
               </div>
-              {canUpdateSettings && (
+              {userRole === 'admin' && (
                 <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors items-center gap-1 hidden md:flex'>
                   Change
                   <ChevronRight className='w-4 h-4' />
@@ -1115,14 +889,16 @@ export default function WorkspaceSettingsPage() {
 
             <button
               onClick={
-                canUpdateSettings ? () => setShowDeletionModal(true) : undefined
+                userRole === 'admin'
+                  ? () => setShowDeletionModal(true)
+                  : undefined
               }
               className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                canUpdateSettings
+                userRole === 'admin'
                   ? 'hover:bg-muted/50 cursor-pointer'
                   : 'cursor-default'
               }`}
-              disabled={!canUpdateSettings}
+              disabled={userRole !== 'admin'}
             >
               <div className='flex items-center gap-3'>
                 <div className='w-8 h-8 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center'>
@@ -1138,7 +914,7 @@ export default function WorkspaceSettingsPage() {
                   </div>
                 </div>
               </div>
-              {canUpdateSettings && (
+              {userRole === 'admin' && (
                 <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors items-center gap-1 hidden md:flex'>
                   Change
                   <ChevronRight className='w-4 h-4' />
