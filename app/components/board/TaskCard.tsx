@@ -112,7 +112,7 @@ export function TaskCard({
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: isDragging ? 'none' : transition, // Disable transitions during drag
     // Don't make fully transparent when dragging, instead just reduce opacity
     // This will act as a placeholder in the original position
     opacity: isDragging ? 0.15 : 1, // Reduced opacity further during dragging
@@ -360,7 +360,7 @@ export function TaskCard({
         {...listeners}
         onClick={handleCardClick}
         className={`group p-3 rounded-lg backdrop-blur-sm border shadow-lg shadow-black/10 cursor-pointer min-h-[80px] h-auto mb-6 last:mb-0
-          transition-all duration-300 ease-out transform
+          ${isDragging ? '' : 'transition-all duration-300 ease-out transform'}
           ${!isDragging && !isMobile ? 'hover:-translate-y-1' : ''}
           ${
             isDragTarget

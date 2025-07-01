@@ -166,10 +166,11 @@ export function ColumnContainer({
             {tasks.map((task, index) => (
               <div
                 key={task.id}
-                className='animate-slideUp'
+                className={task.id === activeTaskId ? '' : 'animate-slideUp'}
                 style={{
                   animationFillMode: 'both',
-                  animationDelay: `${index * 50}ms`, // Stagger the animations
+                  animationDelay:
+                    task.id === activeTaskId ? '0ms' : `${index * 50}ms`, // Disable delay for dragged item
                 }}
               >
                 <TaskCard

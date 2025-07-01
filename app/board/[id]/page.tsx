@@ -1197,61 +1197,46 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     [createCard, showSuccess, showError]
   );
 
-  // Show loading state
-  if (loading || listsLoading) {
+  // Show loading skeleton if board or lists are still loading
+  if (loading || listsLoading || !board || !lists) {
     return <BoardSkeleton />;
   }
 
-  // Show error state
-  if (error || listsError || !board) {
-    const isError = error || listsError;
-    const errorTitle = isError
-      ? 'Oops! Something went wrong'
-      : 'Board not found';
-    const errorMessage = isError
-      ? 'We encountered an issue while loading this board. This might be a temporary problem.'
-      : "This board doesn't exist or you don't have permission to view it. It may have been deleted or you might not be a member of this workspace.";
-
+  // Handle error states
+  if (error) {
     return (
-      <div className='min-h-screen dot-pattern-dark'>
-        <DashboardHeader />
-        <main className='container mx-auto max-w-7xl px-4 pt-24 pb-16'>
-          <div className='flex flex-col items-center justify-center py-16 text-center'>
-            <div className='w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center mb-4'>
-              <AlertCircle className='w-8 h-8 text-red-600 dark:text-red-400' />
-            </div>
-            <h3 className='text-lg font-semibold text-foreground mb-2'>
-              {errorTitle}
-            </h3>
-            <p className='text-muted-foreground mb-6 max-w-md'>
-              {errorMessage}
-            </p>
+      <div className='min-h-screen dot-pattern-dark flex flex-col items-center justify-center'>
+        <div className='text-center'>
+          <h1 className='text-2xl font-bold text-destructive mb-2'>
+            Error loading board
+          </h1>
+          <p className='text-muted-foreground mb-4'>{error}</p>
+          <button
+            onClick={() => router.back()}
+            className='px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors'
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-            <div className='flex flex-col sm:flex-row gap-3'>
-              <button
-                onClick={() => router.back()}
-                className='btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center gap-2'
-              >
-                <ArrowLeft className='w-4 h-4' />
-                Go Back
-              </button>
-
-              <button
-                onClick={() => router.push('/')}
-                className='btn border border-border hover:bg-muted/50 px-4 py-2 flex items-center gap-2'
-              >
-                Go to Dashboard
-              </button>
-            </div>
-
-            {isError && (
-              <p className='text-xs text-muted-foreground mt-4'>
-                If this problem persists, please try refreshing the page or
-                contact support.
-              </p>
-            )}
-          </div>
-        </main>
+  if (listsError) {
+    return (
+      <div className='min-h-screen dot-pattern-dark flex flex-col items-center justify-center'>
+        <div className='text-center'>
+          <h1 className='text-2xl font-bold text-destructive mb-2'>
+            Error loading board data
+          </h1>
+          <p className='text-muted-foreground mb-4'>{listsError}</p>
+          <button
+            onClick={() => router.back()}
+            className='px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors'
+          >
+            Go Back
+          </button>
+        </div>
       </div>
     );
   }
@@ -1361,25 +1346,38 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
 
-    // Create smooth transition for the DOM update by waiting for the animation frame
-    window.requestAnimationFrame(() => {
-      // Clear the active task state
-      setActiveTask(null);
-      setActiveColumnId(null);
+    // Always reset dragOverInfo immediately
+    setDragOverInfo({
+      id: null,
+      type: null,
+      index: null,
+      columnId: null,
     });
 
     // If there's no over element, we can't do anything
-    if (!over) return;
+    if (!over) {
+      setActiveTask(null);
+      setActiveColumnId(null);
+      return;
+    }
 
     const activeId = active.id as string;
     const overId = over.id as string;
 
     // If dropped on itself, no changes needed
-    if (activeId === overId) return;
+    if (activeId === overId) {
+      setActiveTask(null);
+      setActiveColumnId(null);
+      return;
+    }
 
     // Get information about active task
     const activeTaskInfo = findTaskById(activeId);
-    if (!activeTaskInfo) return;
+    if (!activeTaskInfo) {
+      setActiveTask(null);
+      setActiveColumnId(null);
+      return;
+    }
 
     const { columnId: sourceListId } = activeTaskInfo;
 
@@ -1390,31 +1388,38 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     let newPosition: number;
 
     if (isOverAColumn) {
-      // Handle dropping on a column
       targetListId = overId;
       const targetColumn = columns.find((col) => col.id === targetListId);
       newPosition = targetColumn ? targetColumn.cards.length : 0;
     } else {
-      // Handle dropping on a task
       const overTaskInfo = findTaskById(overId);
-      if (!overTaskInfo) return;
-
+      if (!overTaskInfo) {
+        setActiveTask(null);
+        setActiveColumnId(null);
+        return;
+      }
       const { columnId: overColumnId } = overTaskInfo;
       targetListId = overColumnId;
       const targetColumn = columns.find((col) => col.id === targetListId);
-      if (!targetColumn) return;
-
+      if (!targetColumn) {
+        setActiveTask(null);
+        setActiveColumnId(null);
+        return;
+      }
       const insertIndex = targetColumn.cards.findIndex(
         (card) => card.id === overId
       );
       newPosition = insertIndex;
     }
 
-    // Apply optimistic update using moveCard from useLists hook
     moveCard(activeId, sourceListId, targetListId, newPosition);
 
+    setTimeout(() => {
+      setActiveTask(null);
+      setActiveColumnId(null);
+    }, 50);
+
     try {
-      // Persist to database in the background
       const response = await fetch(`/api/cards/${activeId}/move`, {
         method: 'POST',
         headers: {
@@ -1431,12 +1436,10 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         throw new Error(data.error || 'Failed to move card');
       }
 
-      // Success - show feedback
       showSuccess('Card moved successfully');
     } catch (error) {
       console.error('Error moving card:', error);
       showError('Failed to move card');
-      // Revert optimistic update by refetching latest lists from server
       refetch();
     }
   }
@@ -1456,50 +1459,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       return `${Math.floor(diffInSeconds / 3600)}h ago`;
     return `${Math.floor(diffInSeconds / 86400)}d ago`;
   };
-
-  // Show loading skeleton if board or lists are still loading
-  if (loading || listsLoading || !board || !lists) {
-    return <BoardSkeleton />;
-  }
-
-  // Handle error states
-  if (error) {
-    return (
-      <div className='min-h-screen dot-pattern-dark flex flex-col items-center justify-center'>
-        <div className='text-center'>
-          <h1 className='text-2xl font-bold text-destructive mb-2'>
-            Error loading board
-          </h1>
-          <p className='text-muted-foreground mb-4'>{error}</p>
-          <button
-            onClick={() => router.back()}
-            className='px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors'
-          >
-            Go Back
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (listsError) {
-    return (
-      <div className='min-h-screen dot-pattern-dark flex flex-col items-center justify-center'>
-        <div className='text-center'>
-          <h1 className='text-2xl font-bold text-destructive mb-2'>
-            Error loading board data
-          </h1>
-          <p className='text-muted-foreground mb-4'>{listsError}</p>
-          <button
-            onClick={() => router.back()}
-            className='px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors'
-          >
-            Go Back
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className='min-h-screen dot-pattern-dark flex flex-col'>
@@ -1710,24 +1669,26 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             />
           </div>
 
-          <DragOverlay>
+          <DragOverlay dropAnimation={null}>
             {activeTask && (
-              <TaskCard
-                task={activeTask}
-                labelColors={labelColors}
-                columnId={activeColumnId || ''}
-                isDragTarget={false}
-                isBeingDragged={false}
-                onEditTask={handleEditTask}
-                onCopyTask={handleCopyTask}
-                onArchiveTask={handleArchiveTask}
-                onDeleteTask={handleDeleteTask}
-                onManageLabels={handleManageLabels}
-                onManageAssignees={handleManageAssignees}
-                onManageDueDate={handleManageDueDate}
-                onMoveTask={handleMoveTask}
-                onOpenCard={handleOpenCard}
-              />
+              <div className='transform scale-105 rotate-1 shadow-2xl'>
+                <TaskCard
+                  task={activeTask}
+                  labelColors={labelColors}
+                  columnId={activeColumnId || ''}
+                  isDragTarget={false}
+                  isBeingDragged={false}
+                  onEditTask={handleEditTask}
+                  onCopyTask={handleCopyTask}
+                  onArchiveTask={handleArchiveTask}
+                  onDeleteTask={handleDeleteTask}
+                  onManageLabels={handleManageLabels}
+                  onManageAssignees={handleManageAssignees}
+                  onManageDueDate={handleManageDueDate}
+                  onMoveTask={handleMoveTask}
+                  onOpenCard={handleOpenCard}
+                />
+              </div>
             )}
           </DragOverlay>
         </DndContext>
