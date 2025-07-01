@@ -352,7 +352,12 @@ export function CardModal({
   const [isLoadingLabels, setIsLoadingLabels] = useState(false);
 
   // Zustand cache helpers for card-level data
-  const { getCache, setCache } = useAppStore();
+  const {
+    getCache,
+    setCache,
+    updateCardLabelsInCache,
+    updateCardMembersInCache,
+  } = useAppStore();
   const CACHE_TTL = 60 * 1000; // 1 min TTL
   const [showMemberPicker, setShowMemberPicker] = useState(false);
   const [workspaceId, setWorkspaceId] = useState<string>('');
@@ -1851,7 +1856,12 @@ export function CardModal({
     setIsSavingMember(true);
 
     // Optimistic update - add member immediately
-    setCardMembers((prev) => [...prev, member]);
+    const updatedMembers = [...cardMembers, member];
+    setCardMembers(updatedMembers);
+
+    // Update the store for real-time sync across components
+    updateCardMembersInCache(card.board_id, card.id, updatedMembers);
+
     // Refresh activities to show the member addition
     fetchActivities();
 
@@ -1876,9 +1886,13 @@ export function CardModal({
     setIsSavingMember(true);
 
     // Optimistic update - remove member immediately
-    setCardMembers((prev) =>
-      prev.filter((member) => member.profiles.id !== profileId)
+    const updatedMembers = cardMembers.filter(
+      (member) => member.profiles.id !== profileId
     );
+    setCardMembers(updatedMembers);
+
+    // Update the store for real-time sync across components
+    updateCardMembersInCache(card.board_id, card.id, updatedMembers);
 
     try {
       const response = await fetch(
@@ -1899,15 +1913,21 @@ export function CardModal({
           member: memberToRemove,
         });
       } else {
-        // Rollback on failure
-        setCardMembers((prev) => [...prev, memberToRemove]);
+        // Rollback on failure - restore both local state and store
+        const rolledBackMembers = [...cardMembers, memberToRemove];
+        setCardMembers(rolledBackMembers);
+        updateCardMembersInCache(card.board_id, card.id, rolledBackMembers);
+
         const data = await response.json();
         console.error('Failed to remove member:', data.error);
         alert(`Failed to remove member: ${data.error}`);
       }
     } catch (error) {
-      // Rollback on error
-      setCardMembers((prev) => [...prev, memberToRemove]);
+      // Rollback on error - restore both local state and store
+      const rolledBackMembers = [...cardMembers, memberToRemove];
+      setCardMembers(rolledBackMembers);
+      updateCardMembersInCache(card.board_id, card.id, rolledBackMembers);
+
       console.error('Error removing member:', error);
       alert('Failed to remove member. Please try again.');
     } finally {
@@ -3201,7 +3221,13 @@ export function CardModal({
             fetchCardLabels();
             // Refresh activities to show the label change activity
             fetchActivities();
-            // Notify parent component to refresh board data
+
+            // Update the store with fresh labels data for real-time sync
+            if (cardLabels) {
+              updateCardLabelsInCache(card.board_id, card.id, cardLabels);
+            }
+
+            // Notify parent component for additional updates
             onLabelsUpdated?.(labelId, labelData);
           }}
         />

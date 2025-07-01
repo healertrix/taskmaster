@@ -49,6 +49,15 @@ interface AppState {
     };
   };
 
+  // Board lists cache - for real-time board data management
+  boardListsCache: {
+    [boardId: string]: {
+      lists: any[];
+      timestamp: number;
+      ttl: number;
+    };
+  };
+
   // User preferences cache
   userPreferences: {
     theme: 'light' | 'dark' | 'system';
@@ -108,15 +117,27 @@ interface AppState {
   getWorkspaceSettingsCache: (
     workspaceId: string
   ) => { workspace: any; settings: any; userRole: string } | null;
-  updateSettingsInCache: (
-    workspaceId: string,
-    settings: any
-  ) => void;
-  updateWorkspaceInSettingsCache: (
-    workspaceId: string,
-    workspace: any
-  ) => void;
+  updateSettingsInCache: (workspaceId: string, settings: any) => void;
+  updateWorkspaceInSettingsCache: (workspaceId: string, workspace: any) => void;
   clearWorkspaceSettingsCache: (workspaceId?: string) => void;
+
+  // Board lists cache actions
+  setBoardListsCache: (boardId: string, lists: any[]) => void;
+  getBoardListsCache: (boardId: string) => any[] | null;
+  updateCardInCache: (boardId: string, cardId: string, updates: any) => void;
+  updateCardLabelsInCache: (
+    boardId: string,
+    cardId: string,
+    labels: any[]
+  ) => void;
+  updateCardMembersInCache: (
+    boardId: string,
+    cardId: string,
+    members: any[]
+  ) => void;
+  addCardToListInCache: (boardId: string, listId: string, card: any) => void;
+  removeCardFromCache: (boardId: string, cardId: string) => void;
+  clearBoardListsCache: (boardId?: string) => void;
 
   // User preferences actions
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
@@ -142,6 +163,7 @@ export const useAppStore = create<AppState>()(
         workspaceBoardsCache: {},
         workspaceMembersCache: {},
         workspaceSettingsCache: {},
+        boardListsCache: {},
         userPreferences: {
           theme: 'system',
           sidebarCollapsed: false,
@@ -505,10 +527,7 @@ export const useAppStore = create<AppState>()(
           };
         },
 
-        updateSettingsInCache: (
-          workspaceId: string,
-          settings: any
-        ) => {
+        updateSettingsInCache: (workspaceId: string, settings: any) => {
           set((state) => {
             const entry = state.workspaceSettingsCache[workspaceId];
             if (!entry) return state;
@@ -548,10 +567,136 @@ export const useAppStore = create<AppState>()(
         clearWorkspaceSettingsCache: (workspaceId?: string) => {
           set((state) => {
             if (workspaceId) {
-              const { [workspaceId]: _, ...rest } = state.workspaceSettingsCache;
+              const { [workspaceId]: _, ...rest } =
+                state.workspaceSettingsCache;
               return { workspaceSettingsCache: rest };
             }
             return { workspaceSettingsCache: {} };
+          });
+        },
+
+        // Board lists cache actions
+        setBoardListsCache: (boardId: string, lists: any[]) => {
+          set((state) => ({
+            boardListsCache: {
+              ...state.boardListsCache,
+              [boardId]: {
+                lists,
+                timestamp: Date.now(),
+                ttl: DEFAULT_TTL,
+              },
+            },
+          }));
+        },
+
+        getBoardListsCache: (boardId: string) => {
+          const state = get();
+          const entry = state.boardListsCache[boardId];
+
+          if (!entry) return null;
+
+          const isExpired = Date.now() - entry.timestamp > entry.ttl;
+          if (isExpired) {
+            // Auto-clear expired cache
+            get().clearBoardListsCache(boardId);
+            return null;
+          }
+
+          return entry.lists;
+        },
+
+        updateCardInCache: (boardId: string, cardId: string, updates: any) => {
+          set((state) => {
+            const entry = state.boardListsCache[boardId];
+            if (!entry) return state;
+
+            const updatedLists = entry.lists.map((list) => ({
+              ...list,
+              cards: list.cards.map((card: any) =>
+                card.id === cardId ? { ...card, ...updates } : card
+              ),
+            }));
+
+            return {
+              boardListsCache: {
+                ...state.boardListsCache,
+                [boardId]: {
+                  ...entry,
+                  lists: updatedLists,
+                },
+              },
+            };
+          });
+        },
+
+        updateCardLabelsInCache: (
+          boardId: string,
+          cardId: string,
+          labels: any[]
+        ) => {
+          get().updateCardInCache(boardId, cardId, { card_labels: labels });
+        },
+
+        updateCardMembersInCache: (
+          boardId: string,
+          cardId: string,
+          members: any[]
+        ) => {
+          get().updateCardInCache(boardId, cardId, { card_members: members });
+        },
+
+        addCardToListInCache: (boardId: string, listId: string, card: any) => {
+          set((state) => {
+            const entry = state.boardListsCache[boardId];
+            if (!entry) return state;
+
+            const updatedLists = entry.lists.map((list) =>
+              list.id === listId
+                ? { ...list, cards: [...list.cards, card] }
+                : list
+            );
+
+            return {
+              boardListsCache: {
+                ...state.boardListsCache,
+                [boardId]: {
+                  ...entry,
+                  lists: updatedLists,
+                },
+              },
+            };
+          });
+        },
+
+        removeCardFromCache: (boardId: string, cardId: string) => {
+          set((state) => {
+            const entry = state.boardListsCache[boardId];
+            if (!entry) return state;
+
+            const updatedLists = entry.lists.map((list) => ({
+              ...list,
+              cards: list.cards.filter((card: any) => card.id !== cardId),
+            }));
+
+            return {
+              boardListsCache: {
+                ...state.boardListsCache,
+                [boardId]: {
+                  ...entry,
+                  lists: updatedLists,
+                },
+              },
+            };
+          });
+        },
+
+        clearBoardListsCache: (boardId?: string) => {
+          set((state) => {
+            if (boardId) {
+              const { [boardId]: _, ...rest } = state.boardListsCache;
+              return { boardListsCache: rest };
+            }
+            return { boardListsCache: {} };
           });
         },
 

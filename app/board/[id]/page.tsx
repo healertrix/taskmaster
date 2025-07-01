@@ -24,7 +24,7 @@ import { DashboardHeader } from '../../components/dashboard/header';
 import { ColumnContainer } from '../../components/board/ColumnContainer';
 import { TaskCard } from '../../components/board/TaskCard';
 import { useBoard } from '@/hooks/useBoard';
-import { useLists } from '@/hooks/useLists';
+import { useBoardStore } from '@/hooks/useBoardStore';
 import { AddListForm } from '../../components/board/AddListForm';
 import { CardModal } from '../../components/board/CardModal';
 import { MoveCardModal } from '../../components/board/MoveCardModal';
@@ -620,7 +620,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     updateBoardDescription,
   } = useBoard(params.id);
 
-  // Use the lists hook to manage lists/columns
+  // Use the board store hook for real-time data management
   const {
     lists,
     loading: listsLoading,
@@ -634,8 +634,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     moveCard,
     archiveList,
     deleteList,
-    refetch,
-  } = useLists(params.id);
+    updateCardLabels,
+    updateCardMembers,
+  } = useBoardStore(params.id);
 
   // Local UI state for columns (needed for optimistic updates)
   const [columns, setColumns] = useState<Column[]>([]);
@@ -978,10 +979,10 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   };
 
   const handleMoveSuccess = useCallback(() => {
-    // Trigger optimistic update first for immediate feedback
-    refetch();
+    // Board data will be automatically updated by the store
+    // No need for manual refetch since useBoardStore manages real-time updates
     showSuccess('Card moved successfully');
-  }, [refetch, showSuccess]);
+  }, [showSuccess]);
 
   // Card modal handlers
   const handleOpenCard = (cardId: string) => {
@@ -1077,47 +1078,67 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     [updateCard, showSuccess, showError]
   );
 
-  // Handle labels updated - refresh board data to show changes immediately
+  // Handle labels updated - update store for instant UI sync
   const handleLabelsUpdated = useCallback(
-    (labelId?: string, labelData?: any) => {
-      // Refresh the lists data to get updated card labels
-      refetch();
+    async (labelId?: string, labelData?: any) => {
+      if (!selectedCardId) return;
 
-      if (selectedCardId) {
-        // Also trigger card update for any additional optimistic updates
-        handleUpdateCard(selectedCardId, {
-          updated_at: new Date().toISOString(),
-        });
+      try {
+        // Fetch fresh card labels from API
+        const response = await fetch(`/api/cards/${selectedCardId}/labels`);
+        const data = await response.json();
+
+        if (response.ok) {
+          // Update the store with fresh labels data
+          updateCardLabels(selectedCardId, data.labels || []);
+
+          // Also trigger card update for timestamp
+          handleUpdateCard(selectedCardId, {
+            updated_at: new Date().toISOString(),
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching updated labels:', error);
       }
     },
-    [selectedCardId, handleUpdateCard, refetch]
+    [selectedCardId, updateCardLabels, handleUpdateCard]
   );
 
-  // Handle members updated - refresh board data to show changes immediately
+  // Handle members updated - update store for instant UI sync
   const handleMembersUpdated = useCallback(
-    (memberId?: string, memberData?: any) => {
-      // Refresh the lists data to get updated card members
-      refetch();
+    async (memberId?: string, memberData?: any) => {
+      if (!selectedCardId) return;
 
-      if (selectedCardId) {
-        // Also trigger card update for any additional optimistic updates
-        handleUpdateCard(selectedCardId, {
-          updated_at: new Date().toISOString(),
-        });
+      try {
+        // Fetch fresh card members from API
+        const response = await fetch(`/api/cards/${selectedCardId}/members`);
+        const data = await response.json();
+
+        if (response.ok) {
+          // Update the store with fresh members data
+          updateCardMembers(selectedCardId, data.members || []);
+
+          // Also trigger card update for timestamp
+          handleUpdateCard(selectedCardId, {
+            updated_at: new Date().toISOString(),
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching updated members:', error);
       }
     },
-    [selectedCardId, handleUpdateCard, refetch]
+    [selectedCardId, updateCardMembers, handleUpdateCard]
   );
 
   // Enhanced move success handler that doesn't close the card modal
   const handleCardMoveSuccess = useCallback(
     (newListId: string, newListName: string) => {
-      // Update the board data in the background
-      refetch();
+      // Board data will be automatically updated by the store
+      // No need for manual refetch since useBoardStore manages real-time updates
       showSuccess(`Card moved to "${newListName}" successfully`);
       // Note: We don't close the card modal here - it stays open for better UX
     },
-    [refetch, showSuccess]
+    [showSuccess]
   );
 
   // Handle adding a new card to a column
