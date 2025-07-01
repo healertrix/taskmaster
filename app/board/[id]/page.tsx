@@ -1077,30 +1077,36 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     [updateCard, showSuccess, showError]
   );
 
-  // Handle labels updated - optimistic update for better UX
+  // Handle labels updated - refresh board data to show changes immediately
   const handleLabelsUpdated = useCallback(
     (labelId?: string, labelData?: any) => {
+      // Refresh the lists data to get updated card labels
+      refetch();
+
       if (selectedCardId) {
-        // Find the card and trigger optimistic update
+        // Also trigger card update for any additional optimistic updates
         handleUpdateCard(selectedCardId, {
           updated_at: new Date().toISOString(),
         });
       }
     },
-    [selectedCardId, handleUpdateCard]
+    [selectedCardId, handleUpdateCard, refetch]
   );
 
-  // Handle members updated - optimistic update for better UX
+  // Handle members updated - refresh board data to show changes immediately
   const handleMembersUpdated = useCallback(
     (memberId?: string, memberData?: any) => {
+      // Refresh the lists data to get updated card members
+      refetch();
+
       if (selectedCardId) {
-        // Find the card and trigger optimistic update
+        // Also trigger card update for any additional optimistic updates
         handleUpdateCard(selectedCardId, {
           updated_at: new Date().toISOString(),
         });
       }
     },
-    [selectedCardId, handleUpdateCard]
+    [selectedCardId, handleUpdateCard, refetch]
   );
 
   // Enhanced move success handler that doesn't close the card modal
