@@ -138,9 +138,6 @@ export const useBoardStore = (boardId: string) => {
 
       // Update lists in cache
       setBoardListsCache(boardId, updatedLists);
-
-      // Notify subscribers of the change
-      useAppStore.getState().notifySubscribers();
     },
     [updateCardMembersInCache, boardId, getCachedLists, setBoardListsCache]
   );
