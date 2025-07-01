@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
@@ -14,6 +14,7 @@ import {
 import { TaskActionsMenu } from './TaskActionsMenu';
 import { getRelativeDateTime } from '@/utils/dateTime';
 import { useMobile } from '@/hooks/useMobile';
+import { useBoardStore } from '@/hooks/useBoardStore';
 
 // Define Task type matching page.tsx
 interface Task {
@@ -67,6 +68,27 @@ export function TaskCard({
   onOpenCard,
 }: TaskCardProps) {
   const { isMobile } = useMobile();
+  const { getCardMembers } = useBoardStore(task.boardId);
+
+  // Subscribe to member changes for this card
+  useEffect(() => {
+    const updatedMembers = getCardMembers(task.id);
+    if (updatedMembers && task.assignees !== updatedMembers) {
+      // Update the task's assignees immediately when members change
+      task.assignees = updatedMembers.map((member) => ({
+        initials:
+          member.profiles.full_name
+            ?.split(' ')
+            .map((n) => n[0])
+            .join('')
+            .toUpperCase() || 'U',
+        color: 'bg-primary',
+        avatar_url: member.profiles.avatar_url,
+        full_name: member.profiles.full_name,
+      }));
+    }
+  }, [task.id, getCardMembers]);
+
   // Format date for display
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';

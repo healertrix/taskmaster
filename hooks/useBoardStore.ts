@@ -118,9 +118,31 @@ export const useBoardStore = (boardId: string) => {
   // Update card members in real-time
   const updateCardMembers = useCallback(
     (cardId: string, members: any[]) => {
+      // Immediately update the cache
       updateCardMembersInCache(boardId, cardId, members);
+
+      // Find and update the card in lists
+      const allLists = getCachedLists();
+      const updatedLists = allLists.map((list) => ({
+        ...list,
+        cards: list.cards.map((card: any) => {
+          if (card.id === cardId) {
+            return {
+              ...card,
+              card_members: members,
+            };
+          }
+          return card;
+        }),
+      }));
+
+      // Update lists in cache
+      setBoardListsCache(boardId, updatedLists);
+
+      // Notify subscribers of the change
+      useAppStore.getState().notifySubscribers();
     },
-    [updateCardMembersInCache, boardId]
+    [updateCardMembersInCache, boardId, getCachedLists, setBoardListsCache]
   );
 
   // Update any card property in real-time

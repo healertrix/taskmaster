@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Plus, User, Search, Check } from 'lucide-react';
+import { useBoardStore } from '@/hooks/useBoardStore';
 
 interface MemberData {
   id: string;
@@ -102,6 +103,7 @@ export function CardMemberPicker({
   const [addingMemberIds, setAddingMemberIds] = useState<Set<string>>(
     new Set()
   );
+  const { updateCardMembers } = useBoardStore(boardId);
 
   // Get current member IDs for filtering
   const currentMemberIds = new Set(
@@ -209,8 +211,13 @@ export function CardMemberPicker({
     // Add this member ID to the adding set
     setAddingMemberIds((prev) => new Set(prev).add(profileId));
 
-    // Add to current members optimistically
+    // Add to current members optimistically and trigger immediate update
+    const updatedMembers = [...currentMembers, optimisticMember];
     onMemberAdded(optimisticMember);
+
+    // Update the board store immediately with optimistic data
+    updateCardMembers(cardId, updatedMembers);
+
     try {
       const response = await fetch(`/api/cards/${cardId}/members`, {
         method: 'POST',
@@ -225,10 +232,10 @@ export function CardMemberPicker({
       const data = await response.json();
 
       if (response.ok) {
-        // Replace optimistic member with real data
-        // This will be handled by the parent component
+        // Update the board store with the real data
+        updateCardMembers(cardId, data.members || updatedMembers);
 
-        // Auto-close modal after successful addition (only if not allowing multiple selections and not on mobile)
+        // Auto-close modal after successful addition
         if (
           autoCloseAfterAdd &&
           !allowMultipleSelections &&
@@ -239,12 +246,14 @@ export function CardMemberPicker({
       } else {
         // Rollback optimistic updates
         setAvailableMembers((prev) => [...prev, memberToAdd]);
+        updateCardMembers(cardId, currentMembers);
         console.error('Failed to add member:', data.error);
         alert(`Failed to add member: ${data.error}`);
       }
     } catch (error) {
       // Rollback optimistic updates
       setAvailableMembers((prev) => [...prev, memberToAdd]);
+      updateCardMembers(cardId, currentMembers);
       console.error('Error adding member:', error);
       alert('Failed to add member. Please try again.');
     } finally {
