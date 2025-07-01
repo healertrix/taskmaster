@@ -58,6 +58,24 @@ interface AppState {
     };
   };
 
+  // Board labels cache - shared across all cards in a board
+  boardLabelsCache: {
+    [boardId: string]: {
+      labels: any[];
+      timestamp: number;
+      ttl: number;
+    };
+  };
+
+  // Workspace members cache - shared across all cards in a workspace
+  workspaceMembersForBoardCache: {
+    [workspaceId: string]: {
+      members: any[];
+      timestamp: number;
+      ttl: number;
+    };
+  };
+
   // User preferences cache
   userPreferences: {
     theme: 'light' | 'dark' | 'system';
@@ -139,6 +157,26 @@ interface AppState {
   removeCardFromCache: (boardId: string, cardId: string) => void;
   clearBoardListsCache: (boardId?: string) => void;
 
+  // Board labels cache actions
+  setBoardLabelsCache: (boardId: string, labels: any[]) => void;
+  getBoardLabelsCache: (boardId: string) => any[] | null;
+  updateBoardLabelInCache: (
+    boardId: string,
+    labelId: string,
+    updates: any
+  ) => void;
+  addBoardLabelToCache: (boardId: string, label: any) => void;
+  removeBoardLabelFromCache: (boardId: string, labelId: string) => void;
+  clearBoardLabelsCache: (boardId?: string) => void;
+
+  // Workspace members for board cache actions
+  setWorkspaceMembersForBoardCache: (
+    workspaceId: string,
+    members: any[]
+  ) => void;
+  getWorkspaceMembersForBoardCache: (workspaceId: string) => any[] | null;
+  clearWorkspaceMembersForBoardCache: (workspaceId?: string) => void;
+
   // User preferences actions
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -164,6 +202,8 @@ export const useAppStore = create<AppState>()(
         workspaceMembersCache: {},
         workspaceSettingsCache: {},
         boardListsCache: {},
+        boardLabelsCache: {},
+        workspaceMembersForBoardCache: {},
         userPreferences: {
           theme: 'system',
           sidebarCollapsed: false,
@@ -700,6 +740,156 @@ export const useAppStore = create<AppState>()(
           });
         },
 
+        // Board labels cache actions
+        setBoardLabelsCache: (boardId: string, labels: any[]) => {
+          set((state) => ({
+            boardLabelsCache: {
+              ...state.boardLabelsCache,
+              [boardId]: {
+                labels,
+                timestamp: Date.now(),
+                ttl: DEFAULT_TTL,
+              },
+            },
+          }));
+        },
+
+        getBoardLabelsCache: (boardId: string) => {
+          const state = get();
+          const entry = state.boardLabelsCache[boardId];
+
+          if (!entry) return null;
+
+          const isExpired = Date.now() - entry.timestamp > entry.ttl;
+          if (isExpired) {
+            get().clearBoardLabelsCache(boardId);
+            return null;
+          }
+
+          return entry.labels;
+        },
+
+        updateBoardLabelInCache: (
+          boardId: string,
+          labelId: string,
+          updates: any
+        ) => {
+          set((state) => {
+            const entry = state.boardLabelsCache[boardId];
+            if (!entry) return state;
+
+            const updatedLabels = entry.labels.map((label) =>
+              label.id === labelId ? { ...label, ...updates } : label
+            );
+
+            return {
+              boardLabelsCache: {
+                ...state.boardLabelsCache,
+                [boardId]: {
+                  ...entry,
+                  labels: updatedLabels,
+                },
+              },
+            };
+          });
+        },
+
+        addBoardLabelToCache: (boardId: string, label: any) => {
+          set((state) => {
+            const entry = state.boardLabelsCache[boardId];
+            if (!entry) return state;
+
+            const labelExists = entry.labels.some((l) => l.id === label.id);
+            if (labelExists) return state;
+
+            const updatedLabels = [...entry.labels, label];
+
+            return {
+              boardLabelsCache: {
+                ...state.boardLabelsCache,
+                [boardId]: {
+                  ...entry,
+                  labels: updatedLabels,
+                },
+              },
+            };
+          });
+        },
+
+        removeBoardLabelFromCache: (boardId: string, labelId: string) => {
+          set((state) => {
+            const entry = state.boardLabelsCache[boardId];
+            if (!entry) return state;
+
+            const updatedLabels = entry.labels.filter(
+              (label) => label.id !== labelId
+            );
+
+            return {
+              boardLabelsCache: {
+                ...state.boardLabelsCache,
+                [boardId]: {
+                  ...entry,
+                  labels: updatedLabels,
+                },
+              },
+            };
+          });
+        },
+
+        clearBoardLabelsCache: (boardId?: string) => {
+          set((state) => {
+            if (boardId) {
+              const { [boardId]: _, ...rest } = state.boardLabelsCache;
+              return { boardLabelsCache: rest };
+            }
+            return { boardLabelsCache: {} };
+          });
+        },
+
+        // Workspace members for board cache actions
+        setWorkspaceMembersForBoardCache: (
+          workspaceId: string,
+          members: any[]
+        ) => {
+          set((state) => ({
+            workspaceMembersForBoardCache: {
+              ...state.workspaceMembersForBoardCache,
+              [workspaceId]: {
+                members,
+                timestamp: Date.now(),
+                ttl: DEFAULT_TTL,
+              },
+            },
+          }));
+        },
+
+        getWorkspaceMembersForBoardCache: (workspaceId: string) => {
+          const state = get();
+          const entry = state.workspaceMembersForBoardCache[workspaceId];
+
+          if (!entry) return null;
+
+          const isExpired = Date.now() - entry.timestamp > entry.ttl;
+          if (isExpired) {
+            get().clearWorkspaceMembersForBoardCache(workspaceId);
+            return null;
+          }
+
+          return entry.members;
+        },
+
+        clearWorkspaceMembersForBoardCache: (workspaceId?: string) => {
+          set((state) => {
+            if (workspaceId) {
+              const { [workspaceId]: _, ...rest } =
+                state.workspaceMembersForBoardCache;
+              return { workspaceMembersForBoardCache: rest };
+            }
+            return { workspaceMembersForBoardCache: {} };
+          });
+        },
+
         // User preferences actions
         setTheme: (theme: 'light' | 'dark' | 'system') => {
           set((state) => ({
@@ -738,6 +928,9 @@ export const cacheUtils = {
   // Generate cache keys
   getBoardKey: (boardId: string) => `board-${boardId}`,
   getBoardListsKey: (boardId: string) => `board-lists-${boardId}`,
+  getBoardLabelsKey: (boardId: string) => `board-labels-${boardId}`,
+  getWorkspaceMembersForBoardKey: (workspaceId: string) =>
+    `workspace-members-board-${workspaceId}`,
   getWorkspaceBoardsKey: (workspaceId: string) =>
     `workspace-boards-${workspaceId}`,
   getWorkspaceKey: (workspaceId: string) => `workspace-${workspaceId}`,

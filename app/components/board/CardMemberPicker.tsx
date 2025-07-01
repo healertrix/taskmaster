@@ -37,6 +37,8 @@ interface CardMemberPickerProps {
   isLoading?: boolean;
   autoCloseAfterAdd?: boolean;
   allowMultipleSelections?: boolean;
+  // Optimized cached data
+  cachedWorkspaceMembers?: MemberData[];
 }
 
 const UserAvatar = ({
@@ -92,6 +94,7 @@ export function CardMemberPicker({
   isLoading = false,
   autoCloseAfterAdd = false,
   allowMultipleSelections = true,
+  cachedWorkspaceMembers,
 }: CardMemberPickerProps) {
   const [availableMembers, setAvailableMembers] = useState<MemberData[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
@@ -154,9 +157,15 @@ export function CardMemberPicker({
   // Fetch available members when modal opens
   useEffect(() => {
     if (isOpen) {
-      fetchAvailableMembers();
+      // Use cached data if available, otherwise fallback to API call
+      if (cachedWorkspaceMembers) {
+        setAvailableMembers(cachedWorkspaceMembers);
+        setIsLoadingMembers(false);
+      } else {
+        fetchAvailableMembers();
+      }
     }
-  }, [isOpen, workspaceId, boardId]);
+  }, [isOpen, workspaceId, boardId, cachedWorkspaceMembers]);
 
   const fetchAvailableMembers = async () => {
     setIsLoadingMembers(true);

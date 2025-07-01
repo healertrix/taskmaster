@@ -35,6 +35,9 @@ interface LabelModalProps {
   cardId: string;
   boardId: string;
   onLabelsUpdated?: (labelId?: string, labelData?: any) => void;
+  // Optimized cached data
+  cachedBoardLabels?: Label[];
+  cachedCardLabels?: CardLabel[];
 }
 
 const LABEL_COLORS = [
@@ -99,6 +102,8 @@ export default function LabelModal({
   cardId,
   boardId,
   onLabelsUpdated,
+  cachedBoardLabels,
+  cachedCardLabels,
 }: LabelModalProps) {
   const { isMobile, handleMobileBack } = useMobile();
   const [boardLabels, setBoardLabels] = useState<Label[]>([]);
@@ -124,11 +129,19 @@ export default function LabelModal({
   useEffect(() => {
     if (isOpen) {
       setIsLoadingLabels(true);
-      Promise.all([fetchLabels(), fetchCardLabels()]).finally(() => {
+
+      // Use cached data if available, otherwise fallback to API calls
+      if (cachedBoardLabels && cachedCardLabels) {
+        setBoardLabels(cachedBoardLabels);
+        setCardLabels(cachedCardLabels);
         setIsLoadingLabels(false);
-      });
+      } else {
+        Promise.all([fetchLabels(), fetchCardLabels()]).finally(() => {
+          setIsLoadingLabels(false);
+        });
+      }
     }
-  }, [isOpen, cardId, boardId]);
+  }, [isOpen, cardId, boardId, cachedBoardLabels, cachedCardLabels]);
 
   // Handle escape key and mobile back gesture
   useEffect(() => {

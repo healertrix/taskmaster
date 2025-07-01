@@ -185,6 +185,12 @@ interface CardModalProps {
     name: string;
     cards: Array<{ id: string; title: string }>;
   }>;
+  // Optimized cached data
+  workspaceId?: string;
+  cachedCardLabels?: any[];
+  cachedCardMembers?: any[];
+  cachedBoardLabels?: any[];
+  cachedWorkspaceMembers?: any[];
 }
 
 // Avatar Components with proper error handling
@@ -253,6 +259,11 @@ export function CardModal({
   onMoveSuccess,
   moveCard,
   lists,
+  workspaceId: propsWorkspaceId,
+  cachedCardLabels,
+  cachedCardMembers,
+  cachedBoardLabels,
+  cachedWorkspaceMembers,
 }: CardModalProps) {
   const { user: currentUser } = useAuth();
   const { isMobile, handleMobileBack } = useMobile();
@@ -648,9 +659,7 @@ export function CardModal({
       fetchActivities();
       fetchChecklists();
       fetchAttachments();
-      fetchCardMembers();
-      fetchCardLabels();
-      fetchWorkspaceId();
+      loadCachedCardData();
     } else if (!isOpen) {
       // Reset loading states when modal closes to prevent stale loading states
       setIsLoadingComments(false);
@@ -785,76 +794,59 @@ export function CardModal({
     }
   };
 
-  const fetchCardMembers = async () => {
+  // Use cached data instead of individual API calls
+  const loadCachedCardData = () => {
     if (!card) return;
 
-    const cacheKey = cacheUtils.getCardMembersKey(card.id);
-    const cached = getCache<CardMemberData[]>(cacheKey);
-    if (cached) {
-      setCardMembers(cached);
+    // Use cached card members if available
+    if (cachedCardMembers) {
+      setCardMembers(cachedCardMembers);
+      setIsLoadingMembers(false);
     } else {
       setIsLoadingMembers(true);
+      // Fallback to individual API call if cache not available
+      fetch(`/api/cards/${card.id}/members`)
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.members) {
+            setCardMembers(data.members);
+          }
+        })
+        .catch((error) => console.error('Error fetching card members:', error))
+        .finally(() => setIsLoadingMembers(false));
     }
 
-    try {
-      const response = await fetch(`/api/cards/${card.id}/members`);
-      const data = await response.json();
-
-      if (response.ok) {
-        setCardMembers(data.members || []);
-        setCache(cacheKey, data.members || [], CACHE_TTL);
-      } else {
-        console.error('Failed to fetch card members:', data.error);
-      }
-    } catch (error) {
-      console.error('Error fetching card members:', error);
-    } finally {
-      setIsLoadingMembers(false);
-    }
-  };
-
-  const fetchCardLabels = async () => {
-    if (!card) return;
-
-    const cacheKey = cacheUtils.getCardLabelsKey(card.id);
-    const cached = getCache<any[]>(cacheKey);
-    if (cached) {
-      setCardLabels(cached);
+    // Use cached card labels if available
+    if (cachedCardLabels) {
+      setCardLabels(cachedCardLabels);
+      setIsLoadingLabels(false);
     } else {
       setIsLoadingLabels(true);
+      // Fallback to individual API call if cache not available
+      fetch(`/api/cards/${card.id}/labels`)
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.labels) {
+            setCardLabels(data.labels);
+          }
+        })
+        .catch((error) => console.error('Error fetching card labels:', error))
+        .finally(() => setIsLoadingLabels(false));
     }
 
-    try {
-      const response = await fetch(`/api/cards/${card.id}/labels`);
-      const data = await response.json();
-
-      if (response.ok) {
-        setCardLabels(data.labels || []);
-        setCache(cacheKey, data.labels || [], CACHE_TTL);
-      } else {
-        console.error('Failed to fetch card labels:', data.error);
-      }
-    } catch (error) {
-      console.error('Error fetching card labels:', error);
-    } finally {
-      setIsLoadingLabels(false);
-    }
-  };
-
-  const fetchWorkspaceId = async () => {
-    if (!card) return;
-
-    try {
-      const response = await fetch(`/api/boards/${card.board_id}`);
-      const data = await response.json();
-
-      if (response.ok && data.board) {
-        setWorkspaceId(data.board.workspace_id);
-      } else {
-        console.error('Failed to fetch board info:', data.error);
-      }
-    } catch (error) {
-      console.error('Error fetching board info:', error);
+    // Use cached workspace ID if available
+    if (propsWorkspaceId) {
+      setWorkspaceId(propsWorkspaceId);
+    } else {
+      // Fallback to API call if not provided
+      fetch(`/api/boards/${card.board_id}`)
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.board?.workspace_id) {
+            setWorkspaceId(data.board.workspace_id);
+          }
+        })
+        .catch((error) => console.error('Error fetching workspace ID:', error));
     }
   };
 
@@ -3216,9 +3208,11 @@ export function CardModal({
           onClose={() => setShowLabelModal(false)}
           cardId={card.id}
           boardId={card.board_id}
+          cachedBoardLabels={cachedBoardLabels}
+          cachedCardLabels={cachedCardLabels}
           onLabelsUpdated={(labelId, labelData) => {
-            // Refresh the labels display by fetching fresh data
-            fetchCardLabels();
+            // Refresh the labels display using cached data
+            loadCachedCardData();
             // Refresh activities to show the label change activity
             fetchActivities();
 
@@ -3288,6 +3282,7 @@ export function CardModal({
           onMemberAdded={handleMemberAdded}
           autoCloseAfterAdd={false}
           allowMultipleSelections={true}
+          cachedWorkspaceMembers={cachedWorkspaceMembers}
         />
 
         {/* Attachment Modal */}
