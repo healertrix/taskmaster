@@ -133,24 +133,26 @@ export function AddChecklistModal({
 
   return (
     <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4'>
-      <div className='bg-card border border-border rounded-xl shadow-2xl w-full max-w-sm sm:max-w-lg max-h-[85vh] overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'>
+      <div className='bg-card/90 backdrop-blur-xl border border-border rounded-xl shadow-2xl w-full max-w-sm sm:max-w-lg max-h-[85vh] overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'>
         {/* Header */}
-        <div className='bg-gradient-to-r from-primary to-primary/90 px-6 py-4'>
-          <div className='flex items-center justify-between text-white'>
+        <div className='px-6 py-4 border-b border-border bg-muted/30'>
+          <div className='flex items-center justify-between'>
             <div className='flex items-center gap-3'>
-              <div className='w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center'>
-                <CheckSquare className='w-4 h-4' />
+              <div className='w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center'>
+                <CheckSquare className='w-4 h-4 text-primary' />
               </div>
               <div>
-                <h3 className='text-lg font-semibold'>Add Checklist</h3>
-                <p className='text-sm text-white/80'>
+                <h3 className='text-lg font-semibold text-foreground'>
+                  Add Checklist
+                </h3>
+                <p className='text-sm text-muted-foreground'>
                   Create a new checklist for this card
                 </p>
               </div>
             </div>
             <button
               onClick={handleClose}
-              className='p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200'
+              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all duration-200'
               title='Close modal'
               aria-label='Close modal'
             >
@@ -300,7 +302,7 @@ export function AddChecklistModal({
               <button
                 type='button'
                 onClick={handleClose}
-                className='flex-1 px-4 py-3 bg-secondary text-secondary-foreground text-sm font-medium rounded-lg hover:bg-secondary/80 transition-all duration-200 border border-border'
+                className='flex-1 px-4 py-3 bg-transparent text-muted-foreground text-sm font-medium rounded-lg hover:text-foreground hover:border-primary/50 transition-all duration-200 border border-border'
                 disabled={isLoading}
               >
                 Cancel

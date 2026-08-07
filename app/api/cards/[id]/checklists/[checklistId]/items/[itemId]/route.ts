@@ -55,14 +55,28 @@ export async function PUT(
       }
     }
 
-    // Update item directly - RLS policies will handle permissions
-    const { data: updatedItem, error: updateError } = await supabase
+    // Update item directly - RLS policies will handle permissions. A
+    // statement timeout (57014) here is usually transient (e.g. a lock
+    // wait from another concurrent item update on the same checklist), so
+    // retry once before giving up.
+    let { data: updatedItem, error: updateError } = await supabase
       .from('checklist_items')
       .update(updateData)
       .eq('id', itemId)
       .eq('checklist_id', checklistId)
       .select()
       .single();
+
+    if (updateError?.code === '57014') {
+      console.warn('Checklist item update timed out, retrying once...');
+      ({ data: updatedItem, error: updateError } = await supabase
+        .from('checklist_items')
+        .update(updateData)
+        .eq('id', itemId)
+        .eq('checklist_id', checklistId)
+        .select()
+        .single());
+    }
 
     if (updateError) {
       console.error('Error updating checklist item:', updateError);
@@ -114,12 +128,24 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Delete item directly - RLS policies will handle permissions
-    const { error: deleteError } = await supabase
+    // Delete item directly - RLS policies will handle permissions. A
+    // statement timeout (57014) here is usually transient (e.g. a lock
+    // wait from another concurrent item add/delete on the same checklist),
+    // so retry once before giving up.
+    let { error: deleteError } = await supabase
       .from('checklist_items')
       .delete()
       .eq('id', itemId)
       .eq('checklist_id', checklistId);
+
+    if (deleteError?.code === '57014') {
+      console.warn('Checklist item delete timed out, retrying once...');
+      ({ error: deleteError } = await supabase
+        .from('checklist_items')
+        .delete()
+        .eq('id', itemId)
+        .eq('checklist_id', checklistId));
+    }
 
     if (deleteError) {
       console.error('Error deleting checklist item:', deleteError);

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useAppStore } from '@/lib/stores/useAppStore';
+import { useAuth } from '@/context/AuthContext';
 
 export interface WorkspaceSettings {
   membership_restriction: 'anyone' | 'admins_only' | 'owner_only';
@@ -30,6 +31,12 @@ export const useWorkspaceSettings = (workspaceId: string) => {
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
 
   const supabase = createClient();
+  // Read AuthContext's already-verified user rather than calling getUser()
+  // again here — see the comment on the same pattern in RouteGuard.tsx.
+  // Each independent getUser() call on the same page load is a chance to
+  // race Supabase's refresh-token rotation with another one; the fewer
+  // places do it, the less that can happen.
+  const { user, isLoading: authLoading } = useAuth();
   const {
     getWorkspaceSettingsCache,
     setWorkspaceSettingsCache,
@@ -182,10 +189,6 @@ export const useWorkspaceSettings = (workspaceId: string) => {
   const fetchUserRole = useCallback(
     async (workspaceData: Workspace) => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
         if (!user) {
           setError('User not authenticated');
           return null;
@@ -216,7 +219,7 @@ export const useWorkspaceSettings = (workspaceId: string) => {
         return null;
       }
     },
-    [supabase, workspaceId]
+    [supabase, workspaceId, user]
   );
 
   // Initialize data with caching
@@ -234,7 +237,13 @@ export const useWorkspaceSettings = (workspaceId: string) => {
         setLoading(false);
         setLastFetchTime(Date.now());
 
-        // Background refresh: fetch fresh data without blocking UI
+        // Background refresh: fetch fresh data without blocking UI.
+        // userRole is applied as soon as it resolves, independent of
+        // workspace/settings — it's the security-relevant piece (gates
+        // whether the page renders "Access Restricted"), and tying it to
+        // workspace/settings also succeeding meant one of those failing
+        // silently left a stale cached role (e.g. from before the user was
+        // actually confirmed as owner) displayed indefinitely.
         setTimeout(async () => {
           try {
             const workspaceData = await fetchWorkspace();
@@ -242,6 +251,10 @@ export const useWorkspaceSettings = (workspaceId: string) => {
 
             if (workspaceData) {
               const userRoleData = await fetchUserRole(workspaceData);
+
+              if (userRoleData) {
+                setUserRole(userRoleData);
+              }
 
               if (workspaceData && settingsData && userRoleData) {
                 setWorkspaceSettingsCache(
@@ -252,7 +265,6 @@ export const useWorkspaceSettings = (workspaceId: string) => {
                 );
                 setWorkspace(workspaceData);
                 setSettings(settingsData);
-                setUserRole(userRoleData);
                 setLastFetchTime(Date.now());
               }
             }
@@ -276,6 +288,19 @@ export const useWorkspaceSettings = (workspaceId: string) => {
         fetchUserRole(workspaceData),
       ]);
 
+      // This was the actual bug behind "works on refresh but not on first
+      // load": this branch fetched userRoleData correctly and wrote it to
+      // the cache below, but never applied it to this hook's own userRole
+      // state — so the page's canManageSettings check saw userRole stuck
+      // at its initial '', and rendered "Access Restricted" regardless of
+      // the real (correctly fetched) role. A subsequent load that hit the
+      // cache-read branch above *did* call setUserRole, which is why it
+      // "worked on retry" — the cache had the right answer the whole time,
+      // it just was never displayed the first time.
+      if (userRoleData) {
+        setUserRole(userRoleData);
+      }
+
       // Cache the results
       if (workspaceData && settingsData && userRoleData) {
         setWorkspaceSettingsCache(
@@ -290,11 +315,18 @@ export const useWorkspaceSettings = (workspaceId: string) => {
       setLastFetchTime(Date.now());
     };
 
-    if (workspaceId) {
+    // Wait for AuthContext to finish resolving `user` — fetchUserRole needs
+    // it. This used to also have to race RouteGuard's own separate
+    // getUser() call, which made waiting here cost real time; now that
+    // RouteGuard reads AuthContext too instead of doing its own check,
+    // this isn't competing with anything and resolves as fast as
+    // AuthContext itself does.
+    if (workspaceId && !authLoading) {
       loadData();
     }
   }, [
     workspaceId,
+    authLoading,
     getWorkspaceSettingsCache,
     fetchWorkspace,
     fetchSettings,
@@ -320,6 +352,12 @@ export const useWorkspaceSettings = (workspaceId: string) => {
       fetchUserRole(workspaceData),
     ]);
 
+    // Same fix as the initial-load effect above: apply the fetched role to
+    // this hook's own state, not just to the cache.
+    if (userRoleData) {
+      setUserRole(userRoleData);
+    }
+
     if (workspaceData && settingsData && userRoleData) {
       setWorkspaceSettingsCache(
         workspaceId,
@@ -340,6 +378,37 @@ export const useWorkspaceSettings = (workspaceId: string) => {
     setWorkspaceSettingsCache,
   ]);
 
+  // These are what the settings page should actually call after a save —
+  // updateSettingsInCache/updateWorkspaceInSettingsCache (still exposed
+  // below, since other code may read them) only ever wrote through to the
+  // Zustand cache, never to this hook's own workspace/settings state. That
+  // state is what's actually rendered, so a save appeared to work (cache
+  // was correct — a fresh load elsewhere would show it) but the page you
+  // were looking at didn't update until something forced a refetch. These
+  // wrappers update both in one call.
+  const updateWorkspaceLocal = useCallback(
+    (updates: Partial<Workspace>) => {
+      setWorkspace((prev) => {
+        if (!prev) return prev;
+        const updated = { ...prev, ...updates };
+        updateWorkspaceInSettingsCache(workspaceId, updated);
+        return updated;
+      });
+    },
+    [workspaceId, updateWorkspaceInSettingsCache]
+  );
+
+  const updateSettingsLocal = useCallback(
+    (updates: Partial<WorkspaceSettings>) => {
+      setSettings((prev) => {
+        const updated = { ...prev, ...updates };
+        updateSettingsInCache(workspaceId, updated);
+        return updated;
+      });
+    },
+    [workspaceId, updateSettingsInCache]
+  );
+
   return {
     workspace,
     settings,
@@ -350,5 +419,7 @@ export const useWorkspaceSettings = (workspaceId: string) => {
     lastFetchTime,
     updateSettingsInCache,
     updateWorkspaceInSettingsCache,
+    updateWorkspaceLocal,
+    updateSettingsLocal,
   };
 };

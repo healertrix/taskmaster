@@ -27,6 +27,8 @@ import { createClient } from '@/utils/supabase/client';
 import { useBoardStars } from '@/hooks/useBoardStars';
 import { useWorkspaceBoardsForHome } from '@/hooks/useWorkspaceBoardsForHome';
 import { canUserCreateBoards } from '@/utils/permissions';
+import { HomeOverview } from './components/dashboard/HomeOverview';
+import { useAuth } from '@/context/AuthContext';
 
 const initialWorkspaces: any[] = [];
 
@@ -51,6 +53,12 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const createBoardModalRef = useRef<CreateBoardModalRef>(null);
+  // Read AuthContext's already-verified user instead of this page doing its
+  // own separate getUser() call — see the comment on the same pattern in
+  // RouteGuard.tsx. Each independent getUser() call is a chance to race
+  // Supabase's refresh-token rotation with another one happening on the
+  // same page load.
+  const { user: authUser, isLoading: authLoading } = useAuth();
 
   // Use the custom hook for board stars
   const {
@@ -70,11 +78,7 @@ export default function HomePage() {
   const fetchWorkspacesWithBoards = useCallback(async () => {
     try {
       const supabase = createClient();
-
-      // Get the current user
-      const {
-        data: { user: currentUser },
-      } = await supabase.auth.getUser();
+      const currentUser = authUser;
 
       if (currentUser) {
         setUser(currentUser); // Store user in state
@@ -177,7 +181,7 @@ export default function HomePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [fetchWorkspaceBoards]);
+  }, [fetchWorkspaceBoards, authUser]);
 
   // Fetch workspace settings for permission checks
   const fetchWorkspaceSettings = useCallback(async (workspaceIds: string[]) => {
@@ -228,10 +232,13 @@ export default function HomePage() {
     }
   }, []);
 
-  // Fetch user workspaces on component mount
+  // Fetch user workspaces on component mount. Waits for AuthContext to
+  // finish resolving `authUser` first — see the comment where it's read
+  // above.
   useEffect(() => {
+    if (authLoading) return;
     fetchWorkspacesWithBoards();
-  }, [fetchWorkspacesWithBoards]);
+  }, [fetchWorkspacesWithBoards, authLoading]);
 
   // Handle initial page load with hash
   useEffect(() => {
@@ -508,11 +515,21 @@ export default function HomePage() {
 
           {/* Main Content */}
           <div className='flex-1 md:flex-1 w-full'>
+            {user && (
+              <HomeOverview
+                displayName={
+                  user.user_metadata?.full_name?.split(' ')[0] ||
+                  user.email?.split('@')[0] ||
+                  'there'
+                }
+              />
+            )}
+
             {/* Starred Boards Section */}
             {(boardsLoading || starredBoards.length > 0) && (
               <section className='mb-12'>
                 <div className='flex items-center justify-between mb-5'>
-                  <h2 className='text-xl font-semibold text-foreground flex items-center gap-2'>
+                  <h2 className='text-xl font-semibold text-foreground flex items-center gap-2 heading-enter'>
                     <Star
                       className='w-5 h-5 text-yellow-400'
                       fill='currentColor'
@@ -537,7 +554,7 @@ export default function HomePage() {
                       {[1, 2, 3, 4, 5, 6].map((i) => (
                         <div
                           key={i}
-                          className='h-32 rounded-xl bg-card/50 animate-pulse'
+                          className='h-40 rounded-2xl bg-card/50 backdrop-blur-xl animate-pulse'
                         />
                       ))}
                     </>
@@ -559,7 +576,7 @@ export default function HomePage() {
             {/* Recent Boards Section */}
             <section className='mb-12'>
               <div className='flex items-center justify-between mb-5'>
-                <h2 className='text-xl font-semibold text-foreground flex items-center gap-2'>
+                <h2 className='text-xl font-semibold text-foreground flex items-center gap-2 heading-enter'>
                   <Clock className='w-5 h-5 text-secondary' />
                   Recent Boards
                 </h2>
@@ -572,7 +589,7 @@ export default function HomePage() {
                     {[1, 2, 3, 4, 5, 6].map((i) => (
                       <div
                         key={i}
-                        className='h-32 rounded-xl bg-card/50 animate-pulse'
+                        className='h-40 rounded-2xl bg-card/50 backdrop-blur-xl animate-pulse'
                       />
                     ))}
                   </>
@@ -696,67 +713,18 @@ export default function HomePage() {
                           };
                         }
                         return (
-                          <Link
+                          <BoardCard
                             key={board.id}
-                            href={`/board/${board.id}`}
-                            className='group relative block p-5 rounded-xl card card-hover h-32 overflow-hidden transition-all duration-200'
-                          >
-                            {/* Color bar at top */}
-                            <div
-                              className={`absolute top-0 left-0 right-0 h-1.5 ${board.color}`}
-                            ></div>
-
-                            {/* Content */}
-                            <div className='relative z-10 flex flex-col justify-between h-full'>
-                              <div>
-                                <h3 className='font-semibold text-foreground truncate pr-8'>
-                                  {board.name}
-                                </h3>
-                              </div>
-
-                              {/* Star button */}
-                              <div className='flex justify-end relative z-20'>
-                                <button
-                                  className={`relative z-30 p-2 rounded-full transition-all duration-200 ${
-                                    boardForCard.starred
-                                      ? 'text-yellow-400 hover:text-yellow-500'
-                                      : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100 hover:text-yellow-400'
-                                  } hover:bg-yellow-400/10`}
-                                  onClick={async (e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    // Use the main toggleBoardStar function to ensure all sections sync
-                                    await toggleBoardStar(board.id);
-                                    // Always refetch workspace boards to update local state
-                                    await fetchWorkspaceBoards([workspace.id]);
-                                    // Also refetch main board data to keep everything in sync
-                                    await refetchBoards();
-                                  }}
-                                  aria-label={
-                                    boardForCard.starred
-                                      ? 'Unstar board'
-                                      : 'Star board'
-                                  }
-                                  title={
-                                    boardForCard.starred
-                                      ? 'Unstar board'
-                                      : 'Star board'
-                                  }
-                                  style={{ pointerEvents: 'auto' }}
-                                >
-                                  <Star
-                                    className='w-4 h-4'
-                                    fill={
-                                      boardForCard.starred
-                                        ? 'currentColor'
-                                        : 'none'
-                                    }
-                                    stroke='currentColor'
-                                  />
-                                </button>
-                              </div>
-                            </div>
-                          </Link>
+                            board={boardForCard}
+                            onToggleStar={async (boardId) => {
+                              // Use the main toggleBoardStar function to ensure all sections sync
+                              await toggleBoardStar(boardId);
+                              // Always refetch workspace boards to update local state
+                              await fetchWorkspaceBoards([workspace.id]);
+                              // Also refetch main board data to keep everything in sync
+                              await refetchBoards();
+                            }}
+                          />
                         );
                       });
                     })()}
@@ -766,7 +734,7 @@ export default function HomePage() {
                       // If no user data, show loading
                       if (!user) {
                         return (
-                          <div className='h-32 rounded-xl border-2 border-dashed border-border/50 bg-card/30 flex flex-col items-center justify-center text-muted-foreground'>
+                          <div className='h-40 rounded-2xl border-2 border-dashed border-border/50 bg-card/30 backdrop-blur-xl flex flex-col items-center justify-center text-muted-foreground'>
                             <div className='w-10 h-10 rounded-full bg-muted/20 flex items-center justify-center mb-2'>
                               <Loader2 className='w-5 h-5 animate-spin' />
                             </div>
@@ -787,7 +755,7 @@ export default function HomePage() {
                             onClick={() =>
                               handleCreateBoardInWorkspace(workspace)
                             }
-                            className='h-32 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
+                            className='h-40 rounded-2xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 backdrop-blur-xl hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
                           >
                             <div className='w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors'>
                               <Plus className='w-5 h-5 text-primary' />
@@ -810,7 +778,7 @@ export default function HomePage() {
                             onClick={() =>
                               handleCreateBoardInWorkspace(workspace)
                             }
-                            className='h-32 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
+                            className='h-40 rounded-2xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 backdrop-blur-xl hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
                           >
                             <div className='w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-2 group-hover:bg-primary/20 transition-colors'>
                               <Plus className='w-5 h-5 text-primary' />
@@ -824,7 +792,7 @@ export default function HomePage() {
 
                       // Can't create boards - show message
                       return (
-                        <div className='h-32 rounded-xl border-2 border-dashed border-border/30 bg-card/20 flex flex-col items-center justify-center text-muted-foreground/60'>
+                        <div className='h-40 rounded-2xl border-2 border-dashed border-border/30 bg-card/20 backdrop-blur-xl flex flex-col items-center justify-center text-muted-foreground/60'>
                           <div className='w-10 h-10 rounded-full bg-muted/20 flex items-center justify-center mb-2'>
                             <Plus className='w-5 h-5 text-muted-foreground/40' />
                           </div>

@@ -21,15 +21,13 @@ export async function POST(
 
     // Get current user
     const {
-      data: { session },
+      data: { user },
       error: authError,
-    } = await supabase.auth.getSession();
+    } = await supabase.auth.getUser();
 
-    if (authError || !session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const user = session.user;
 
     // Check if user has permission to add members
     const { data: membership, error: membershipError } = await supabase

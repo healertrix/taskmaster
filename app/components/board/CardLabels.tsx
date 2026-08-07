@@ -130,7 +130,7 @@ export default function CardLabels({
       {remainingCount > 0 && (
         <div
           className={`
-            bg-gradient-to-r from-muted to-muted/80 text-muted-foreground 
+            bg-muted text-muted-foreground 
             flex items-center justify-center transition-all duration-200
             hover:from-muted/80 hover:to-muted hover:scale-105 cursor-pointer
             border border-border/50 hover:border-border

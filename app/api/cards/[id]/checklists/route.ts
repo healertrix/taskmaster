@@ -227,8 +227,36 @@ export async function POST(
         .select();
 
       if (itemsError) {
-        console.error('Error creating template items:', itemsError);
-        // Don't fail the whole request, just log the error
+        console.error(
+          'Bulk insert of template items failed, retrying one at a time:',
+          itemsError
+        );
+        // The bulk insert failing shouldn't mean every item is silently
+        // dropped — fall back to inserting one at a time so items that can
+        // succeed still get saved.
+        for (const itemToInsert of itemsToInsert) {
+          const { data: item, error: singleItemError } = await supabase
+            .from('checklist_items')
+            .insert(itemToInsert)
+            .select()
+            .single();
+
+          if (singleItemError) {
+            console.error(
+              `Failed to create template item "${itemToInsert.content}":`,
+              singleItemError
+            );
+            continue;
+          }
+
+          createdItems.push({
+            id: item.id,
+            text: item.content,
+            completed: item.is_complete,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+          });
+        }
       } else {
         createdItems =
           items?.map((item) => ({

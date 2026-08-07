@@ -34,10 +34,6 @@ export async function POST(
       );
     }
 
-    // Convert 0-based position to 1-based position for internal processing
-    // Drag-and-drop sends 0-based positions, move modal sends 1-based positions
-    const adjustedPosition = numericPosition === 0 ? 1 : numericPosition;
-
     const supabase = createClient();
 
     // Get the authenticated user
@@ -98,23 +94,10 @@ export async function POST(
       );
     }
 
-    // If moving to the same list and same position, no change needed
-    if (card.list_id === list_id && card.position === adjustedPosition) {
-      return NextResponse.json({
-        success: true,
-        message: 'Card is already in the specified position',
-        card: {
-          id: cardId,
-          list_id,
-          position: adjustedPosition,
-          old_list_id: card.list_id,
-          old_position: card.position,
-        },
-      });
-    }
-
-    // Convert 1-based position to proper float position for database
-    // Get cards in target list to calculate proper position (exclude the card being moved)
+    // Get cards in target list to calculate the new fractional position
+    // (excludes the card being moved, so `position` below is a 0-based
+    // index into exactly this array — the same coordinate space the
+    // client computes it in)
     const { data: targetListCards, error: cardsError } = await supabase
       .from('cards')
       .select('id, position')
@@ -130,48 +113,37 @@ export async function POST(
       );
     }
 
+    const cards = targetListCards || [];
+    // Clamp to a valid index — large sentinel values (e.g. 999999 from the
+    // "move to end" modal) collapse to "append at the end".
+    const index = Math.max(0, Math.min(Math.trunc(numericPosition), cards.length));
+
     let newPosition: number;
 
-    if (!targetListCards || targetListCards.length === 0) {
-      // First card in empty list (or only card being moved back to same list)
+    if (cards.length === 0) {
+      // Only card in the (target) list
       newPosition = 1;
-    } else if (adjustedPosition <= 1) {
+    } else if (index === 0) {
       // Move to top - get position before first card
-      const firstCard = targetListCards[0];
-      newPosition = firstCard.position / 2;
-      // Ensure minimum position
+      newPosition = cards[0].position / 2;
       if (newPosition <= 0) {
         newPosition = 0.5;
       }
-    } else if (adjustedPosition > targetListCards.length) {
+    } else if (index === cards.length) {
       // Move to bottom - get position after last card
-      const lastCard = targetListCards[targetListCards.length - 1];
-      newPosition = lastCard.position + 1;
+      newPosition = cards[cards.length - 1].position + 1;
     } else {
-      // Move between cards - get average of two positions
-      const beforeCard = targetListCards[adjustedPosition - 2];
-      const afterCard = targetListCards[adjustedPosition - 1];
-
-      if (beforeCard && afterCard) {
-        newPosition = (beforeCard.position + afterCard.position) / 2;
-        // Ensure we have a valid position between the two cards
-        if (
-          newPosition <= beforeCard.position ||
-          newPosition >= afterCard.position
-        ) {
-          // Fallback to a safe position
-          newPosition = beforeCard.position + 0.1;
-        }
-      } else if (beforeCard) {
-        newPosition = beforeCard.position + 1;
-      } else if (afterCard) {
-        newPosition = afterCard.position / 2;
-        if (newPosition <= 0) {
-          newPosition = 0.5;
-        }
-      } else {
-        // Fallback
-        newPosition = 1;
+      // Move between cards - get average of the two neighboring positions
+      const beforeCard = cards[index - 1];
+      const afterCard = cards[index];
+      newPosition = (beforeCard.position + afterCard.position) / 2;
+      // Ensure we have a valid position between the two cards
+      if (
+        newPosition <= beforeCard.position ||
+        newPosition >= afterCard.position
+      ) {
+        // Fallback to a safe position
+        newPosition = beforeCard.position + 0.1;
       }
     }
 
@@ -183,17 +155,6 @@ export async function POST(
         { status: 500 }
       );
     }
-
-    console.log('Moving card:', {
-      cardId,
-      fromList: card.list_id,
-      toList: list_id,
-      oldPosition: card.position,
-      newPosition,
-      requestedPosition: adjustedPosition,
-      originalPosition: numericPosition,
-      targetListCardsCount: targetListCards?.length || 0,
-    });
 
     // Update the card position and list
     const { data: updatedCard, error: updateError } = await supabase

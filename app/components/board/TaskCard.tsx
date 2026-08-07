@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
@@ -10,11 +10,11 @@ import {
   Bug,
   MessageSquare,
   Paperclip,
+  Calendar,
 } from 'lucide-react';
 import { TaskActionsMenu } from './TaskActionsMenu';
 import { getRelativeDateTime } from '@/utils/dateTime';
 import { useMobile } from '@/hooks/useMobile';
-import { useBoardStore } from '@/hooks/useBoardStore';
 
 // Define Task type matching page.tsx
 interface Task {
@@ -36,58 +36,43 @@ interface Task {
 
 interface TaskCardProps {
   task: Task;
-  labelColors: Record<string, string>; // Pass the color map
   columnId: string; // Add columnId prop to identify container
-  isDragTarget?: boolean; // Whether this task is currently being dragged over
   isBeingDragged?: boolean; // Whether this task is being dragged
-  onEditTask?: (taskId: string) => void;
-  onCopyTask?: (taskId: string) => void;
-  onArchiveTask?: (taskId: string) => Promise<boolean>;
   onDeleteTask?: (taskId: string) => Promise<boolean>;
-  onManageLabels?: (taskId: string) => void;
-  onManageAssignees?: (taskId: string) => void;
-  onManageDueDate?: (taskId: string) => void;
   onMoveTask?: (taskId: string) => void;
   onOpenCard?: (taskId: string) => void; // Add callback for opening card modal
+  // Quick-edit — title is editable in place here; dates/assignee open a
+  // small focused popover (rendered by the board page) rather than the
+  // full CardModal.
+  onUpdateCardTitle?: (cardId: string, title: string) => Promise<boolean>;
+  onEditDates?: (cardId: string) => void;
+  onEditAssignee?: (cardId: string) => void;
 }
 
 export function TaskCard({
   task,
-  labelColors,
   columnId,
-  isDragTarget = false,
   isBeingDragged = false,
-  onEditTask,
-  onCopyTask,
-  onArchiveTask,
   onDeleteTask,
-  onManageLabels,
-  onManageAssignees,
-  onManageDueDate,
   onMoveTask,
   onOpenCard,
+  onUpdateCardTitle,
+  onEditDates,
+  onEditAssignee,
 }: TaskCardProps) {
   const { isMobile } = useMobile();
-  const { getCardMembers } = useBoardStore(task.boardId);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(task.title);
 
-  // Subscribe to member changes for this card
-  useEffect(() => {
-    const updatedMembers = getCardMembers(task.id);
-    if (updatedMembers && task.assignees !== updatedMembers) {
-      // Update the task's assignees immediately when members change
-      task.assignees = updatedMembers.map((member) => ({
-        initials:
-          member.profiles.full_name
-            ?.split(' ')
-            .map((n) => n[0])
-            .join('')
-            .toUpperCase() || 'U',
-        color: 'bg-primary',
-        avatar_url: member.profiles.avatar_url,
-        full_name: member.profiles.full_name,
-      }));
+  const commitTitle = () => {
+    const trimmed = titleDraft.trim();
+    setIsEditingTitle(false);
+    if (!trimmed || trimmed === task.title) {
+      setTitleDraft(task.title);
+      return;
     }
-  }, [task.id, getCardMembers]);
+    onUpdateCardTitle?.(task.id, trimmed);
+  };
 
   // Format date for display
   const formatDate = (dateString?: string) => {
@@ -144,16 +129,15 @@ export function TaskCard({
     pointerEvents: (isDragging ? 'none' : 'auto') as 'none' | 'auto',
   };
 
-  // Helper to get label colors based on the map
+  // Label colors come from the database as hex and are rendered as-is
+  // (DESIGN.md: "Real Label Color Rule"). This map only covers legacy
+  // labels stored as Tailwind class names before colors were hex-based.
   const getLabelStyle = (colorKey: string) => {
-    // If it's a hex color (starts with #), use it directly
     if (colorKey.startsWith('#')) {
       return { backgroundColor: colorKey };
     }
 
-    // Enhanced color mapping with modern label colors from LabelModal
-    const colorMapping: Record<string, string> = {
-      // Legacy Tailwind classes
+    const legacyClassColorMap: Record<string, string> = {
       'bg-red-500': '#ef4444',
       'bg-purple-500': '#a855f7',
       'bg-green-500': '#22c55e',
@@ -167,65 +151,15 @@ export function TaskCard({
       'bg-pink-600': '#db2777',
       'bg-indigo-600': '#4f46e5',
       'bg-orange-600': '#ea580c',
-
-      // Modern label colors (matching LabelModal)
-      // Vibrant Colors
-      '#10b981': '#10b981', // Emerald
-      '#3b82f6': '#3b82f6', // Blue
-      '#8b5cf6': '#8b5cf6', // Purple
-      '#ec4899': '#ec4899', // Pink
-      '#ef4444': '#ef4444', // Red
-      '#f97316': '#f97316', // Orange
-      '#eab308': '#eab308', // Yellow
-      '#84cc16': '#84cc16', // Lime
-
-      // Soft Colors
-      '#6ee7b7': '#6ee7b7', // Soft Green
-      '#93c5fd': '#93c5fd', // Soft Blue
-      '#c4b5fd': '#c4b5fd', // Soft Purple
-      '#f9a8d4': '#f9a8d4', // Soft Pink
-      '#fca5a5': '#fca5a5', // Soft Red
-      '#fed7aa': '#fed7aa', // Soft Orange
-      '#fde047': '#fde047', // Soft Yellow
-      '#bef264': '#bef264', // Soft Lime
-
-      // Dark Colors
-      '#065f46': '#065f46', // Forest
-      '#1e3a8a': '#1e3a8a', // Navy
-      '#3730a3': '#3730a3', // Indigo
-      '#7c2d12': '#7c2d12', // Plum
-      '#991b1b': '#991b1b', // Crimson
-      '#92400e': '#92400e', // Amber
-      '#374151': '#374151', // Slate
-      '#57534e': '#57534e', // Stone
-
-      // Neutral Colors
-      '#6b7280': '#6b7280', // Gray
-      '#64748b': '#64748b', // Cool Gray
-      '#71717a': '#71717a', // Zinc
-      '#737373': '#737373', // Neutral
-
-      // Legacy colors for backward compatibility
-      '#61bd4f': '#61bd4f', // Green
-      '#f2d600': '#f2d600', // Yellow
-      '#ff9f1a': '#ff9f1a', // Orange
-      '#eb5a46': '#eb5a46', // Red
-      '#c377e0': '#c377e0', // Purple
-      '#0079bf': '#0079bf', // Blue
     };
 
-    return { backgroundColor: colorMapping[colorKey] || '#6b7280' }; // Default gray
+    return {
+      backgroundColor: legacyClassColorMap[colorKey] || 'hsl(240 6% 20%)',
+    };
   };
 
   // Check if any action handlers are provided to show the menu
-  const hasActions =
-    onEditTask ||
-    onCopyTask ||
-    onArchiveTask ||
-    onDeleteTask ||
-    onManageLabels ||
-    onManageAssignees ||
-    onManageDueDate;
+  const hasActions = onMoveTask || onDeleteTask;
 
   // Don't render card content in original position when dragging
   const cardContent = isDragging ? (
@@ -266,17 +200,71 @@ export function TaskCard({
       </div>
 
       {/* Title */}
-      <p className='text-sm font-medium text-foreground mb-3 leading-snug break-words'>
-        {task.title}
-      </p>
+      {isEditingTitle ? (
+        <input
+          type='text'
+          value={titleDraft}
+          onChange={(e) => setTitleDraft(e.target.value)}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          onBlur={commitTitle}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commitTitle();
+            } else if (e.key === 'Escape') {
+              setTitleDraft(task.title);
+              setIsEditingTitle(false);
+            }
+          }}
+          autoFocus
+          className='w-full text-sm font-medium mb-3 bg-background border border-primary rounded px-1.5 py-1 text-foreground focus:outline-none'
+        />
+      ) : (
+        <p
+          onPointerDown={(e) => {
+            if (onUpdateCardTitle) e.stopPropagation();
+          }}
+          onClick={(e) => {
+            if (!onUpdateCardTitle) return;
+            e.stopPropagation();
+            e.preventDefault();
+            setTitleDraft(task.title);
+            setIsEditingTitle(true);
+          }}
+          className={`inline-block w-fit max-w-full text-sm font-medium text-foreground mb-3 leading-snug break-words ${
+            onUpdateCardTitle ? 'hover:bg-muted/40 rounded px-1 -mx-1' : ''
+          }`}
+        >
+          {task.title}
+        </p>
+      )}
 
-      {/* Compact Dates Section */}
+      {/* Compact Dates Section — once a date exists. (When there's no date
+          yet, the add-date trigger lives in the footer row instead, right
+          next to the add-assignee "+" — see below — rather than as its own
+          block up here, which was costing a full extra row of vertical
+          space just for one small icon.) */}
       {(task.start_date || task.due_date) && (
-        <div className='mb-3 space-y-1'>
+        <div
+          onPointerDown={(e) => {
+            if (onEditDates) e.stopPropagation();
+          }}
+          onClick={(e) => {
+            if (!onEditDates) return;
+            e.stopPropagation();
+            e.preventDefault();
+            onEditDates(task.id);
+          }}
+          title={onEditDates ? 'Edit dates' : undefined}
+          className={`mb-3 space-y-1 ${
+            onEditDates ? 'hover:bg-muted/40 rounded px-1 -mx-1 py-0.5' : ''
+          }`}
+        >
           {/* Start Date */}
           {task.start_date && (
-            <div className='flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400'>
-              <div className='w-2 h-2 bg-green-500 rounded-full' />
+            <div className='flex items-center gap-1.5 text-xs text-success'>
+              <div className='w-2 h-2 bg-success rounded-full' />
               <span className='font-medium'>{formatDate(task.start_date)}</span>
             </div>
           )}
@@ -286,18 +274,18 @@ export function TaskCard({
             <div
               className={`flex items-center gap-1.5 text-xs font-medium ${
                 task.due_status === 'complete'
-                  ? 'text-emerald-600 dark:text-emerald-400'
+                  ? 'text-success'
                   : task.due_status === 'overdue'
-                  ? 'text-red-600 dark:text-red-400'
-                  : 'text-amber-600 dark:text-amber-400'
+                  ? 'text-destructive'
+                  : 'text-amber-500'
               }`}
             >
               <div
                 className={`w-2 h-2 rounded-full ${
                   task.due_status === 'complete'
-                    ? 'bg-emerald-500'
+                    ? 'bg-success'
                     : task.due_status === 'overdue'
-                    ? 'bg-red-500'
+                    ? 'bg-destructive'
                     : 'bg-amber-500'
                 }`}
               />
@@ -314,15 +302,53 @@ export function TaskCard({
         </div>
       )}
 
-      {/* Footer: Elegant Assignees with animations */}
-      <div className='flex justify-between items-center mt-auto'>
-        <div className='flex -space-x-2'>
+      {/* Footer: add-due-date + Assignees, side by side — both are small
+          "add something" triggers, so they share one row instead of the
+          date one eating a whole row by itself above. */}
+      <div className='flex justify-between items-center mt-auto gap-2'>
+        <div className='flex items-center gap-1.5'>
+          {onEditDates && !task.start_date && !task.due_date && (
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onEditDates(task.id);
+              }}
+              title='Add due date'
+              className='w-6 h-6 rounded-full border border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors flex-shrink-0'
+            >
+              <Calendar className='w-3 h-3' />
+            </button>
+          )}
+
+          <div
+            onPointerDown={(e) => {
+              if (onEditAssignee) e.stopPropagation();
+            }}
+            onClick={(e) => {
+              if (!onEditAssignee) return;
+              e.stopPropagation();
+              e.preventDefault();
+              onEditAssignee(task.id);
+            }}
+            title={onEditAssignee ? 'Edit assignees' : undefined}
+            className={`flex -space-x-2 ${
+              onEditAssignee ? 'hover:opacity-80 rounded' : ''
+            }`}
+          >
+          {onEditAssignee &&
+            (!task.assignees || task.assignees.length === 0) && (
+              <div className='w-6 h-6 rounded-full border border-dashed border-border flex items-center justify-center text-muted-foreground text-xs'>
+                +
+              </div>
+            )}
           {task.assignees?.map((assignee, index) => (
             <div
               key={`${assignee.full_name}-${index}`} // More stable key for transitions
               className={`w-6 h-6 rounded-full ${
                 assignee.avatar_url ? 'bg-gray-200' : assignee.color
-              } flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-white/20 overflow-hidden
+              } flex items-center justify-center text-white text-xs font-bold ring-2 ring-white/20 overflow-hidden
               transition-all duration-300 ease-out ${
                 !isMobile
                   ? 'hover:scale-110 hover:ring-4 hover:ring-primary/20 hover:shadow-lg'
@@ -359,6 +385,7 @@ export function TaskCard({
               )}
             </div>
           ))}
+          </div>
         </div>
       </div>
     </>
@@ -381,22 +408,12 @@ export function TaskCard({
         {...attributes}
         {...listeners}
         onClick={handleCardClick}
-        className={`group p-3 rounded-lg backdrop-blur-sm border shadow-lg shadow-black/10 cursor-pointer min-h-[80px] h-auto mb-6 last:mb-0
-          ${isDragging ? '' : 'transition-all duration-300 ease-out transform'}
-          ${!isDragging && !isMobile ? 'hover:-translate-y-1' : ''}
-          ${
-            isDragTarget
-              ? 'border-primary/70 border-2 bg-primary/5'
-              : isMobile
-              ? 'border-white/10 bg-white/5'
-              : 'border-white/10 hover:border-white/20 hover:bg-white/10'
-          }
+        className={`group bg-card/75 backdrop-blur-xl p-3 rounded-md border cursor-pointer min-h-[80px] h-auto mb-3 last:mb-0
+          ${isDragging ? '' : 'transition-colors duration-200'}
+          ${!isDragging && !isMobile ? 'hover:-translate-y-0.5 transition-transform' : ''}
+          border-border hover:border-muted-foreground/40
           ${isBeingDragged && !isDragging ? 'opacity-50' : ''}
-          ${
-            isDragging
-              ? 'border-dashed border-primary/30 bg-primary/5'
-              : 'bg-white/5'
-          }
+          ${isDragging ? 'border-dashed border-primary/30 bg-primary/5' : ''}
         `}
       >
         {cardContent}

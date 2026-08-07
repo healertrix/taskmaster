@@ -113,9 +113,9 @@ PageLoadingSkeleton.displayName = 'PageLoadingSkeleton';
 // Modal skeleton
 export const ModalSkeleton = React.memo(() => (
   <div className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4'>
-    <div className='bg-gradient-to-br from-background via-background to-background/95 border border-border/50 rounded-2xl shadow-2xl w-full max-w-2xl h-[600px] mx-4 overflow-hidden flex flex-col'>
+    <div className='bg-background border border-border/50 rounded-2xl shadow-2xl w-full max-w-2xl h-[600px] mx-4 overflow-hidden flex flex-col'>
       {/* Header skeleton */}
-      <div className='relative bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 border-b border-border/50'>
+      <div className='relative bg-primary/10 p-6 border-b border-border/50'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-3'>
             <div className='w-10 h-10 rounded-xl bg-muted animate-pulse' />
@@ -140,7 +140,7 @@ export const ModalSkeleton = React.memo(() => (
       </div>
 
       {/* Footer skeleton */}
-      <div className='flex-shrink-0 bg-gradient-to-r from-muted/20 to-transparent p-6 border-t border-border/50'>
+      <div className='flex-shrink-0 bg-muted/10 p-6 border-t border-border/50'>
         <div className='flex justify-end gap-3'>
           <div className='h-10 bg-muted rounded w-20 animate-pulse' />
           <div className='h-10 bg-muted rounded w-32 animate-pulse' />

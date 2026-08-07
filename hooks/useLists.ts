@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useAppStore, cacheUtils } from '@/lib/stores/useAppStore';
 
@@ -45,6 +45,10 @@ export interface Card {
       color: string;
     };
   }>;
+  // Only set by the API when > 0 (see app/api/lists/route.ts) — absent,
+  // not 0, when a card has none.
+  attachments?: number;
+  comments?: number;
 }
 
 export const useLists = (boardId: string) => {
@@ -60,11 +64,20 @@ export const useLists = (boardId: string) => {
   const CACHE_KEY = cacheUtils.getBoardListsKey(boardId);
   const CACHE_TTL = 60 * 1000; // 1 minute TTL
 
+  // Tracks whether lists have ever loaded, so fetchLists can skip flashing
+  // the loading spinner on a refetch — without needing `lists.length` in
+  // fetchLists's dependency array. `lists.length` used to be a dependency
+  // there, but fetchLists also calls setLists(), so every successful fetch
+  // changed fetchLists's identity, which retriggered the effect below that
+  // calls it, which fetched again — an infinite refetch loop running for
+  // the entire time any board page was open, not a one-time fetch on mount.
+  const hasLoadedRef = useRef(false);
+
   const fetchLists = useCallback(async () => {
     if (!boardId) return;
 
     try {
-      if (lists.length === 0) setLoading(true);
+      if (!hasLoadedRef.current) setLoading(true);
       setError(null);
 
       // Serve from cache immediately if present
@@ -83,6 +96,7 @@ export const useLists = (boardId: string) => {
 
       const freshLists = data.lists || [];
       setLists(freshLists);
+      hasLoadedRef.current = true;
 
       // Update cache
       setCache(CACHE_KEY, freshLists, CACHE_TTL);
@@ -92,7 +106,7 @@ export const useLists = (boardId: string) => {
     } finally {
       setLoading(false);
     }
-  }, [boardId, lists.length, getCache, setCache]);
+  }, [boardId, getCache, setCache]);
 
   const createList = useCallback(
     async (name: string) => {
@@ -195,14 +209,26 @@ export const useLists = (boardId: string) => {
 
   const deleteCard = useCallback(
     async (cardId: string) => {
+      // Remember where the card came from so a failed delete can restore
+      // just that card — reverting to a snapshot of the whole `lists`
+      // array (the old behavior) would also silently undo any other
+      // card's add/edit that happened to land while this delete was in
+      // flight.
+      let removedFrom: { listId: string; index: number; card: Card } | null =
+        null;
+
       try {
         // Optimistically remove from UI
-        const originalLists = lists;
         setLists((prev) => {
-          const updated = prev.map((list) => ({
-            ...list,
-            cards: list.cards.filter((card) => card.id !== cardId),
-          }));
+          const updated = prev.map((list) => {
+            const index = list.cards.findIndex((card) => card.id === cardId);
+            if (index === -1) return list;
+            removedFrom = { listId: list.id, index, card: list.cards[index] };
+            return {
+              ...list,
+              cards: list.cards.filter((card) => card.id !== cardId),
+            };
+          });
           setCache(CACHE_KEY, updated, CACHE_TTL);
           return updated;
         });
@@ -220,26 +246,44 @@ export const useLists = (boardId: string) => {
         return true;
       } catch (err) {
         console.error('Error deleting card:', err);
-        // Revert the optimistic update
-        setLists(originalLists);
+        // Revert just this card, in its original position
+        if (removedFrom) {
+          const { listId, index, card } = removedFrom;
+          setLists((prev) => {
+            const updated = prev.map((list) => {
+              if (list.id !== listId) return list;
+              const cards = [...list.cards];
+              cards.splice(index, 0, card);
+              return { ...list, cards };
+            });
+            setCache(CACHE_KEY, updated, CACHE_TTL);
+            return updated;
+          });
+        }
         setError(err instanceof Error ? err.message : 'Failed to delete card');
         return false;
       }
     },
-    [lists, setCache]
+    [setCache]
   );
 
   const updateListName = useCallback(
     async (listId: string, newName: string) => {
       if (!newName.trim()) return false;
 
+      // Remember the previous name so a failed save can restore just this
+      // list's name — not the whole `lists` array, which would also
+      // silently undo any other concurrent change.
+      let previousName: string | null = null;
+
       try {
         // Optimistically update the UI
-        const originalLists = lists;
         setLists((prev) => {
-          const updated = prev.map((list) =>
-            list.id === listId ? { ...list, name: newName.trim() } : list
-          );
+          const updated = prev.map((list) => {
+            if (list.id !== listId) return list;
+            previousName = list.name;
+            return { ...list, name: newName.trim() };
+          });
           setCache(CACHE_KEY, updated, CACHE_TTL);
           return updated;
         });
@@ -264,18 +308,23 @@ export const useLists = (boardId: string) => {
         return true;
       } catch (err) {
         console.error('Error updating list name:', err);
-        // Revert the optimistic update
-        setLists((prev) => {
-          setCache(CACHE_KEY, prev, CACHE_TTL);
-          return prev;
-        });
+        // Revert just this list's name
+        if (previousName !== null) {
+          setLists((prev) => {
+            const updated = prev.map((list) =>
+              list.id === listId ? { ...list, name: previousName! } : list
+            );
+            setCache(CACHE_KEY, updated, CACHE_TTL);
+            return updated;
+          });
+        }
         setError(
           err instanceof Error ? err.message : 'Failed to update list name'
         );
         return false;
       }
     },
-    [lists, setCache]
+    [setCache]
   );
 
   const updateCard = useCallback(

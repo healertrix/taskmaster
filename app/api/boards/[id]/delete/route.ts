@@ -233,45 +233,93 @@ export async function DELETE(
       console.error('Error deleting activities:', activitiesError);
     }
 
-    // Delete card-related data
-    // Delete card comments
-    const { error: commentsError } = await supabase
-      .from('card_comments')
-      .delete()
+    // Delete card-related data. comments/card_attachments/card_members/
+    // card_labels are all scoped by card_id, not board_id (they have no
+    // board_id column at all) — .eq('board_id', boardId) against any of
+    // them is a genuine schema error, not a permissions issue. Get this
+    // board's card ids first so these can be scoped correctly via
+    // .in('card_id', cardIds).
+    const { data: boardCards } = await supabase
+      .from('cards')
+      .select('id')
       .eq('board_id', boardId);
+    const cardIds = (boardCards || []).map((c) => c.id);
 
-    if (commentsError) {
-      console.error('Error deleting card comments:', commentsError);
-    }
+    if (cardIds.length > 0) {
+      // Delete checklist items, then checklists. Not previously handled
+      // here at all — harmless for boards with no checklists (which is why
+      // this hadn't surfaced), but a card with checklists has rows in
+      // `checklists` (card_id) and `checklist_items` (checklist_id) that
+      // would otherwise be left as either orphans or, if that FK isn't
+      // cascading, a constraint violation blocking the card delete below.
+      const { data: boardChecklists } = await supabase
+        .from('checklists')
+        .select('id')
+        .in('card_id', cardIds);
+      const checklistIds = (boardChecklists || []).map((c) => c.id);
 
-    // Delete card attachments
-    const { error: attachmentsError } = await supabase
-      .from('card_attachments')
-      .delete()
-      .eq('board_id', boardId);
+      if (checklistIds.length > 0) {
+        const { error: checklistItemsError } = await supabase
+          .from('checklist_items')
+          .delete()
+          .in('checklist_id', checklistIds);
 
-    if (attachmentsError) {
-      console.error('Error deleting card attachments:', attachmentsError);
-    }
+        if (checklistItemsError) {
+          console.error(
+            'Error deleting checklist items:',
+            checklistItemsError
+          );
+        }
+      }
 
-    // Delete card members
-    const { error: cardMembersError } = await supabase
-      .from('card_members')
-      .delete()
-      .eq('board_id', boardId);
+      const { error: checklistsError } = await supabase
+        .from('checklists')
+        .delete()
+        .in('card_id', cardIds);
 
-    if (cardMembersError) {
-      console.error('Error deleting card members:', cardMembersError);
-    }
+      if (checklistsError) {
+        console.error('Error deleting checklists:', checklistsError);
+      }
 
-    // Delete card labels
-    const { error: cardLabelsError } = await supabase
-      .from('card_labels')
-      .delete()
-      .eq('board_id', boardId);
+      // Delete card comments (table is `comments`, not `card_comments`)
+      const { error: commentsError } = await supabase
+        .from('comments')
+        .delete()
+        .in('card_id', cardIds);
 
-    if (cardLabelsError) {
-      console.error('Error deleting card labels:', cardLabelsError);
+      if (commentsError) {
+        console.error('Error deleting card comments:', commentsError);
+      }
+
+      // Delete card attachments
+      const { error: attachmentsError } = await supabase
+        .from('card_attachments')
+        .delete()
+        .in('card_id', cardIds);
+
+      if (attachmentsError) {
+        console.error('Error deleting card attachments:', attachmentsError);
+      }
+
+      // Delete card members
+      const { error: cardMembersError } = await supabase
+        .from('card_members')
+        .delete()
+        .in('card_id', cardIds);
+
+      if (cardMembersError) {
+        console.error('Error deleting card members:', cardMembersError);
+      }
+
+      // Delete card labels
+      const { error: cardLabelsError } = await supabase
+        .from('card_labels')
+        .delete()
+        .in('card_id', cardIds);
+
+      if (cardLabelsError) {
+        console.error('Error deleting card labels:', cardLabelsError);
+      }
     }
 
     // Delete cards
@@ -348,11 +396,31 @@ export async function DELETE(
         .single();
 
       if (remainingBoard) {
+        // No boardDeleteError above, and the row still exists: Postgres
+        // returned success for a DELETE that matched 0 rows, not a
+        // schema/permission error. Given the app already ran its own
+        // (workspace-settings-driven) permission check above and got
+        // canDelete: true, the most likely explanation is a mismatch
+        // between that application-level rule and the boards table's own
+        // RLS DELETE policy — e.g. a policy that only allows the row's
+        // owner_id to delete it, which a workspace admin (as opposed to
+        // the board's/workspace's owner) wouldn't satisfy even though
+        // this route decided they're allowed to. That's a Supabase-side
+        // policy to check/adjust, not something fixable from this route
+        // alone (this server client runs as the authenticated user, not
+        // a service role that bypasses RLS).
         console.error(
-          'Board still exists after deletion attempt:',
+          'Board still exists after a DELETE that reported success but ' +
+            'affected 0 rows — this is the signature of an RLS DELETE ' +
+            'policy on `boards` silently filtering out this request ' +
+            '(mismatched with this route\'s own canDelete check above), ' +
+            'not a schema or application bug. Check the boards table\'s ' +
+            'RLS policies in Supabase.',
           remainingBoard
         );
-        throw new Error('Board deletion failed - board still exists');
+        throw new Error(
+          'Board deletion failed - board still exists (likely blocked by a Supabase RLS policy on the boards table, not an app bug)'
+        );
       }
     }
 

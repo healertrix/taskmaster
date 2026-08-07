@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useAppStore } from '@/lib/stores/useAppStore';
+import { useAuth } from '@/context/AuthContext';
 
 export interface WorkspaceBoard {
   id: string;
@@ -60,6 +61,10 @@ export const useWorkspaceBoards = (workspaceId: string) => {
   const [lastFetchTime, setLastFetchTime] = useState<number>(0);
 
   const supabase = createClient();
+  // RouteGuard already verified the user before this page's hooks ever
+  // run, and AuthContext caches that verified user — reuse it instead of
+  // every hook paying its own getUser() round-trip.
+  const { user } = useAuth();
   const {
     getWorkspaceBoardsCache,
     setWorkspaceBoardsCache,
@@ -119,10 +124,6 @@ export const useWorkspaceBoards = (workspaceId: string) => {
   // Fetch boards with starred status and caching
   const fetchBoards = useCallback(async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
       if (!user) {
         setError('User not authenticated');
         return;
@@ -191,16 +192,12 @@ export const useWorkspaceBoards = (workspaceId: string) => {
       setError('Failed to fetch boards');
       return [];
     }
-  }, [supabase, workspaceId, getWorkspaceBoardsCache]);
+  }, [supabase, workspaceId, getWorkspaceBoardsCache, user]);
 
   // Optimized toggle star status for a board
   const toggleBoardStar = useCallback(
     async (boardId: string) => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
         if (!user) {
           throw new Error('User not authenticated');
         }
@@ -280,7 +277,7 @@ export const useWorkspaceBoards = (workspaceId: string) => {
         throw err; // Re-throw to handle in component
       }
     },
-    [supabase, workspaceId, boards, updateBoardInCache]
+    [supabase, workspaceId, boards, updateBoardInCache, user]
   );
 
   // Initialize data with caching

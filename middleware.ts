@@ -5,10 +5,12 @@ import { createClient } from '@/utils/supabase/middleware';
 export async function middleware(request: NextRequest) {
   const { supabase, response } = createClient(request);
 
-  // Check if the user is authenticated
+  // Check if the user is authenticated. getUser() re-verifies against the
+  // Auth server rather than trusting whatever getSession() reads straight
+  // from the request cookies.
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
   // Get pathname
   const pathname = request.nextUrl.pathname;
@@ -20,21 +22,21 @@ export async function middleware(request: NextRequest) {
   );
 
   // If user is not authenticated and trying to access a protected route
-  if (!session && !isPublicRoute) {
+  if (!user && !isPublicRoute) {
     const redirectUrl = new URL('/auth/login', request.url);
     redirectUrl.searchParams.set('next', pathname);
     return NextResponse.redirect(redirectUrl);
   }
 
   // If user is authenticated and trying to access auth pages (like login)
-  if (session && pathname.startsWith('/auth/login')) {
+  if (user && pathname.startsWith('/auth/login')) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 
   // Update the user's last_active_at time in the database
   // We only do this on non-public routes to avoid too many updates
-  if (session && !isPublicRoute) {
-    const userId = session.user.id;
+  if (user && !isPublicRoute) {
+    const userId = user.id;
 
     try {
       await supabase

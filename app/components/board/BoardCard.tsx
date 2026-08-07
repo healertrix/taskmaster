@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Star } from 'lucide-react';
+import { Star, Clock } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 import { Board } from '@/hooks/useBoardStars';
 import { useState } from 'react';
 
@@ -35,26 +36,25 @@ export function BoardCard({
   return (
     <Link
       href={`/board/${board.id}?from=home`}
-      className='group relative block p-4 md:p-5 rounded-xl card card-hover h-28 md:h-32 overflow-hidden transition-all duration-200 touch-manipulation'
+      className='group relative block h-40 rounded-2xl border border-border bg-card/70 backdrop-blur-xl overflow-hidden
+        transition-all duration-300 ease-out touch-manipulation
+        hover:-translate-y-1 hover:border-muted-foreground/40 hover:bg-card/85 hover:shadow-2xl hover:shadow-black/40'
     >
-      {/* Color bar at top */}
-      <div
-        className={`absolute top-0 left-0 right-0 h-1.5 ${board.color}`}
-      ></div>
-
       {/* Content */}
-      <div className='relative z-10 flex flex-col justify-between h-full'>
-        <div className='pr-8 md:pr-8'>
-          <h3 className='font-semibold text-foreground text-sm md:text-base line-clamp-2 leading-tight'>
-            {board.name}
-          </h3>
-        </div>
+      <div className='relative z-10 flex flex-col justify-between h-full p-5'>
+        <div className='flex items-start justify-between gap-2'>
+          <div className='flex items-center gap-2 min-w-0'>
+            <span
+              className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${board.color}`}
+            />
+            <h3 className='font-semibold text-foreground text-base line-clamp-2 leading-tight'>
+              {board.name}
+            </h3>
+          </div>
 
-        {/* Star button - Mobile optimized */}
-        {showStar && (
-          <div className='flex justify-end relative z-20'>
+          {showStar && (
             <button
-              className={`relative z-30 p-2 md:p-2 rounded-full transition-all duration-200 min-w-[44px] min-h-[44px] md:min-w-auto md:min-h-auto flex items-center justify-center ${
+              className={`relative z-20 -mt-1 -mr-1 p-2 rounded-full transition-all duration-200 flex items-center justify-center flex-shrink-0 ${
                 board.starred
                   ? 'text-yellow-400 hover:text-yellow-500'
                   : 'text-muted-foreground/50 opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-yellow-400'
@@ -65,16 +65,23 @@ export function BoardCard({
               disabled={isToggling}
               aria-label={board.starred ? 'Unstar board' : 'Star board'}
               title={board.starred ? 'Unstar board' : 'Star board'}
-              style={{ pointerEvents: 'auto' }}
             >
               <Star
-                className={`w-4 h-4 md:w-4 md:h-4 transition-transform duration-200 ${
+                className={`w-4 h-4 transition-transform duration-200 ${
                   isToggling ? 'scale-110' : ''
                 }`}
                 fill={board.starred ? 'currentColor' : 'none'}
-                stroke={board.starred ? 'currentColor' : 'currentColor'}
               />
             </button>
+          )}
+        </div>
+
+        {board.updated_at && (
+          <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
+            <Clock className='w-3.5 h-3.5' />
+            <span>
+              Updated {formatDistanceToNow(new Date(board.updated_at), { addSuffix: true })}
+            </span>
           </div>
         )}
       </div>

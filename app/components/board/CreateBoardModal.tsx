@@ -11,14 +11,10 @@ import {
   X,
   Loader2,
   Palette,
-  ArrowRight,
-  FileText,
-  LayoutTemplate,
   Info,
   Shield,
   Crown,
   User,
-  Users,
   ChevronDown,
   Check,
 } from 'lucide-react';
@@ -62,7 +58,10 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
   ) {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
-    const [selectedColor, setSelectedColor] = useState(boardColors[0].value);
+    // Unset by default — color is an optional, minor detail, not a
+    // decision the form should force upfront. A random one is assigned on
+    // submit if the user never touches this.
+    const [selectedColor, setSelectedColor] = useState('');
     const [customColor, setCustomColor] = useState('#3B82F6');
     const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(
       workspaceId || ''
@@ -104,7 +103,7 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
         // Form reset on modal open
         setName('');
         setDescription('');
-        setSelectedColor(boardColors[0].value);
+        setSelectedColor('');
         setCustomColor('#3B82F6');
 
         // Set default workspace
@@ -209,7 +208,11 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
 
       try {
         const colorValue =
-          selectedColor === 'custom' ? customColor : selectedColor;
+          selectedColor === 'custom'
+            ? customColor
+            : selectedColor ||
+              boardColors[Math.floor(Math.random() * boardColors.length)]
+                .value;
 
         const response = await fetch('/api/boards', {
           method: 'POST',
@@ -279,7 +282,7 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
 
     return (
       <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-6'>
-        <div className='bg-card rounded-lg shadow-lg max-w-sm sm:max-w-md w-full max-h-[85vh] overflow-y-auto p-5 border border-border'>
+        <div className='bg-card/90 backdrop-blur-xl rounded-lg shadow-lg max-w-sm sm:max-w-md w-full max-h-[85vh] overflow-y-auto p-5 border border-border animate-in fade-in-50 zoom-in-95 duration-200'>
           <div className='flex justify-between items-center mb-4'>
             <h3 className='text-xl font-bold text-foreground'>Create Board</h3>
             <button
@@ -364,14 +367,14 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
 
                 {/* Show message if no workspaces available for board creation */}
                 {!workspacesLoading && availableWorkspaces.length === 0 ? (
-                  <div className='p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md'>
+                  <div className='p-3 bg-amber-500/10 border border-amber-500/20 rounded-md'>
                     <div className='flex items-start gap-2'>
-                      <Shield className='w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0' />
+                      <Shield className='w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0' />
                       <div className='text-sm'>
-                        <p className='font-medium text-yellow-800 dark:text-yellow-200 mb-1'>
+                        <p className='font-medium text-amber-400 mb-1'>
                           No workspaces available for board creation
                         </p>
-                        <p className='text-yellow-700 dark:text-yellow-300'>
+                        <p className='text-amber-400/80'>
                           You don't have permission to create boards in any
                           workspace. Contact a workspace admin to grant you
                           board creation permissions.
@@ -409,52 +412,51 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
               </div>
             )}
 
-            {/* Board Color */}
-            <div>
-              <label className='block text-sm font-medium text-foreground mb-2'>
-                Board Color
-              </label>
-              <div className='mb-3 flex flex-wrap gap-2'>
+            {/* Color — a minor, optional detail, not a decision the form
+                should lead with. Left unset, a random color is assigned on
+                submit. */}
+            <div className='flex items-center gap-2'>
+              <span className='text-xs text-muted-foreground flex-shrink-0'>
+                Color
+              </span>
+              <div className='flex flex-wrap gap-1.5'>
                 {boardColors.map((color) => (
                   <button
                     key={color.value}
                     type='button'
-                    onClick={() => setSelectedColor(color.value)}
-                    className={`w-8 h-8 rounded-full ${
+                    onClick={() =>
+                      setSelectedColor(
+                        selectedColor === color.value ? '' : color.value
+                      )
+                    }
+                    className={`w-5 h-5 rounded-full ${
                       color.value
                     } flex items-center justify-center transition-all ${
                       selectedColor === color.value
-                        ? 'ring-2 ring-ring ring-offset-2 ring-offset-background'
+                        ? 'ring-2 ring-ring ring-offset-1 ring-offset-background'
                         : 'hover:ring-1 hover:ring-ring hover:ring-offset-1 hover:ring-offset-background'
                     }`}
                     title={color.name}
                     aria-label={`Select ${color.name} color`}
                     disabled={isLoading}
-                  >
-                    {selectedColor === color.value && (
-                      <div className='w-2 h-2 bg-white rounded-full'></div>
-                    )}
-                  </button>
+                  />
                 ))}
 
-                {/* Custom color button */}
                 <button
                   type='button'
                   onClick={handleCustomColorClick}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all border-2 border-dashed ${
+                  className={`w-5 h-5 rounded-full flex items-center justify-center transition-all border border-dashed ${
                     selectedColor === 'custom'
-                      ? 'ring-2 ring-ring ring-offset-2 ring-offset-background'
+                      ? 'ring-2 ring-ring ring-offset-1 ring-offset-background'
                       : 'hover:border-primary border-border'
                   }`}
                   style={selectedColor === 'custom' ? customColorStyle : {}}
-                  title='Choose custom color'
+                  title='Custom color'
                   aria-label='Choose custom color'
                   disabled={isLoading}
                 >
-                  {selectedColor !== 'custom' ? (
-                    <Palette className='w-4 h-4 text-muted-foreground' />
-                  ) : (
-                    <div className='w-2 h-2 bg-white rounded-full'></div>
+                  {selectedColor !== 'custom' && (
+                    <Palette className='w-2.5 h-2.5 text-muted-foreground' />
                   )}
                   <input
                     ref={colorPickerRef}
@@ -467,33 +469,11 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
                 </button>
               </div>
 
-              {selectedColor === 'custom' && (
-                <div className='mt-2 p-2 border border-border rounded-md bg-muted/30 flex items-center'>
-                  <div
-                    className='w-4 h-4 rounded mr-2 border border-border/50'
-                    style={customColorStyle}
-                  ></div>
-                  <span className='text-sm font-medium'>{customColor}</span>
-                  <span className='ml-auto text-xs text-muted-foreground'>
-                    Custom color
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Start with Template - Placeholder */}
-            <div className='p-3 bg-muted/20 rounded-md border border-border/30'>
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-2'>
-                  <LayoutTemplate className='w-4 h-4 text-muted-foreground' />
-                  <span className='text-sm font-medium text-muted-foreground'>
-                    Start with template
-                  </span>
-                </div>
-                <span className='text-xs text-muted-foreground bg-muted px-2 py-1 rounded'>
-                  Coming soon
+              {!selectedColor && (
+                <span className='text-xs text-muted-foreground/70 ml-auto'>
+                  Random if left blank
                 </span>
-              </div>
+              )}
             </div>
 
             {/* Form Actions */}

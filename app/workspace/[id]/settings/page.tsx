@@ -12,7 +12,6 @@ import {
   Users,
   LayoutGrid,
   Trash2,
-  Share2,
   AlertCircle,
   Crown,
   Shield,
@@ -28,6 +27,20 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useWorkspaceSettings } from '@/hooks/useWorkspaceSettings';
+
+// Guards against a save spinner hanging forever if the underlying request
+// genuinely stalls (dropped connection, dev-server recompile mid-request,
+// etc.) — without this, updateWorkspaceDetails/updateWorkspaceSetting's
+// try/finally only stops the spinner once their awaited call settles, and
+// if it never settles, neither does the spinner.
+function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out')), ms)
+    ),
+  ]);
+}
 
 // Predefined workspace colors matching the create workspace modal
 const workspaceColors = [
@@ -51,9 +64,14 @@ export default function WorkspaceSettingsPage() {
     loading,
     error,
     refetch,
-    updateSettingsInCache,
-    updateWorkspaceInSettingsCache,
+    updateWorkspaceLocal,
+    updateSettingsLocal,
   } = useWorkspaceSettings(workspaceId);
+
+  // Owners have the same settings-management rights as admins (the API
+  // route already allows both — see app/api/workspaces/[id]/settings —
+  // this just keeps the UI's gating in sync with that).
+  const canManageSettings = userRole === 'admin' || userRole === 'owner';
 
   // Modal states
   const [showMembershipModal, setShowMembershipModal] = useState(false);
@@ -250,31 +268,32 @@ export default function WorkspaceSettingsPage() {
     settingType: keyof WorkspaceSettings,
     settingValue: any
   ) => {
-    if (!userRole || userRole !== 'admin') return;
+    if (!canManageSettings) return;
 
     setIsUpdating(true);
     try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/settings`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          settingType,
-          settingValue,
+      const response = await withTimeout(
+        fetch(`/api/workspaces/${workspaceId}/settings`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            settingType,
+            settingValue,
+          }),
         }),
-      });
+        15000
+      );
 
       if (!response.ok) {
         const error = await response.text();
         throw new Error(error);
       }
 
-      // Optimistically update local state and cache
-      updateSettingsInCache(workspaceId, {
-        ...settings,
-        [settingType]: settingValue,
-      });
+      // Updates both this hook's rendered state and the cache — see the
+      // comment on updateSettingsLocal in useWorkspaceSettings.ts.
+      updateSettingsLocal({ [settingType]: settingValue });
 
       // Close modals
       setShowMembershipModal(false);
@@ -298,7 +317,7 @@ export default function WorkspaceSettingsPage() {
 
   // Function to update workspace details (name and color)
   const updateWorkspaceDetails = async () => {
-    if (!userRole || userRole !== 'admin') return;
+    if (!canManageSettings) return;
 
     // Validate based on edit field
     if (editField === 'name' && !editWorkspaceName.trim()) return;
@@ -317,17 +336,19 @@ export default function WorkspaceSettingsPage() {
         updateData.color = colorValue;
       }
 
-      const { error } = await supabase
-        .from('workspaces')
-        .update(updateData)
-        .eq('id', workspaceId);
+      const { error } = await withTimeout(
+        supabase.from('workspaces').update(updateData).eq('id', workspaceId),
+        15000
+      );
 
       if (error) throw error;
 
-      updateWorkspaceInSettingsCache(workspaceId, {
-        ...workspace,
-        ...updateData,
-      });
+      // Updates both this hook's rendered state and the cache — see the
+      // comment on updateWorkspaceLocal in useWorkspaceSettings.ts. This is
+      // the fix for "board color changes but the settings page itself
+      // doesn't show it until a refresh" — the old call only ever wrote to
+      // the cache, never to the state actually being rendered here.
+      updateWorkspaceLocal(updateData);
 
       setShowWorkspaceEditModal(false);
       setEditField(null);
@@ -382,21 +403,29 @@ export default function WorkspaceSettingsPage() {
       case 'owner_only':
         return { icon: Crown, text: 'Owner only', color: 'text-yellow-500' };
       case 'admins_only':
-        return { icon: Shield, text: 'Admins only', color: 'text-blue-500' };
+        return { icon: Shield, text: 'Admins only', color: 'text-accent' };
       case 'any_member':
-        return { icon: User, text: 'Any member', color: 'text-gray-500' };
+        return {
+          icon: User,
+          text: 'Any member',
+          color: 'text-muted-foreground',
+        };
       case 'anyone':
         return {
           icon: Globe,
           text: 'Anyone in workspace',
-          color: 'text-green-500',
+          color: 'text-success',
         };
       default:
-        return { icon: User, text: 'Any member', color: 'text-gray-500' };
+        return {
+          icon: User,
+          text: 'Any member',
+          color: 'text-muted-foreground',
+        };
     }
   };
 
-  // Beautiful loading component
+  // Loading spinner, on-brand sizing
   const LoadingSpinner = ({ size = 'md', className = '' }) => {
     const sizeClasses = {
       sm: 'w-4 h-4',
@@ -415,12 +444,11 @@ export default function WorkspaceSettingsPage() {
 
   // Page loading skeleton
   const PageLoadingSkeleton = () => (
-    <div className='min-h-screen dot-pattern-dark'>
+    <div className='min-h-screen'>
       <DashboardHeader />
-      <main className='container mx-auto max-w-4xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
-        <div className='space-y-6'>
-          {/* Header skeleton */}
-          <div className='flex items-center gap-4 mb-8'>
+      <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+        <div className='space-y-4'>
+          <div className='flex items-center gap-4 mb-6'>
             <div className='w-8 h-8 bg-muted/50 rounded-lg animate-pulse'></div>
             <div className='space-y-2'>
               <div className='w-48 h-6 bg-muted/50 rounded animate-pulse'></div>
@@ -428,27 +456,13 @@ export default function WorkspaceSettingsPage() {
             </div>
           </div>
 
-          {/* Cards skeleton */}
           {[1, 2, 3].map((i) => (
-            <div key={i} className='card p-6 space-y-4'>
-              <div className='w-40 h-5 bg-muted/50 rounded animate-pulse'></div>
-              <div className='space-y-3'>
-                {[1, 2, 3].map((j) => (
-                  <div
-                    key={j}
-                    className='flex items-center justify-between p-3 rounded-lg border border-border'
-                  >
-                    <div className='flex items-center gap-3'>
-                      <div className='w-8 h-8 bg-muted/50 rounded-full animate-pulse'></div>
-                      <div className='space-y-2'>
-                        <div className='w-32 h-4 bg-muted/50 rounded animate-pulse'></div>
-                        <div className='w-48 h-3 bg-muted/50 rounded animate-pulse'></div>
-                      </div>
-                    </div>
-                    <div className='w-16 h-8 bg-muted/50 rounded animate-pulse'></div>
-                  </div>
-                ))}
-              </div>
+            <div
+              key={i}
+              className='bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl p-5 space-y-3'
+            >
+              <div className='w-40 h-4 bg-muted/50 rounded animate-pulse'></div>
+              <div className='h-14 rounded-lg bg-muted/30 animate-pulse'></div>
             </div>
           ))}
         </div>
@@ -508,39 +522,37 @@ export default function WorkspaceSettingsPage() {
 
   if (error || !workspace) {
     return (
-      <div className='min-h-screen dot-pattern-dark'>
+      <div className='min-h-screen'>
         <DashboardHeader />
-        <main className='container mx-auto max-w-4xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+        <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
           <div className='flex items-center justify-center h-64'>
-            <div className='text-red-500'>{error || 'Workspace not found'}</div>
+            <div className='text-destructive'>
+              {error || 'Workspace not found'}
+            </div>
           </div>
         </main>
       </div>
     );
   }
 
-  if (userRole !== 'admin') {
+  if (!canManageSettings) {
     return (
-      <div className='min-h-screen dot-pattern-dark'>
+      <div className='min-h-screen'>
         <DashboardHeader />
-        <main className='container mx-auto max-w-4xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+        <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
           <div className='flex items-center justify-center min-h-[60vh]'>
             <div className='text-center max-w-sm sm:max-w-md mx-auto px-4'>
-              {/* Access Denied Card */}
-              <div className='bg-card border border-border rounded-2xl p-6 sm:p-8 shadow-lg'>
-                {/* Icon */}
+              <div className='bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl p-6 sm:p-8'>
                 <div className='flex justify-center mb-4 sm:mb-6'>
                   <div className='w-12 h-12 sm:w-16 sm:h-16 bg-amber-500/10 rounded-full flex items-center justify-center'>
                     <Shield className='w-6 h-6 sm:w-8 sm:h-8 text-amber-500' />
                   </div>
                 </div>
 
-                {/* Title */}
                 <h2 className='text-lg sm:text-2xl font-bold text-foreground mb-2 sm:mb-3'>
                   Access Restricted
                 </h2>
 
-                {/* Description */}
                 <p className='text-sm sm:text-base text-muted-foreground mb-2 leading-relaxed'>
                   You don't have permission to manage settings for this
                   workspace.
@@ -549,7 +561,6 @@ export default function WorkspaceSettingsPage() {
                   Only workspace administrators can modify workspace settings.
                 </p>
 
-                {/* User Role Info */}
                 {userRole && (
                   <div className='bg-muted/30 rounded-lg p-3 mb-4 sm:mb-6'>
                     <div className='flex items-center justify-center gap-2 text-xs sm:text-sm'>
@@ -561,17 +572,15 @@ export default function WorkspaceSettingsPage() {
                   </div>
                 )}
 
-                {/* Action Button */}
                 <button
                   onClick={() => router.back()}
-                  className='inline-flex items-center gap-2 px-4 py-2 sm:px-6 sm:py-3 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-primary/90 transition-colors text-sm sm:text-base'
+                  className='btn btn-primary inline-flex items-center gap-2 px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base'
                 >
                   <ArrowLeft className='w-3 h-3 sm:w-4 sm:h-4' />
                   Go back
                 </button>
               </div>
 
-              {/* Help Text */}
               <p className='text-xs text-muted-foreground mt-3 sm:mt-4'>
                 Need access? Contact a workspace administrator or owner.
               </p>
@@ -585,113 +594,78 @@ export default function WorkspaceSettingsPage() {
   const membershipInfo = getRoleDisplay(settings.membership_restriction);
 
   return (
-    <div className='min-h-screen dot-pattern-dark'>
+    <div className='min-h-screen'>
       <DashboardHeader />
 
-      <main className='container mx-auto max-w-4xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+      <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
         {/* Header */}
-        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8'>
-          {/* Mobile: Title first, then description */}
-          <div className='flex flex-col gap-3 sm:hidden min-w-0'>
-            {/* Title with back button - prominent on mobile */}
-            <div className='flex items-center gap-2'>
-              <Link
-                href={`/boards/${workspace.id}`}
-                className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
-                aria-label='Back to workspace'
-              >
-                <ArrowLeft className='w-4 h-4' />
-              </Link>
-              <div className='min-w-0 flex-1'>
-                <h1 className='text-lg font-bold text-foreground truncate'>
-                  {workspace.name} Settings
-                </h1>
-              </div>
-            </div>
-
-            {/* Description - subtle on mobile */}
-            <div className='ml-7'>
-              <p className='text-xs text-muted-foreground'>
-                Manage workspace permissions and access controls
-              </p>
-            </div>
-          </div>
-
-          {/* Desktop: Traditional layout */}
-          <div className='hidden sm:flex items-center gap-4 min-w-0 flex-1'>
-            <Link
-              href={`/boards/${workspace.id}`}
-              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
-              aria-label='Back to workspace'
-            >
-              <ArrowLeft className='w-5 h-5' />
-            </Link>
-            <div className='min-w-0 flex-1'>
-              <h1 className='text-2xl font-bold text-foreground'>
-                {workspace.name} Settings
-              </h1>
-              <p className='text-muted-foreground text-sm'>
-                Manage workspace permissions and access controls
-              </p>
-            </div>
+        <div className='flex items-center gap-3 mb-6'>
+          <Link
+            href={`/boards/${workspace.id}`}
+            className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
+            aria-label='Back to workspace'
+          >
+            <ArrowLeft className='w-4 h-4 sm:w-5 sm:h-5' />
+          </Link>
+          <div className='min-w-0 flex-1'>
+            <h1 className='text-xl sm:text-2xl font-bold text-foreground truncate heading-enter'>
+              {workspace.name}
+            </h1>
+            <p className='text-muted-foreground text-xs sm:text-sm'>
+              Workspace settings
+            </p>
           </div>
         </div>
 
         {/* Navigation Tabs */}
-        <div className='mb-6 sm:mb-8'>
-          <div className='flex items-center gap-1 border-b border-border overflow-x-auto'>
-            <Link
-              href={`/workspace/${workspaceId}/members`}
-              className='px-3 sm:px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-b-2 hover:border-primary transition-colors whitespace-nowrap'
-            >
-              Members
-            </Link>
-            <span className='px-3 sm:px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary whitespace-nowrap'>
-              Settings
-            </span>
-          </div>
+        <div className='mb-6 flex items-center gap-1 border-b border-border/60'>
+          <Link
+            href={`/workspace/${workspaceId}/members`}
+            className='px-3 sm:px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border-b-2 border-transparent hover:border-border transition-colors whitespace-nowrap'
+          >
+            Members
+          </Link>
+          <span className='px-3 sm:px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary whitespace-nowrap'>
+            Settings
+          </span>
         </div>
 
-        <div className='space-y-4 sm:space-y-6'>
+        <div className='space-y-4'>
           {/* Current User Role Info */}
           {userRole && (
-            <div className='card p-3 sm:p-4 bg-primary/5 border-primary/20'>
-              <div className='flex items-center gap-3'>
-                <div className='flex items-center gap-2'>
-                  {userRole === 'owner' && (
-                    <Crown className='w-3 h-3 sm:w-4 sm:h-4 text-yellow-500' />
-                  )}
-                  {userRole === 'admin' && (
-                    <Shield className='w-3 h-3 sm:w-4 sm:h-4 text-blue-500' />
-                  )}
-                  {userRole === 'member' && (
-                    <User className='w-3 h-3 sm:w-4 sm:h-4 text-gray-500' />
-                  )}
-                  <span className='text-xs sm:text-sm font-medium'>
-                    You are{' '}
-                    {userRole === 'owner'
-                      ? 'the owner'
-                      : userRole === 'admin'
-                      ? 'an admin'
-                      : 'a member'}{' '}
-                    of this workspace
-                  </span>
-                </div>
-              </div>
+            <div className='flex items-center gap-2 px-4 py-2.5 bg-card/60 backdrop-blur-xl border border-border/50 rounded-xl text-sm'>
+              {userRole === 'owner' && (
+                <Crown className='w-4 h-4 text-yellow-500 flex-shrink-0' />
+              )}
+              {userRole === 'admin' && (
+                <Shield className='w-4 h-4 text-accent flex-shrink-0' />
+              )}
+              {(userRole as string) === 'member' && (
+                <User className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+              )}
+              <span className='text-foreground'>
+                You are{' '}
+                {userRole === 'owner'
+                  ? 'the owner'
+                  : userRole === 'admin'
+                  ? 'an admin'
+                  : 'a member'}{' '}
+                of this workspace
+              </span>
             </div>
           )}
 
           {/* Workspace Details */}
-          <div className='card p-4 sm:p-6'>
-            <h2 className='text-base sm:text-lg font-semibold mb-3 sm:mb-4'>
+          <div className='bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl p-4 sm:p-5'>
+            <h2 className='text-sm font-semibold text-foreground mb-3'>
               Workspace details
             </h2>
 
-            <div className='space-y-3'>
+            <div className='space-y-2'>
               {/* Workspace Name */}
               <button
                 onClick={
-                  userRole === 'admin'
+                  canManageSettings
                     ? () => {
                         setEditField('name');
                         setEditWorkspaceName(workspace?.name || '');
@@ -699,12 +673,12 @@ export default function WorkspaceSettingsPage() {
                       }
                     : undefined
                 }
-                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                  userRole === 'admin'
-                    ? 'hover:bg-muted/50 cursor-pointer'
+                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border/50 transition-colors text-left ${
+                  canManageSettings
+                    ? 'hover:bg-muted/40 cursor-pointer'
                     : 'cursor-default'
                 }`}
-                disabled={userRole !== 'admin'}
+                disabled={!canManageSettings}
               >
                 <div className='flex items-center gap-3 min-w-0 flex-1'>
                   <div className='w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0'>
@@ -713,30 +687,26 @@ export default function WorkspaceSettingsPage() {
                     </span>
                   </div>
                   <div className='min-w-0 flex-1'>
-                    <div className='font-medium text-foreground text-sm sm:text-base truncate'>
+                    <div className='font-medium text-foreground text-sm truncate'>
                       {workspace?.name}
                     </div>
-                    <div className='text-xs sm:text-sm text-muted-foreground'>
+                    <div className='text-xs text-muted-foreground'>
                       Workspace name
                     </div>
                   </div>
                 </div>
-                {userRole === 'admin' && (
-                  <div className='px-2 sm:px-3 py-1 sm:py-2 text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1 flex-shrink-0'>
-                    <span className='hidden sm:inline'>Edit</span>
-                    <ChevronRight className='w-3 h-3 sm:w-4 sm:h-4' />
-                  </div>
+                {canManageSettings && (
+                  <ChevronRight className='w-4 h-4 text-muted-foreground flex-shrink-0' />
                 )}
               </button>
 
               {/* Workspace Color */}
               <button
                 onClick={
-                  userRole === 'admin'
+                  canManageSettings
                     ? () => {
                         setEditField('color');
                         setEditWorkspaceColor(workspace?.color || '');
-                        // Initialize color selection state
                         const isCustomColor =
                           workspace?.color?.startsWith('#') ||
                           workspace?.color?.startsWith('rgb');
@@ -750,16 +720,16 @@ export default function WorkspaceSettingsPage() {
                       }
                     : undefined
                 }
-                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                  userRole === 'admin'
-                    ? 'hover:bg-muted/50 cursor-pointer'
+                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border/50 transition-colors text-left ${
+                  canManageSettings
+                    ? 'hover:bg-muted/40 cursor-pointer'
                     : 'cursor-default'
                 }`}
-                disabled={userRole !== 'admin'}
+                disabled={!canManageSettings}
               >
                 <div className='flex items-center gap-3'>
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    className={`w-8 h-8 rounded-full flex-shrink-0 ${
                       getColorDisplay(workspace?.color || '').isCustom
                         ? ''
                         : getColorDisplay(workspace?.color || '').className
@@ -769,179 +739,151 @@ export default function WorkspaceSettingsPage() {
                         ? getColorDisplay(workspace?.color || '').style
                         : {}
                     }
-                  >
-                    <span className='text-sm font-medium text-white'>
-                      {workspace?.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
+                  />
                   <div>
-                    <div className='font-medium text-foreground'>
+                    <div className='font-medium text-foreground text-sm'>
                       {workspace?.color}
                     </div>
-                    <div className='text-sm text-muted-foreground'>
+                    <div className='text-xs text-muted-foreground'>
                       Workspace color
                     </div>
                   </div>
                 </div>
-                {userRole === 'admin' && (
-                  <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors flex items-center gap-1'>
-                    Edit
-                    <ChevronRight className='w-4 h-4' />
-                  </div>
+                {canManageSettings && (
+                  <ChevronRight className='w-4 h-4 text-muted-foreground flex-shrink-0' />
                 )}
               </button>
             </div>
           </div>
 
-          {/* Workspace Membership Restrictions */}
-          <div className='card p-6'>
-            <h2 className='text-lg font-semibold mb-4'>
-              Workspace membership restrictions
+          {/* Permissions */}
+          <div className='bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl p-4 sm:p-5'>
+            <h2 className='text-sm font-semibold text-foreground mb-3'>
+              Permissions
             </h2>
 
-            <button
-              onClick={
-                userRole === 'admin'
-                  ? () => setShowMembershipModal(true)
-                  : undefined
-              }
-              className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                userRole === 'admin'
-                  ? 'hover:bg-muted/50 cursor-pointer'
-                  : 'cursor-default'
-              }`}
-              disabled={userRole !== 'admin'}
-            >
-              <div className='flex items-center gap-3'>
-                <div
-                  className={`w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center`}
-                >
-                  {React.createElement(membershipInfo.icon, {
-                    className: `w-4 h-4 ${membershipInfo.color}`,
-                  })}
-                </div>
-                <div>
-                  <div className='font-medium text-foreground'>
-                    {membershipInfo.text} can invite new members
+            <div className='space-y-2'>
+              {/* Membership Restrictions */}
+              <button
+                onClick={
+                  canManageSettings
+                    ? () => setShowMembershipModal(true)
+                    : undefined
+                }
+                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border/50 transition-colors text-left ${
+                  canManageSettings
+                    ? 'hover:bg-muted/40 cursor-pointer'
+                    : 'cursor-default'
+                }`}
+                disabled={!canManageSettings}
+              >
+                <div className='flex items-center gap-3 min-w-0'>
+                  <div className='w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center flex-shrink-0'>
+                    {React.createElement(membershipInfo.icon, {
+                      className: `w-4 h-4 ${membershipInfo.color}`,
+                    })}
                   </div>
-                  <div className='text-sm text-muted-foreground'>
-                    Controls who can invite new members to join this workspace
+                  <div className='min-w-0'>
+                    <div className='font-medium text-foreground text-sm truncate'>
+                      {membershipInfo.text} can invite members
+                    </div>
+                    <div className='text-xs text-muted-foreground hidden sm:block'>
+                      Who can invite new members to this workspace
+                    </div>
                   </div>
                 </div>
-              </div>
-              {userRole === 'admin' && (
-                <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors items-center gap-1 hidden md:flex'>
-                  Change
-                  <ChevronRight className='w-4 h-4' />
-                </div>
-              )}
-            </button>
-          </div>
+                {canManageSettings && (
+                  <ChevronRight className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+                )}
+              </button>
 
-          {/* Board Creation Restrictions */}
-          <div className='card p-6'>
-            <h2 className='text-lg font-semibold mb-4'>
-              Board creation restrictions
-            </h2>
+              {/* Board Creation Restrictions */}
+              <button
+                onClick={
+                  canManageSettings
+                    ? () => setShowCreationModal(true)
+                    : undefined
+                }
+                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border/50 transition-colors text-left ${
+                  canManageSettings
+                    ? 'hover:bg-muted/40 cursor-pointer'
+                    : 'cursor-default'
+                }`}
+                disabled={!canManageSettings}
+              >
+                <div className='flex items-center gap-3 min-w-0'>
+                  <div className='w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0'>
+                    <LayoutGrid className='w-4 h-4 text-accent' />
+                  </div>
+                  <div className='min-w-0'>
+                    <div className='font-medium text-foreground text-sm truncate'>
+                      {getRoleDisplay(settings.board_creation_simplified).text}{' '}
+                      can create boards
+                    </div>
+                    <div className='text-xs text-muted-foreground hidden sm:block'>
+                      Boards are visible to all workspace members
+                    </div>
+                  </div>
+                </div>
+                {canManageSettings && (
+                  <ChevronRight className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+                )}
+              </button>
 
-            <button
-              onClick={
-                userRole === 'admin'
-                  ? () => setShowCreationModal(true)
-                  : undefined
-              }
-              className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                userRole === 'admin'
-                  ? 'hover:bg-muted/50 cursor-pointer'
-                  : 'cursor-default'
-              }`}
-              disabled={userRole !== 'admin'}
-            >
-              <div className='flex items-center gap-3'>
-                <div className='w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center'>
-                  <LayoutGrid className='w-4 h-4 text-blue-600 dark:text-blue-400' />
-                </div>
-                <div>
-                  <div className='font-medium text-foreground'>
-                    {getRoleDisplay(settings.board_creation_simplified).text}{' '}
-                    can create boards
+              {/* Board Deletion Restrictions */}
+              <button
+                onClick={
+                  canManageSettings
+                    ? () => setShowDeletionModal(true)
+                    : undefined
+                }
+                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border/50 transition-colors text-left ${
+                  canManageSettings
+                    ? 'hover:bg-muted/40 cursor-pointer'
+                    : 'cursor-default'
+                }`}
+                disabled={!canManageSettings}
+              >
+                <div className='flex items-center gap-3 min-w-0'>
+                  <div className='w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0'>
+                    <Trash2 className='w-4 h-4 text-destructive' />
                   </div>
-                  <div className='text-sm text-muted-foreground'>
-                    All boards are workspace visible and can be viewed by all
-                    members
-                  </div>
-                </div>
-              </div>
-              {userRole === 'admin' && (
-                <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors items-center gap-1 hidden md:flex'>
-                  Change
-                  <ChevronRight className='w-4 h-4' />
-                </div>
-              )}
-            </button>
-          </div>
-
-          {/* Board Deletion Restrictions */}
-          <div className='card p-6'>
-            <h2 className='text-lg font-semibold mb-4'>
-              Board deletion restrictions
-            </h2>
-
-            <button
-              onClick={
-                userRole === 'admin'
-                  ? () => setShowDeletionModal(true)
-                  : undefined
-              }
-              className={`w-full flex items-center justify-between p-3 rounded-lg border border-border transition-colors text-left ${
-                userRole === 'admin'
-                  ? 'hover:bg-muted/50 cursor-pointer'
-                  : 'cursor-default'
-              }`}
-              disabled={userRole !== 'admin'}
-            >
-              <div className='flex items-center gap-3'>
-                <div className='w-8 h-8 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center'>
-                  <Trash2 className='w-4 h-4 text-red-600 dark:text-red-400' />
-                </div>
-                <div>
-                  <div className='font-medium text-foreground'>
-                    {getRoleDisplay(settings.board_deletion_simplified).text}{' '}
-                    can delete boards
-                  </div>
-                  <div className='text-sm text-muted-foreground'>
-                    Controls who can permanently delete workspace boards
+                  <div className='min-w-0'>
+                    <div className='font-medium text-foreground text-sm truncate'>
+                      {getRoleDisplay(settings.board_deletion_simplified).text}{' '}
+                      can delete boards
+                    </div>
+                    <div className='text-xs text-muted-foreground hidden sm:block'>
+                      Who can permanently delete workspace boards
+                    </div>
                   </div>
                 </div>
-              </div>
-              {userRole === 'admin' && (
-                <div className='px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-lg transition-colors items-center gap-1 hidden md:flex'>
-                  Change
-                  <ChevronRight className='w-4 h-4' />
-                </div>
-              )}
-            </button>
+                {canManageSettings && (
+                  <ChevronRight className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Danger Zone - Workspace Deletion */}
           {userRole === 'owner' && (
-            <div className='card p-6 border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/10'>
-              <h2 className='text-lg font-semibold mb-6 text-red-700 dark:text-red-400'>
-                Danger Zone
+            <div className='bg-card/70 backdrop-blur-xl border border-destructive/30 rounded-2xl p-4 sm:p-5'>
+              <h2 className='text-sm font-semibold text-destructive mb-3'>
+                Danger zone
               </h2>
 
               <div className='flex items-start gap-3'>
-                <AlertCircle className='w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0' />
-                <div className='flex-1'>
-                  <div className='flex items-center gap-2 mb-2'>
-                    <h3 className='font-medium text-red-800 dark:text-red-200'>
+                <AlertCircle className='w-4 h-4 text-destructive mt-0.5 flex-shrink-0' />
+                <div className='flex-1 min-w-0'>
+                  <div className='flex items-center gap-2 mb-1.5'>
+                    <h3 className='font-medium text-foreground text-sm'>
                       Delete this workspace
                     </h3>
                     <button
                       onClick={() =>
                         setShowDeletionDetails(!showDeletionDetails)
                       }
-                      className='p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-all duration-200'
+                      className='p-1 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded transition-colors'
                       title={
                         showDeletionDetails
                           ? 'Hide details'
@@ -949,37 +891,29 @@ export default function WorkspaceSettingsPage() {
                       }
                     >
                       <ChevronDown
-                        className={`w-4 h-4 transition-transform duration-200 ${
+                        className={`w-3.5 h-3.5 transition-transform duration-200 ${
                           showDeletionDetails ? 'rotate-180' : ''
                         }`}
                       />
                     </button>
                   </div>
-                  <p className='text-sm text-red-700 dark:text-red-300 mb-4'>
-                    Once you delete a workspace, there is no going back. This
-                    action cannot be undone.
+                  <p className='text-xs text-muted-foreground mb-3'>
+                    Once you delete a workspace, there is no going back.
                   </p>
 
                   {showDeletionDetails && (
-                    <div className='mb-4 animate-in slide-in-from-top-1 fade-in duration-200'>
-                      <ul className='text-sm text-red-700 dark:text-red-300 space-y-1 pl-4 border-l-2 border-red-300 dark:border-red-700'>
-                        <li>
-                          • All boards in this workspace will be permanently
-                          deleted
-                        </li>
-                        <li>
-                          • All lists, cards, and comments will be lost forever
-                        </li>
-                        <li>• All workspace members will lose access</li>
-                        <li>
-                          • All workspace settings and permissions will be
-                          removed
-                        </li>
-                        <li>
-                          • All activity history will be permanently deleted
-                        </li>
-                      </ul>
-                    </div>
+                    <ul className='text-xs text-muted-foreground space-y-1 pl-3 border-l-2 border-destructive/30 mb-3 animate-in slide-in-from-top-1 fade-in duration-200'>
+                      <li>
+                        All boards in this workspace will be permanently
+                        deleted
+                      </li>
+                      <li>All lists, cards, and comments will be lost forever</li>
+                      <li>All workspace members will lose access</li>
+                      <li>
+                        All workspace settings and permissions will be removed
+                      </li>
+                      <li>All activity history will be permanently deleted</li>
+                    </ul>
                   )}
 
                   <button
@@ -988,9 +922,9 @@ export default function WorkspaceSettingsPage() {
                       setShowDeletionDetails(false);
                       setShowWorkspaceDeletionModal(true);
                     }}
-                    className='px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2'
+                    className='px-3.5 py-1.5 bg-destructive hover:bg-destructive/90 text-destructive-foreground text-sm font-medium rounded-lg transition-colors flex items-center gap-2'
                   >
-                    <Trash2 className='w-4 h-4' />
+                    <Trash2 className='w-3.5 h-3.5' />
                     Delete workspace permanently
                   </button>
                 </div>
@@ -1002,13 +936,13 @@ export default function WorkspaceSettingsPage() {
 
       {/* Workspace Edit Modal */}
       {showWorkspaceEditModal && (
-        <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6'>
-          <div className='bg-card rounded-lg shadow-lg max-w-md w-full p-5 border border-border'>
+        <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'>
+          <div className='bg-card/90 backdrop-blur-xl rounded-xl shadow-2xl max-w-md w-full p-5 border border-border animate-in fade-in-50 zoom-in-95 duration-200'>
             <div className='flex justify-between items-center mb-4'>
-              <h3 className='text-xl font-bold text-foreground'>
+              <h3 className='text-lg font-bold text-foreground'>
                 {editField === 'name'
-                  ? 'Edit Workspace Name'
-                  : 'Edit Workspace Color'}
+                  ? 'Edit workspace name'
+                  : 'Edit workspace color'}
               </h3>
               <button
                 onClick={() => {
@@ -1032,14 +966,14 @@ export default function WorkspaceSettingsPage() {
                     htmlFor='workspace-name'
                     className='block text-sm font-medium text-foreground mb-1'
                   >
-                    Workspace Name
+                    Workspace name
                   </label>
                   <input
                     id='workspace-name'
                     type='text'
                     value={editWorkspaceName}
                     onChange={(e) => setEditWorkspaceName(e.target.value)}
-                    className='w-full p-2 bg-input border border-border rounded-md text-foreground'
+                    className='w-full p-2.5 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent'
                     placeholder='My Workspace'
                     disabled={isUpdating}
                     autoFocus
@@ -1050,16 +984,15 @@ export default function WorkspaceSettingsPage() {
               {editField === 'color' && (
                 <div>
                   <label className='block text-sm font-medium text-foreground mb-2'>
-                    Workspace Color
+                    Workspace color
                   </label>
-                  <div className='mb-3 flex flex-wrap gap-3'>
-                    {/* Standard color circles */}
+                  <div className='flex flex-wrap gap-2'>
                     {workspaceColors.map((color) => (
                       <button
                         key={color.value}
                         type='button'
                         onClick={() => handleColorSelection(color.value)}
-                        className={`w-10 h-10 rounded-full ${
+                        className={`w-8 h-8 rounded-full ${
                           color.value
                         } flex items-center justify-center transition-all ${
                           selectedColor === color.value
@@ -1071,19 +1004,18 @@ export default function WorkspaceSettingsPage() {
                         disabled={isUpdating}
                       >
                         {selectedColor === color.value && (
-                          <div className='w-2 h-2 bg-white rounded-full'></div>
+                          <Check className='w-3.5 h-3.5 text-white' />
                         )}
                       </button>
                     ))}
 
-                    {/* Custom color button - distinct design */}
                     <button
                       type='button'
                       onClick={handleCustomColorClick}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all border-2 border-dashed ${
+                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all border-2 border-dashed ${
                         selectedColor === 'custom'
                           ? 'ring-2 ring-ring ring-offset-2 ring-offset-background'
-                          : 'hover:border-primary'
+                          : 'hover:border-primary border-border'
                       }`}
                       style={
                         selectedColor === 'custom'
@@ -1095,9 +1027,9 @@ export default function WorkspaceSettingsPage() {
                       disabled={isUpdating}
                     >
                       {selectedColor !== 'custom' ? (
-                        <Palette className='w-5 h-5 text-muted-foreground' />
+                        <Palette className='w-4 h-4 text-muted-foreground' />
                       ) : (
-                        <div className='w-2 h-2 bg-white rounded-full'></div>
+                        <Check className='w-3.5 h-3.5 text-white' />
                       )}
                       <input
                         ref={colorPickerRef}
@@ -1113,7 +1045,7 @@ export default function WorkspaceSettingsPage() {
                   {selectedColor === 'custom' && (
                     <div className='mt-2 p-2 border border-border rounded-md bg-muted/30 flex items-center'>
                       <div
-                        className='w-6 h-6 rounded-md mr-2 border border-border/50'
+                        className='w-5 h-5 rounded mr-2 border border-border/50'
                         style={{ backgroundColor: customColor }}
                       ></div>
                       <span className='text-sm font-medium'>{customColor}</span>
@@ -1126,7 +1058,7 @@ export default function WorkspaceSettingsPage() {
               )}
             </div>
 
-            <div className='flex justify-end space-x-2 mt-6'>
+            <div className='flex justify-end gap-2 mt-6'>
               <button
                 type='button'
                 onClick={() => {
@@ -1142,9 +1074,7 @@ export default function WorkspaceSettingsPage() {
               </button>
               <button
                 onClick={updateWorkspaceDetails}
-                className={`btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center transition-all duration-200 ${
-                  isUpdating ? 'scale-95 opacity-90' : 'hover:scale-105'
-                }`}
+                className='btn btn-primary px-4 py-2 flex items-center gap-2'
                 disabled={
                   isUpdating ||
                   (editField === 'name' && !editWorkspaceName.trim())
@@ -1152,13 +1082,13 @@ export default function WorkspaceSettingsPage() {
               >
                 {isUpdating ? (
                   <>
-                    <LoadingSpinner size='sm' className='mr-2' />
-                    <span className='animate-pulse'>Saving...</span>
+                    <LoadingSpinner size='sm' />
+                    Saving...
                   </>
                 ) : (
                   <>
-                    <Check className='w-4 h-4 mr-2' />
-                    Save Changes
+                    <Check className='w-4 h-4' />
+                    Save changes
                   </>
                 )}
               </button>
@@ -1169,16 +1099,18 @@ export default function WorkspaceSettingsPage() {
 
       {/* Membership Restriction Modal */}
       {showMembershipModal && (
-        <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
-          <div className='bg-background border border-border rounded-lg p-6 w-full max-w-md mx-4'>
-            <h3 className='text-lg font-semibold mb-4'>
-              Change Membership Restrictions
+        <div className='fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4'>
+          <div className='bg-card/90 backdrop-blur-xl border border-border rounded-xl shadow-2xl p-5 w-full max-w-md animate-in fade-in-50 zoom-in-95 duration-200'>
+            <h3 className='text-base font-semibold text-foreground mb-4'>
+              Who can invite new members?
             </h3>
 
-            <div className='space-y-3'>
+            <div className='space-y-2'>
               {(['anyone', 'admins_only', 'owner_only'] as const).map(
                 (option) => {
                   const info = getRoleDisplay(option);
+                  const isSelected =
+                    settings.membership_restriction === option;
                   return (
                     <button
                       key={option}
@@ -1186,35 +1118,33 @@ export default function WorkspaceSettingsPage() {
                         updateWorkspaceSetting('membership_restriction', option)
                       }
                       disabled={isUpdating}
-                      className={`w-full p-3 text-left rounded-lg border ${
-                        settings.membership_restriction === option
+                      className={`w-full p-3 text-left rounded-lg border transition-colors flex items-center gap-3 ${
+                        isSelected
                           ? 'border-primary bg-primary/10'
-                          : 'border-border hover:bg-muted/50'
-                      } transition-all duration-200 flex items-center gap-3 ${
-                        isUpdating ? 'opacity-50 scale-95' : 'hover:scale-102'
-                      }`}
+                          : 'border-border/50 hover:bg-muted/40'
+                      } ${isUpdating ? 'opacity-50' : ''}`}
                     >
-                      {isUpdating ? (
+                      {isUpdating && isSelected ? (
                         <LoadingSpinner size='sm' />
                       ) : (
                         React.createElement(info.icon, {
                           className: `w-4 h-4 ${info.color}`,
                         })
                       )}
-                      <div>
-                        <div className='font-medium'>{info.text}</div>
-                      </div>
+                      <span className='text-sm font-medium text-foreground'>
+                        {info.text}
+                      </span>
                     </button>
                   );
                 }
               )}
             </div>
 
-            <div className='flex justify-end gap-3 mt-6'>
+            <div className='flex justify-end mt-5'>
               <button
                 onClick={() => setShowMembershipModal(false)}
                 disabled={isUpdating}
-                className='px-4 py-2 text-muted-foreground hover:text-foreground disabled:opacity-50'
+                className='btn btn-ghost px-4 py-2'
               >
                 Cancel
               </button>
@@ -1225,13 +1155,13 @@ export default function WorkspaceSettingsPage() {
 
       {/* Board Creation Restriction Modal */}
       {showCreationModal && (
-        <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
-          <div className='bg-background border border-border rounded-lg p-6 w-full max-w-md mx-4'>
-            <h3 className='text-lg font-semibold mb-4'>
-              Change Board Creation Permissions
+        <div className='fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4'>
+          <div className='bg-card/90 backdrop-blur-xl border border-border rounded-xl shadow-2xl p-5 w-full max-w-md animate-in fade-in-50 zoom-in-95 duration-200'>
+            <h3 className='text-base font-semibold text-foreground mb-4'>
+              Who can create boards?
             </h3>
 
-            <div className='space-y-3'>
+            <div className='space-y-2'>
               {(['any_member', 'admins_only', 'owner_only'] as const).map(
                 (option) => {
                   const info = getRoleDisplay(option);
@@ -1243,29 +1173,29 @@ export default function WorkspaceSettingsPage() {
                       key={option}
                       onClick={() => updateBoardCreationRestriction(option)}
                       disabled={isUpdating}
-                      className={`w-full p-3 text-left rounded-lg border ${
+                      className={`w-full p-3 text-left rounded-lg border transition-colors flex items-center gap-3 ${
                         isSelected
                           ? 'border-primary bg-primary/10'
-                          : 'border-border hover:bg-muted/50'
-                      } transition-colors flex items-center gap-3`}
+                          : 'border-border/50 hover:bg-muted/40'
+                      }`}
                     >
                       {React.createElement(info.icon, {
                         className: `w-4 h-4 ${info.color}`,
                       })}
-                      <div>
-                        <div className='font-medium'>{info.text}</div>
-                      </div>
+                      <span className='text-sm font-medium text-foreground'>
+                        {info.text}
+                      </span>
                     </button>
                   );
                 }
               )}
             </div>
 
-            <div className='flex justify-end gap-3 mt-6'>
+            <div className='flex justify-end mt-5'>
               <button
                 onClick={() => setShowCreationModal(false)}
                 disabled={isUpdating}
-                className='px-4 py-2 text-muted-foreground hover:text-foreground disabled:opacity-50'
+                className='btn btn-ghost px-4 py-2'
               >
                 Cancel
               </button>
@@ -1276,13 +1206,13 @@ export default function WorkspaceSettingsPage() {
 
       {/* Board Deletion Restriction Modal */}
       {showDeletionModal && (
-        <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
-          <div className='bg-background border border-border rounded-lg p-6 w-full max-w-md mx-4'>
-            <h3 className='text-lg font-semibold mb-4'>
-              Change Board Deletion Permissions
+        <div className='fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4'>
+          <div className='bg-card/90 backdrop-blur-xl border border-border rounded-xl shadow-2xl p-5 w-full max-w-md animate-in fade-in-50 zoom-in-95 duration-200'>
+            <h3 className='text-base font-semibold text-foreground mb-4'>
+              Who can delete boards?
             </h3>
 
-            <div className='space-y-3'>
+            <div className='space-y-2'>
               {(['any_member', 'admins_only', 'owner_only'] as const).map(
                 (option) => {
                   const info = getRoleDisplay(option);
@@ -1294,29 +1224,29 @@ export default function WorkspaceSettingsPage() {
                       key={option}
                       onClick={() => updateBoardDeletionRestriction(option)}
                       disabled={isUpdating}
-                      className={`w-full p-3 text-left rounded-lg border ${
+                      className={`w-full p-3 text-left rounded-lg border transition-colors flex items-center gap-3 ${
                         isSelected
                           ? 'border-primary bg-primary/10'
-                          : 'border-border hover:bg-muted/50'
-                      } transition-colors flex items-center gap-3`}
+                          : 'border-border/50 hover:bg-muted/40'
+                      }`}
                     >
                       {React.createElement(info.icon, {
                         className: `w-4 h-4 ${info.color}`,
                       })}
-                      <div>
-                        <div className='font-medium'>{info.text}</div>
-                      </div>
+                      <span className='text-sm font-medium text-foreground'>
+                        {info.text}
+                      </span>
                     </button>
                   );
                 }
               )}
             </div>
 
-            <div className='flex justify-end gap-3 mt-6'>
+            <div className='flex justify-end mt-5'>
               <button
                 onClick={() => setShowDeletionModal(false)}
                 disabled={isUpdating}
-                className='px-4 py-2 text-muted-foreground hover:text-foreground disabled:opacity-50'
+                className='btn btn-ghost px-4 py-2'
               >
                 Cancel
               </button>
@@ -1327,15 +1257,15 @@ export default function WorkspaceSettingsPage() {
 
       {/* Workspace Deletion Confirmation Modal */}
       {showWorkspaceDeletionModal && workspace && (
-        <div className='fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6'>
-          <div className='bg-card rounded-lg shadow-xl max-w-lg w-full p-6 border border-red-200 dark:border-red-800'>
+        <div className='fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4'>
+          <div className='bg-card/90 backdrop-blur-xl rounded-xl shadow-2xl max-w-lg w-full p-6 border border-destructive/30 animate-in fade-in-50 zoom-in-95 duration-200'>
             <div className='flex items-center gap-3 mb-6'>
-              <div className='w-12 h-12 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center'>
-                <Trash2 className='w-6 h-6 text-red-600 dark:text-red-400' />
+              <div className='w-12 h-12 rounded-full bg-destructive/15 flex items-center justify-center'>
+                <Trash2 className='w-6 h-6 text-destructive' />
               </div>
               <div>
-                <h3 className='text-xl font-bold text-foreground'>
-                  Delete Workspace
+                <h3 className='text-lg font-bold text-foreground'>
+                  Delete workspace
                 </h3>
                 <p className='text-sm text-muted-foreground'>
                   This action cannot be undone
@@ -1343,28 +1273,28 @@ export default function WorkspaceSettingsPage() {
               </div>
             </div>
 
-            <div className='space-y-6'>
+            <div className='space-y-5'>
               {/* Consequences */}
-              <div className='p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg'>
-                <h4 className='font-semibold text-red-800 dark:text-red-200 mb-3 flex items-center gap-2'>
-                  <AlertCircle className='w-4 h-4' />
-                  What will be deleted:
+              <div className='p-3.5 bg-destructive/10 border border-destructive/30 rounded-lg'>
+                <h4 className='font-semibold text-foreground mb-2.5 flex items-center gap-2 text-sm'>
+                  <AlertCircle className='w-4 h-4 text-destructive' />
+                  What will be deleted
                 </h4>
-                <ul className='text-sm text-red-700 dark:text-red-300 space-y-2'>
+                <ul className='text-sm text-muted-foreground space-y-1.5'>
                   <li className='flex items-center gap-2'>
-                    <Trash2 className='w-3 h-3' />
+                    <Trash2 className='w-3 h-3 flex-shrink-0' />
                     The workspace "{workspace.name}" and all its settings
                   </li>
                   <li className='flex items-center gap-2'>
-                    <LayoutGrid className='w-3 h-3' />
+                    <LayoutGrid className='w-3 h-3 flex-shrink-0' />
                     All boards, lists, and cards in this workspace
                   </li>
                   <li className='flex items-center gap-2'>
-                    <Users className='w-3 h-3' />
+                    <Users className='w-3 h-3 flex-shrink-0' />
                     All member access and permissions
                   </li>
                   <li className='flex items-center gap-2'>
-                    <FileText className='w-3 h-3' />
+                    <FileText className='w-3 h-3 flex-shrink-0' />
                     All comments, attachments, and activity history
                   </li>
                 </ul>
@@ -1374,7 +1304,7 @@ export default function WorkspaceSettingsPage() {
               <div>
                 <label className='block text-sm font-medium text-foreground mb-2'>
                   Type the workspace name{' '}
-                  <span className='font-bold text-red-600'>
+                  <span className='font-bold text-destructive'>
                     "{workspace.name}"
                   </span>{' '}
                   to confirm:
@@ -1384,7 +1314,7 @@ export default function WorkspaceSettingsPage() {
                   value={deletionConfirmName}
                   onChange={(e) => setDeletionConfirmName(e.target.value)}
                   placeholder={workspace.name}
-                  className='w-full p-3 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent'
+                  className='w-full p-2.5 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-destructive focus:border-transparent'
                   disabled={isDeletingWorkspace}
                   autoFocus
                 />
@@ -1409,7 +1339,7 @@ export default function WorkspaceSettingsPage() {
                     isDeletingWorkspace ||
                     deletionConfirmName !== workspace.name
                   }
-                  className='flex-1 px-4 py-2.5 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-600/50 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center gap-2'
+                  className='flex-1 px-4 py-2.5 text-sm font-medium bg-destructive hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed text-destructive-foreground rounded-lg transition-colors flex items-center justify-center gap-2'
                 >
                   {isDeletingWorkspace ? (
                     <>
@@ -1419,35 +1349,33 @@ export default function WorkspaceSettingsPage() {
                   ) : (
                     <>
                       <Trash2 className='w-4 h-4' />
-                      Delete workspace permanently
+                      Delete permanently
                     </>
                   )}
                 </button>
               </div>
 
-              {/* Progress indicator */}
               {isDeletingWorkspace && (
-                <div className='p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg'>
-                  <div className='flex items-center gap-2 text-yellow-800 dark:text-yellow-200'>
+                <div className='p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg'>
+                  <div className='flex items-center gap-2 text-amber-500'>
                     <Loader2 className='w-4 h-4 animate-spin' />
                     <span className='text-sm font-medium'>
                       Deleting workspace and all related data...
                     </span>
                   </div>
-                  <p className='text-xs text-yellow-700 dark:text-yellow-300 mt-1'>
-                    This may take a few moments. Please do not close this
+                  <p className='text-xs text-muted-foreground mt-1'>
+                    This may take a few moments. Please don't close this
                     window.
                   </p>
                 </div>
               )}
 
-              {/* Deletion stats (if available) */}
               {deletionStats && (
-                <div className='p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg'>
-                  <h5 className='font-medium text-green-800 dark:text-green-200 mb-2'>
-                    Deletion completed:
+                <div className='p-3 bg-success/10 border border-success/30 rounded-lg'>
+                  <h5 className='font-medium text-success mb-2 text-sm'>
+                    Deletion completed
                   </h5>
-                  <div className='grid grid-cols-2 gap-2 text-xs text-green-700 dark:text-green-300'>
+                  <div className='grid grid-cols-2 gap-1.5 text-xs text-muted-foreground'>
                     <div>Workspace: {deletionStats.workspace}</div>
                     <div>Members: {deletionStats.members}</div>
                     <div>Boards: {deletionStats.boards}</div>
@@ -1473,13 +1401,11 @@ export default function WorkspaceSettingsPage() {
               : 'animate-in slide-in-from-bottom-2 fade-in opacity-100 scale-100'
           }`}
         >
-          <div className='bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 shadow-2xl max-w-sm backdrop-blur-sm'>
+          <div className='bg-card/95 backdrop-blur-xl border border-success/30 rounded-lg p-4 shadow-2xl max-w-sm'>
             <div className='flex items-center gap-3'>
-              <div className='flex-shrink-0'>
-                <CheckCircle2 className='w-5 h-5 text-green-600 dark:text-green-400' />
-              </div>
+              <CheckCircle2 className='w-5 h-5 text-success flex-shrink-0' />
               <div className='flex-1'>
-                <p className='text-sm font-medium text-green-800 dark:text-green-200'>
+                <p className='text-sm font-medium text-foreground'>
                   {successMessage}
                 </p>
               </div>
@@ -1491,7 +1417,7 @@ export default function WorkspaceSettingsPage() {
                     setIsSuccessToastFading(false);
                   }, 300);
                 }}
-                className='flex-shrink-0 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 transition-colors'
+                className='flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors'
                 aria-label='Close success notification'
               >
                 <X className='w-4 h-4' />
@@ -1510,13 +1436,11 @@ export default function WorkspaceSettingsPage() {
               : 'animate-in slide-in-from-bottom-2 fade-in opacity-100 scale-100'
           }`}
         >
-          <div className='bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 shadow-2xl max-w-sm backdrop-blur-sm'>
+          <div className='bg-card/95 backdrop-blur-xl border border-destructive/30 rounded-lg p-4 shadow-2xl max-w-sm'>
             <div className='flex items-center gap-3'>
-              <div className='flex-shrink-0'>
-                <AlertCircle className='w-5 h-5 text-red-600 dark:text-red-400' />
-              </div>
+              <AlertCircle className='w-5 h-5 text-destructive flex-shrink-0' />
               <div className='flex-1'>
-                <p className='text-sm font-medium text-red-800 dark:text-red-200'>
+                <p className='text-sm font-medium text-foreground'>
                   {errorMessage}
                 </p>
               </div>
@@ -1528,7 +1452,7 @@ export default function WorkspaceSettingsPage() {
                     setIsErrorToastFading(false);
                   }, 300);
                 }}
-                className='flex-shrink-0 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors'
+                className='flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors'
                 aria-label='Close error notification'
               >
                 <X className='w-4 h-4' />
@@ -1541,7 +1465,7 @@ export default function WorkspaceSettingsPage() {
       {/* Global Loading Overlay for Critical Actions */}
       {isUpdating && (
         <div className='fixed inset-0 bg-black/10 backdrop-blur-sm z-[90] flex items-center justify-center'>
-          <div className='bg-background/90 backdrop-blur border border-border rounded-lg p-6 shadow-xl'>
+          <div className='bg-card/95 backdrop-blur-xl border border-border rounded-lg p-6 shadow-2xl'>
             <div className='flex items-center gap-4'>
               <LoadingSpinner size='lg' />
               <div>

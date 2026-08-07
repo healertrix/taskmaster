@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Plus, User, Search, Check } from 'lucide-react';
-import { useBoardStore } from '@/hooks/useBoardStore';
+import { useAppStore } from '@/lib/stores/useAppStore';
 
 interface MemberData {
   id: string;
@@ -35,6 +35,7 @@ interface CardMemberPickerProps {
   cardId: string;
   currentMembers: CardMemberData[];
   onMemberAdded: (member: CardMemberData) => void;
+  onRemoveMember?: (profileId: string) => void;
   isLoading?: boolean;
   autoCloseAfterAdd?: boolean;
   allowMultipleSelections?: boolean;
@@ -61,14 +62,12 @@ const UserAvatar = ({
     return 'U';
   };
 
-  const sizeClass = `w-${Math.floor(size / 4)} h-${Math.floor(size / 4)}`;
-
   if (profile.avatar_url) {
     return (
       <img
         src={profile.avatar_url}
         alt={profile.full_name || 'User'}
-        className={`${sizeClass} rounded-full object-cover`}
+        className='rounded-full object-cover flex-shrink-0'
         style={{ width: size, height: size }}
       />
     );
@@ -76,7 +75,7 @@ const UserAvatar = ({
 
   return (
     <div
-      className={`${sizeClass} rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold`}
+      className='rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold flex-shrink-0'
       style={{ width: size, height: size }}
     >
       {getInitials()}
@@ -92,6 +91,7 @@ export function CardMemberPicker({
   cardId,
   currentMembers,
   onMemberAdded,
+  onRemoveMember,
   isLoading = false,
   autoCloseAfterAdd = false,
   allowMultipleSelections = true,
@@ -103,7 +103,14 @@ export function CardMemberPicker({
   const [addingMemberIds, setAddingMemberIds] = useState<Set<string>>(
     new Set()
   );
-  const { updateCardMembers } = useBoardStore(boardId);
+  // Write straight to the shared cache instead of going through
+  // useBoardStore, which would spin up its own independent `useLists`
+  // fetch just for this one function — and that separate fetch's sync
+  // effect could overwrite the board's shared cache with a stale
+  // snapshot the moment it resolves, discarding other recent edits.
+  const { updateCardMembersInCache } = useAppStore();
+  const updateCardMembers = (cardId: string, members: any[]) =>
+    updateCardMembersInCache(boardId, cardId, members);
 
   // Get current member IDs for filtering
   const currentMemberIds = new Set(
@@ -190,6 +197,18 @@ export function CardMemberPicker({
   };
 
   const handleAddMember = async (profileId: string) => {
+    // Belt-and-suspenders: the visible list is already filtered against
+    // currentMemberIds, but if `currentMembers` was still loading (empty)
+    // when this list was fetched, someone already on the card could still
+    // be showing as "available" — catch that here instead of round-
+    // tripping to the API just to get "User is already a member" back.
+    if (currentMemberIds.has(profileId)) {
+      setAvailableMembers((prev) =>
+        prev.filter((member) => member.profiles.id !== profileId)
+      );
+      return;
+    }
+
     // Find the member being added for optimistic update
     const memberToAdd = availableMembers.find(
       (member) => member.profiles.id === profileId
@@ -277,65 +296,96 @@ export function CardMemberPicker({
       }}
     >
       <div
-        className='bg-card border border-border rounded-xl shadow-2xl w-full max-w-sm sm:max-w-md max-h-[85vh] overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'
+        className='bg-card/90 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl w-full max-w-sm sm:max-w-md max-h-[85vh] overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'
         onClick={(e) => e.stopPropagation()} // Prevent clicks on modal content from closing
       >
-        {/* Header */}
-        <div className='bg-gradient-to-r from-primary to-primary/90 px-6 py-4'>
-          <div className='flex items-center justify-between text-white'>
-            <div className='flex items-center gap-3'>
-              <div className='w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center'>
-                <User className='w-4 h-4' />
-              </div>
-              <div>
-                <h3 className='text-lg font-semibold'>Add Card Members</h3>
-                <p className='text-sm text-white/80'>
-                  {allowMultipleSelections
-                    ? 'Select multiple members, then click "Done"'
-                    : 'Assign workspace members to this card'}
-                </p>
-              </div>
+        {/* Header — just the X closes it; there's no separate "Done" button
+            to click through first, since every Add here already applies
+            immediately (there's nothing left to confirm). */}
+        <div className='flex items-center justify-between p-5 border-b border-border/50'>
+          <div className='flex items-center gap-3'>
+            <div className='w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center'>
+              <User className='w-4 h-4 text-primary' />
             </div>
-            <div className='flex items-center gap-2'>
-              {allowMultipleSelections && (
-                <button
-                  onClick={onClose}
-                  className='px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all duration-200 font-medium text-sm backdrop-blur-sm'
-                  title='Finish adding members'
-                  disabled={isLoading || addingMemberIds.size > 0}
-                >
-                  Done
-                </button>
-              )}
-              <button
-                onClick={onClose}
-                className='p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200'
-                title='Close modal'
-                disabled={isLoading || addingMemberIds.size > 0}
-              >
-                <X className='w-5 h-5' />
-              </button>
+            <div>
+              <h3 className='text-base font-semibold text-foreground'>
+                Manage members
+              </h3>
+              <p className='text-xs text-muted-foreground'>
+                {allowMultipleSelections
+                  ? 'Add or remove people on this card'
+                  : 'Assign a workspace member to this card'}
+              </p>
             </div>
           </div>
+          <button
+            onClick={onClose}
+            className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+            title='Close'
+            disabled={isLoading || addingMemberIds.size > 0}
+          >
+            <X className='w-4 h-4' />
+          </button>
         </div>
 
         {/* Content */}
-        <div className='p-6'>
+        <div className='p-5'>
+          {/* Currently on this card — visible up front, separate from the
+              "add someone new" list below, so it's clear at a glance who's
+              already assigned without having to search for them. */}
+          {currentMembers.length > 0 && (
+            <div className='mb-4'>
+              <p className='text-xs font-medium text-muted-foreground mb-2'>
+                On this card ({currentMembers.length})
+              </p>
+              <div className='flex flex-wrap gap-2'>
+                {currentMembers.map((member) => (
+                  <div
+                    key={member.id}
+                    className='flex items-center gap-1.5 pl-1 pr-1 py-1 bg-muted/40 rounded-full group'
+                    title={member.profiles.email}
+                  >
+                    <UserAvatar profile={member.profiles} size={20} />
+                    <span className='text-xs font-medium text-foreground truncate max-w-[8rem]'>
+                      {member.profiles.full_name || member.profiles.email}
+                    </span>
+                    {onRemoveMember && (
+                      <button
+                        type='button'
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onRemoveMember(member.profiles.id);
+                        }}
+                        title={`Remove ${
+                          member.profiles.full_name || member.profiles.email
+                        } from this card`}
+                        className='p-0.5 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors flex-shrink-0'
+                      >
+                        <X className='w-3 h-3' />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Search */}
-          <div className='relative mb-4'>
-            <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground' />
+          <div className='relative mb-3'>
+            <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground' />
             <input
               type='text'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder='Search members...'
-              className='w-full bg-background border border-border rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200'
+              className='w-full bg-muted/30 border border-border/50 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all'
               disabled={isLoadingMembers || addingMemberIds.size > 0}
             />
           </div>
 
           {/* Members List */}
-          <div className='space-y-2 max-h-64 overflow-y-auto'>
+          <div className='space-y-1.5 max-h-64 overflow-y-auto'>
             {isLoadingMembers ? (
               <div className='flex items-center justify-center py-8'>
                 <div className='w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
@@ -344,32 +394,30 @@ export function CardMemberPicker({
               filteredMembers.map((member, index) => (
                 <div
                   key={member.profiles.id}
-                  className='flex items-center gap-3 p-3 bg-gradient-to-r from-background to-muted/20 rounded-xl border border-border/30 hover:border-border/60 hover:from-muted/20 hover:to-muted/30 transition-all duration-200 group animate-slide-in-right'
+                  className='flex items-center gap-3 p-2.5 rounded-xl hover:bg-muted/40 transition-colors duration-200 group animate-slide-in-right'
                   style={{
                     animationDelay: `${index * 30}ms`,
                   }}
                 >
-                  <UserAvatar profile={member.profiles} size={40} />
+                  <UserAvatar profile={member.profiles} size={36} />
                   <div className='flex-1 min-w-0'>
-                    <p className='text-sm font-semibold text-foreground truncate'>
+                    <p className='text-sm font-medium text-foreground truncate'>
                       {member.profiles.full_name || 'Unknown User'}
                     </p>
-                    <p className='text-xs text-muted-foreground truncate opacity-80'>
+                    <p className='text-xs text-muted-foreground truncate'>
                       {member.profiles.email}
                     </p>
-                    <div className='flex items-center gap-2 mt-1'>
-                      <span className='text-xs px-2 py-0.5 bg-secondary/60 text-secondary-foreground rounded-full font-medium capitalize'>
-                        {member.role}
-                      </span>
-                    </div>
                   </div>
+                  <span className='text-xs px-2 py-0.5 bg-muted text-muted-foreground rounded-full font-medium capitalize flex-shrink-0'>
+                    {member.role}
+                  </span>
                   <button
                     onClick={() => handleAddMember(member.profiles.id)}
                     disabled={addingMemberIds.has(member.profiles.id)}
-                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-all duration-200 disabled:cursor-not-allowed transform ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-foreground rounded-lg transition-colors duration-150 disabled:cursor-not-allowed flex-shrink-0 ${
                       addingMemberIds.has(member.profiles.id)
-                        ? 'bg-green-500 scale-95 shadow-lg'
-                        : 'bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary hover:scale-105 active:scale-95'
+                        ? 'bg-success'
+                        : 'bg-primary hover:bg-primary/90'
                     }`}
                     title={
                       addingMemberIds.has(member.profiles.id)
@@ -380,11 +428,11 @@ export function CardMemberPicker({
                     {addingMemberIds.has(member.profiles.id) ? (
                       <>
                         <div className='w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin' />
-                        Added!
+                        Added
                       </>
                     ) : (
                       <>
-                        <Plus className='w-4 h-4' />
+                        <Plus className='w-3.5 h-3.5' />
                         Add
                       </>
                     )}
@@ -402,16 +450,6 @@ export function CardMemberPicker({
               </div>
             )}
           </div>
-
-          {/* Current Members Count */}
-          {currentMembers.length > 0 && (
-            <div className='mt-4 pt-4 border-t border-border'>
-              <p className='text-xs text-muted-foreground'>
-                {currentMembers.length} member
-                {currentMembers.length !== 1 ? 's' : ''} currently assigned
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -93,50 +93,44 @@ export function AddCardForm({
   }
 
   return (
-    <div className='bg-card rounded-lg p-2.5 shadow-lg border border-border'>
-      <form onSubmit={handleSubmit} className='space-y-2.5'>
-        <div>
-          <textarea
-            ref={textareaRef}
-            value={cardTitle}
-            onChange={(e) => setCardTitle(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder='Enter a title for this card...'
-            className='w-full px-2.5 py-2 bg-background border border-border rounded-md text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none'
-            disabled={isSubmitting}
-            rows={2}
-            maxLength={500}
-          />
-          {error && <p className='text-xs text-red-500 mt-1'>{error}</p>}
-        </div>
+    <div className='bg-card/90 backdrop-blur-xl rounded-lg p-2 shadow-lg border border-border animate-in fade-in-0 slide-in-from-top-1 duration-150'>
+      <form onSubmit={handleSubmit} className='flex items-center gap-1.5'>
+        <input
+          ref={textareaRef as unknown as React.RefObject<HTMLInputElement>}
+          type='text'
+          value={cardTitle}
+          onChange={(e) => setCardTitle(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder='Enter a title for this card...'
+          className='flex-1 min-w-0 px-2.5 py-1.5 bg-background border border-border rounded-md text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent'
+          disabled={isSubmitting}
+          maxLength={500}
+        />
 
-        <div className='flex items-center gap-2'>
-          <button
-            type='submit'
-            disabled={isSubmitting || !cardTitle.trim()}
-            className='flex-1 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2'
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className='w-3.5 h-3.5 animate-spin' />
-                Adding...
-              </>
-            ) : (
-              'Add card'
-            )}
-          </button>
+        <button
+          type='submit'
+          disabled={isSubmitting || !cardTitle.trim()}
+          title='Add card (Enter)'
+          className='flex-shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed p-1.5 rounded-md transition-colors'
+        >
+          {isSubmitting ? (
+            <Loader2 className='w-4 h-4 animate-spin' />
+          ) : (
+            <Plus className='w-4 h-4' />
+          )}
+        </button>
 
-          <button
-            type='button'
-            onClick={handleCancel}
-            disabled={isSubmitting}
-            title='Cancel (Esc)'
-            className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors'
-          >
-            <X className='w-4 h-4' />
-          </button>
-        </div>
+        <button
+          type='button'
+          onClick={handleCancel}
+          disabled={isSubmitting}
+          title='Cancel (Esc)'
+          className='flex-shrink-0 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors'
+        >
+          <X className='w-4 h-4' />
+        </button>
       </form>
+      {error && <p className='text-xs text-red-500 mt-1 px-0.5'>{error}</p>}
     </div>
   );
 }

@@ -18,15 +18,13 @@ export async function GET(request: NextRequest) {
 
     // Get current user
     const {
-      data: { session },
+      data: { user },
       error: authError,
-    } = await supabase.auth.getSession();
+    } = await supabase.auth.getUser();
 
-    if (authError || !session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const user = session.user;
 
     // If workspace_id is provided, check if user has permission to add members
     if (workspaceId) {

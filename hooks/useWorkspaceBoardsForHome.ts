@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 
 export interface WorkspaceBoardForHome {
   id: string;
@@ -16,15 +17,15 @@ export const useWorkspaceBoardsForHome = () => {
   const [error, setError] = useState<string | null>(null);
 
   const supabase = createClient();
+  // RouteGuard already verified the user before this page's hooks ever
+  // run, and AuthContext caches that verified user — reuse it instead of
+  // every hook paying its own getUser() round-trip.
+  const { user } = useAuth();
 
   // Fetch workspace boards with starred status
   const fetchWorkspaceBoards = useCallback(
     async (workspaceIds: string[]) => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
         if (!user || workspaceIds.length === 0) {
           setWorkspaceBoards({});
           return;
@@ -93,17 +94,13 @@ export const useWorkspaceBoardsForHome = () => {
         setError('Failed to fetch workspace boards');
       }
     },
-    [supabase]
+    [supabase, user]
   );
 
   // Toggle star status for a board
   const toggleWorkspaceBoardStar = useCallback(
     async (boardId: string) => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
         if (!user) {
           throw new Error('User not authenticated');
         }
@@ -171,7 +168,7 @@ export const useWorkspaceBoardsForHome = () => {
         throw err;
       }
     },
-    [supabase]
+    [supabase, user]
   );
 
   return {

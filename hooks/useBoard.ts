@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useAppStore, cacheUtils } from '@/lib/stores/useAppStore';
+import { useAuth } from '@/context/AuthContext';
 
 export interface BoardData {
   id: string;
@@ -42,17 +43,34 @@ export const useBoard = (boardId: string) => {
   const [isStarring, setIsStarring] = useState(false);
 
   const supabase = createClient();
+  // RouteGuard already verified the user before this page's hooks ever
+  // run, and AuthContext caches that verified user — reuse it instead of
+  // paying another getUser() round-trip here.
+  const { user } = useAuth();
 
   // Cache helpers
-  const { getCache, setCache } = useAppStore();
+  const { getCache, setCache, updateBoardInCache } = useAppStore();
   const CACHE_KEY = cacheUtils.getBoardKey(boardId);
   const CACHE_TTL = 2 * 60 * 1000; // 2 minutes TTL
+
+  // Tracks whether a board has ever loaded, so fetchBoard can skip
+  // flashing the loading spinner on a refetch — without needing `board`
+  // itself in fetchBoard's dependency array. `board` used to be a
+  // dependency there, but fetchBoard also calls setBoard(), so every
+  // successful fetch changed fetchBoard's identity, which retriggered the
+  // effect below that calls it, which fetched again — a self-perpetuating
+  // infinite refetch loop, not a one-time fetch on mount. That's also why
+  // a fetch could fire during the few seconds after a board was deleted
+  // and hit the now-gone row, surfacing as "Failed to fetch board: Cannot
+  // coerce the result to a single JSON object" instead of the app just
+  // navigating away cleanly.
+  const hasLoadedRef = useRef(false);
 
   const fetchBoard = useCallback(async () => {
     if (!boardId) return;
 
     try {
-      if (!board) setLoading(true);
+      if (!hasLoadedRef.current) setLoading(true);
       setError(null);
 
       // Return early from cache if available (still do background fetch for freshness)
@@ -62,12 +80,6 @@ export const useBoard = (boardId: string) => {
         setLoading(false);
       }
 
-      // Get current user for starred status
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      // Fetch board details with workspace info
       const { data: boardData, error: boardError } = await supabase
         .from('boards')
         .select(
@@ -94,11 +106,20 @@ export const useBoard = (boardId: string) => {
         .single();
 
       if (boardError) {
+        // PGRST116 is PostgREST's ".single() found 0 rows" code, which
+        // surfaces as "Cannot coerce the result to a single JSON object" —
+        // that's just "this board doesn't exist (anymore)", most often
+        // because it was just deleted (e.g. a stale board tile from a
+        // workspace list that hadn't been refreshed yet). Give it a plain,
+        // non-scary message instead of the raw Postgres error text.
+        if (boardError.code === 'PGRST116') {
+          throw new Error('This board no longer exists.');
+        }
         throw new Error(`Failed to fetch board: ${boardError.message}`);
       }
 
       if (!boardData) {
-        throw new Error('Board not found');
+        throw new Error('This board no longer exists.');
       }
 
       // Check if board is starred by current user
@@ -125,6 +146,7 @@ export const useBoard = (boardId: string) => {
       };
 
       setBoard(freshBoard);
+      hasLoadedRef.current = true;
 
       // Update cache
       setCache(CACHE_KEY, freshBoard, CACHE_TTL);
@@ -134,7 +156,7 @@ export const useBoard = (boardId: string) => {
     } finally {
       setLoading(false);
     }
-  }, [boardId, supabase, board]);
+  }, [boardId, supabase, user]);
 
   const fetchMembers = useCallback(async () => {
     if (!boardId) return;
@@ -174,9 +196,6 @@ export const useBoard = (boardId: string) => {
     try {
       setIsStarring(true);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
       if (!user) {
         throw new Error('User not authenticated');
       }
@@ -219,7 +238,7 @@ export const useBoard = (boardId: string) => {
     } finally {
       setIsStarring(false);
     }
-  }, [board, boardId, isStarring, supabase]);
+  }, [board, boardId, isStarring, supabase, user]);
 
   const updateBoardName = useCallback(
     async (newName: string) => {
@@ -237,6 +256,12 @@ export const useBoard = (boardId: string) => {
           if (!prev) return null;
           const updated = { ...prev, name: newName.trim() } as BoardData;
           setCache(CACHE_KEY, updated, CACHE_TTL);
+          // Also patch the board's entry in its workspace's board-list
+          // cache — otherwise the rename only shows up there after that
+          // cache separately expires or a hard refresh forces a refetch.
+          updateBoardInCache(updated.workspace_id, boardId, {
+            name: updated.name,
+          });
           return updated;
         });
         return true;
@@ -245,7 +270,7 @@ export const useBoard = (boardId: string) => {
         return false;
       }
     },
-    [board, boardId, supabase]
+    [board, boardId, supabase, updateBoardInCache]
   );
 
   const updateBoardDescription = useCallback(
@@ -278,6 +303,41 @@ export const useBoard = (boardId: string) => {
     [board, boardId, supabase]
   );
 
+  const updateBoardColor = useCallback(
+    async (newColor: string) => {
+      if (!board || !newColor) return false;
+
+      try {
+        const { error } = await supabase
+          .from('boards')
+          .update({ color: newColor })
+          .eq('id', boardId);
+
+        if (error) throw error;
+
+        setBoard((prev) => {
+          if (!prev) return null;
+          const updated = { ...prev, color: newColor } as BoardData;
+          setCache(CACHE_KEY, updated, CACHE_TTL);
+          // Patch the board's entry in its workspace's board-list cache too
+          // — this hook's own CACHE_KEY only covers the single-board page,
+          // so without this, the color change was invisible on the
+          // workspace boards grid / starred / home pages until their
+          // separate caches expired (or a hard refresh forced a refetch).
+          updateBoardInCache(updated.workspace_id, boardId, {
+            color: newColor,
+          });
+          return updated;
+        });
+        return true;
+      } catch (err) {
+        console.error('Error updating board color:', err);
+        return false;
+      }
+    },
+    [board, boardId, supabase, updateBoardInCache]
+  );
+
   useEffect(() => {
     fetchBoard();
     fetchMembers();
@@ -292,6 +352,7 @@ export const useBoard = (boardId: string) => {
     toggleStar,
     updateBoardName,
     updateBoardDescription,
+    updateBoardColor,
     refetch: fetchBoard,
   };
 };

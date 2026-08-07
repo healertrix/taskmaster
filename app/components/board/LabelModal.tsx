@@ -400,9 +400,9 @@ export default function LabelModal({
   return (
     <>
       <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4'>
-        <div className='bg-card rounded-2xl shadow-2xl w-full max-w-sm sm:max-w-lg max-h-[85vh] border border-border overflow-hidden'>
+        <div className='bg-card/90 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-sm sm:max-w-lg max-h-[85vh] border border-border overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'>
           {/* Header */}
-          <div className='relative bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 border-b border-border'>
+          <div className='relative bg-primary/10 p-6 border-b border-border'>
             <div className='flex items-center gap-3'>
               <div className='w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center'>
                 <Palette className='w-5 h-5 text-primary' />
@@ -774,10 +774,10 @@ export default function LabelModal({
 
             {/* Sticky Create Button - Only show when not creating and not editing */}
             {!isCreating && !editingLabel && (
-              <div className='sticky bottom-0 bg-card border-t border-border p-4'>
+              <div className='sticky bottom-0 bg-card/95 backdrop-blur-xl border-t border-border p-4'>
                 <button
                   onClick={() => setIsCreating(true)}
-                  className='w-full flex items-center justify-center gap-3 py-3 bg-gradient-to-r from-primary/10 to-primary/5 hover:from-primary/15 hover:to-primary/10 rounded-xl border border-dashed border-primary/30 hover:border-primary/50 transition-all group'
+                  className='w-full flex items-center justify-center gap-3 py-3 bg-primary/10 hover:bg-primary/15 rounded-xl border border-dashed border-primary/30 hover:border-primary/50 transition-colors group'
                 >
                   <div className='w-8 h-8 bg-primary/10 group-hover:bg-primary/20 rounded-lg flex items-center justify-center transition-colors'>
                     <Plus className='w-4 h-4 text-primary' />
@@ -795,11 +795,11 @@ export default function LabelModal({
       {/* Delete Confirmation Modal */}
       {deleteConfirm.isOpen && deleteConfirm.label && (
         <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4'>
-          <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full'>
+          <div className='bg-card/90 backdrop-blur-xl rounded-xl shadow-2xl border border-border max-w-md w-full animate-in fade-in-50 zoom-in-95 duration-200'>
             <div className='p-6'>
               <div className='flex items-center gap-3 mb-4'>
-                <div className='w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center'>
-                  <Trash2 className='w-5 h-5 text-red-600 dark:text-red-400' />
+                <div className='w-10 h-10 bg-destructive/15 rounded-full flex items-center justify-center'>
+                  <Trash2 className='w-5 h-5 text-destructive' />
                 </div>
                 <div>
                   <h3 className='text-lg font-semibold text-foreground'>
@@ -832,7 +832,7 @@ export default function LabelModal({
                   onClick={() =>
                     setDeleteConfirm({ isOpen: false, label: null })
                   }
-                  className='px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors'
+                  className='px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border border-border hover:border-primary/50 rounded-md transition-colors'
                   disabled={isLoading}
                 >
                   Cancel
@@ -840,7 +840,7 @@ export default function LabelModal({
                 <button
                   onClick={deleteLabel}
                   disabled={isLoading}
-                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
+                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-destructive-foreground bg-destructive hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
                 >
                   {isLoading ? (
                     <>

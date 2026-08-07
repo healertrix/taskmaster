@@ -26,7 +26,10 @@ export function CreateWorkspaceModal({
 }: CreateWorkspaceModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedColor, setSelectedColor] = useState(workspaceColors[0].value);
+  // Unset by default — color is an optional, minor detail, not a decision
+  // the form should force upfront. A random one is assigned on submit if
+  // the user never touches this.
+  const [selectedColor, setSelectedColor] = useState('');
   const [customColor, setCustomColor] = useState('#3B82F6'); // Default custom color (blue)
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +40,7 @@ export function CreateWorkspaceModal({
     if (isOpen) {
       setName('');
       setDescription('');
-      setSelectedColor(workspaceColors[0].value);
+      setSelectedColor('');
       setCustomColor('#3B82F6');
       setError(null);
     }
@@ -131,11 +134,14 @@ export function CreateWorkspaceModal({
         throw new Error('You must be logged in to create a workspace');
       }
 
-      // Prepare the color value
+      // Prepare the color value — random from the preset list if the user
+      // never picked one.
       const colorValue =
         selectedColor === 'custom'
           ? customColor // Store the hex value directly for custom colors
-          : selectedColor; // Store the Tailwind class for predefined colors
+          : selectedColor ||
+            workspaceColors[Math.floor(Math.random() * workspaceColors.length)]
+              .value;
 
       // Insert the new workspace
       const { data: workspace, error: insertError } = await supabase
@@ -202,7 +208,7 @@ export function CreateWorkspaceModal({
 
   return (
     <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-6'>
-      <div className='bg-card rounded-lg shadow-lg max-w-sm sm:max-w-md w-full max-h-[85vh] overflow-y-auto p-5 border border-border'>
+      <div className='bg-card/90 backdrop-blur-xl rounded-lg shadow-lg max-w-sm sm:max-w-md w-full max-h-[85vh] overflow-y-auto p-5 border border-border animate-in fade-in-50 zoom-in-95 duration-200'>
         <div className='flex justify-between items-center mb-4'>
           <h3 className='text-xl font-bold text-foreground'>
             Create Workspace
@@ -274,52 +280,51 @@ export function CreateWorkspaceModal({
             />
           </div>
 
-          <div className='mb-6'>
-            <label className='block text-sm font-medium text-foreground mb-2'>
-              Workspace Color
-            </label>
-            <div className='mb-3 flex flex-wrap gap-3'>
-              {/* Standard color circles */}
+          {/* Color — a minor, optional detail, not a decision the form
+              should lead with. Left unset, a random color is assigned on
+              submit. */}
+          <div className='flex items-center gap-2 mb-4'>
+            <span className='text-xs text-muted-foreground flex-shrink-0'>
+              Color
+            </span>
+            <div className='flex flex-wrap gap-1.5'>
               {workspaceColors.map((color) => (
                 <button
                   key={color.value}
                   type='button'
-                  onClick={() => setSelectedColor(color.value)}
-                  className={`w-10 h-10 rounded-full ${
+                  onClick={() =>
+                    setSelectedColor(
+                      selectedColor === color.value ? '' : color.value
+                    )
+                  }
+                  className={`w-5 h-5 rounded-full ${
                     color.value
                   } flex items-center justify-center transition-all ${
                     selectedColor === color.value
-                      ? 'ring-2 ring-ring ring-offset-2 ring-offset-background'
+                      ? 'ring-2 ring-ring ring-offset-1 ring-offset-background'
                       : 'hover:ring-1 hover:ring-ring hover:ring-offset-1 hover:ring-offset-background'
                   }`}
                   title={color.name}
                   aria-label={`Select ${color.name} color`}
                   disabled={isLoading}
-                >
-                  {selectedColor === color.value && (
-                    <div className='w-2 h-2 bg-white rounded-full'></div>
-                  )}
-                </button>
+                />
               ))}
 
-              {/* Custom color button - distinct design */}
               <button
                 type='button'
                 onClick={handleCustomColorClick}
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all border-2 border-dashed ${
+                className={`w-5 h-5 rounded-full flex items-center justify-center transition-all border border-dashed ${
                   selectedColor === 'custom'
-                    ? 'ring-2 ring-ring ring-offset-2 ring-offset-background'
-                    : 'hover:border-primary'
+                    ? 'ring-2 ring-ring ring-offset-1 ring-offset-background'
+                    : 'hover:border-primary border-border'
                 }`}
                 style={selectedColor === 'custom' ? customColorStyle : {}}
-                title='Choose custom color'
+                title='Custom color'
                 aria-label='Choose custom color'
                 disabled={isLoading}
               >
-                {selectedColor !== 'custom' ? (
-                  <Palette className='w-5 h-5 text-muted-foreground' />
-                ) : (
-                  <div className='w-2 h-2 bg-white rounded-full'></div>
+                {selectedColor !== 'custom' && (
+                  <Palette className='w-2.5 h-2.5 text-muted-foreground' />
                 )}
                 <input
                   ref={colorPickerRef}
@@ -332,17 +337,10 @@ export function CreateWorkspaceModal({
               </button>
             </div>
 
-            {selectedColor === 'custom' && (
-              <div className='mt-2 p-2 border border-border rounded-md bg-muted/30 flex items-center'>
-                <div
-                  className='w-6 h-6 rounded-md mr-2 border border-border/50'
-                  style={customColorStyle}
-                ></div>
-                <span className='text-sm font-medium'>{customColor}</span>
-                <span className='ml-auto text-xs text-muted-foreground'>
-                  Custom color
-                </span>
-              </div>
+            {!selectedColor && (
+              <span className='text-xs text-muted-foreground/70 ml-auto'>
+                Random if left blank
+              </span>
             )}
           </div>
 

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import {
   X,
@@ -33,6 +32,7 @@ import {
   Filter,
   Settings,
   Check,
+  Image,
   Video,
   Music,
   Link as LinkIcon,
@@ -206,13 +206,18 @@ const UserAvatar = ({
     size === 32 ? 'w-8 h-8' : size === 24 ? 'w-6 h-6' : 'w-10 h-10';
 
   if (profile.avatar_url && !imageError) {
+    // Plain <img>, not next/image — next/image refuses to render any host
+    // that isn't explicitly allow-listed in next.config.js's `images`
+    // config, silently falling back to initials (via onError below) for
+    // any member whose avatar happens to come from a host that wasn't
+    // added there. CardMemberPicker/TaskCard already render member avatars
+    // with a plain <img> and don't have this problem — match that here.
     return (
-      <Image
+      <img
         src={profile.avatar_url}
         alt={profile.full_name || 'User'}
-        width={size}
-        height={size}
         className={`${sizeClass} rounded-full object-cover`}
+        style={{ width: size, height: size }}
         onError={() => setImageError(true)}
       />
     );
@@ -336,9 +341,34 @@ export function CardModal({
   const [isLoadingChecklists, setIsLoadingChecklists] = useState(false);
   const [showAddChecklistModal, setShowAddChecklistModal] = useState(false);
   const [isAddingChecklist, setIsAddingChecklist] = useState(false);
-  const [isAddingChecklistItem, setIsAddingChecklistItem] = useState(false);
-  const [isUpdatingChecklistItem, setIsUpdatingChecklistItem] = useState(false);
-  const [isDeletingChecklistItem, setIsDeletingChecklistItem] = useState(false);
+  // Counters, not booleans: multiple checklist items can be added/updated/
+  // deleted concurrently (e.g. typing several items quickly). A boolean
+  // that the first request's `finally` flips back to false would go false
+  // while a second, still-in-flight request's save-warning guard should
+  // still be blocking modal close — silently dropping the "unsaved work"
+  // signal for it.
+  const [pendingChecklistItemAdds, setPendingChecklistItemAdds] = useState(0);
+  const [pendingChecklistItemUpdates, setPendingChecklistItemUpdates] =
+    useState(0);
+  const [pendingChecklistItemDeletes, setPendingChecklistItemDeletes] =
+    useState(0);
+  // Mirrors the three counters above but as a ref, so async code (like
+  // fetchChecklists below) can read the *live* in-flight count instead of
+  // whatever value was captured in its closure when it started. Without
+  // this, closing and reopening a card shortly after adding/checking/
+  // deleting a checklist item could race: the reopen's GET could resolve
+  // with pre-mutation data and overwrite (and re-cache) the optimistic
+  // state, silently reverting or dropping the edit.
+  const pendingChecklistItemOpsRef = useRef(0);
+  // Adding/deleting several items on the same checklist in quick succession
+  // used to fire all their requests at once, which could contend at the DB
+  // (concurrent inserts/deletes referencing the same checklist row) and
+  // time out. This queues the actual network requests per checklist so
+  // they run one at a time — the optimistic UI update still happens
+  // immediately either way.
+  const checklistItemQueueRef = useRef<Map<string, Promise<unknown>>>(
+    new Map()
+  );
   const [showLabelModal, setShowLabelModal] = useState(false);
 
   // Attachment state
@@ -410,9 +440,9 @@ export function CardModal({
       deletingCommentId !== null || // Comment being deleted
       isSavingDates || // Dates being saved
       isAddingChecklist || // Checklist being added
-      isAddingChecklistItem || // Checklist item being added
-      isUpdatingChecklistItem || // Checklist item being updated
-      isDeletingChecklistItem || // Checklist item being deleted
+      pendingChecklistItemAdds > 0 || // Checklist item(s) being added
+      pendingChecklistItemUpdates > 0 || // Checklist item(s) being updated
+      pendingChecklistItemDeletes > 0 || // Checklist item(s) being deleted
       isAddingAttachment || // Attachment being added
       isDeletingAttachment || // Attachment being deleted
       isSavingMember // Member being added/removed
@@ -536,30 +566,31 @@ export function CardModal({
   ]);
 
   // Handle save title
-  const handleSaveTitle = async () => {
+  const handleSaveTitle = () => {
     if (title.trim() && title !== card.title && onUpdateCard) {
+      // Exit edit mode immediately instead of waiting on the round-trip —
+      // onUpdateCard applies the change optimistically, so the title shown
+      // underneath is already correct, and reverts on its own if the save
+      // actually fails.
+      setIsEditingTitle(false);
       setIsSaving(true);
-      const success = await onUpdateCard(card.id, { title: title.trim() });
-      if (success) {
-        setIsEditingTitle(false);
-      }
-      setIsSaving(false);
+      onUpdateCard(card.id, { title: title.trim() }).finally(() =>
+        setIsSaving(false)
+      );
     } else {
       setIsEditingTitle(false);
     }
   };
 
   // Handle save description
-  const handleSaveDescription = async () => {
+  const handleSaveDescription = () => {
     if (description !== card.description && onUpdateCard) {
+      // Exit edit mode immediately — same reasoning as handleSaveTitle.
+      setIsEditingDescription(false);
       setIsSaving(true);
-      const success = await onUpdateCard(card.id, {
+      onUpdateCard(card.id, {
         description: description.trim() || null,
-      });
-      if (success) {
-        setIsEditingDescription(false);
-      }
-      setIsSaving(false);
+      }).finally(() => setIsSaving(false));
     } else {
       setIsEditingDescription(false);
     }
@@ -741,6 +772,14 @@ export function CardModal({
   const fetchChecklists = async () => {
     if (!card) return;
 
+    // A checklist-item add/update/delete is still in flight (e.g. the user
+    // added an item, then closed and reopened the card before the request
+    // settled). The optimistic state already reflects the edit correctly —
+    // skip applying cache or a fresh fetch here, since either could be a
+    // pre-mutation snapshot that would silently revert/drop it. The
+    // mutation's own handler updates state (and cache) once it settles.
+    if (pendingChecklistItemOpsRef.current > 0) return;
+
     const cacheKey = cacheUtils.getCardChecklistsKey(card.id);
     const cached = getCache<ChecklistData[]>(cacheKey);
     if (cached) {
@@ -754,8 +793,13 @@ export function CardModal({
       const data = await response.json();
 
       if (response.ok) {
-        setChecklists(data.checklists || []);
-        setCache(cacheKey, data.checklists || [], CACHE_TTL);
+        // Re-check: a mutation may have started while this request was in
+        // flight. If so, defer to it rather than overwriting its optimistic
+        // update (and caching a stale snapshot for the next open).
+        if (pendingChecklistItemOpsRef.current === 0) {
+          setChecklists(data.checklists || []);
+          setCache(cacheKey, data.checklists || [], CACHE_TTL);
+        }
       } else {
         console.error('Failed to fetch checklists:', data.error);
       }
@@ -1053,37 +1097,37 @@ export function CardModal({
     switch (actionType) {
       case 'comment_added':
       case 'comment_updated':
-        return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400';
+        return 'bg-blue-900/30 text-blue-400';
       case 'comment_deleted':
-        return 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400';
+        return 'bg-red-900/30 text-red-400';
       case 'card_created':
       case 'card_updated':
-        return 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400';
+        return 'bg-green-900/30 text-green-400';
       case 'card_moved':
-        return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400';
+        return 'bg-purple-900/30 text-purple-400';
       case 'attachment_added':
-        return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400';
+        return 'bg-blue-900/30 text-blue-400';
       case 'attachment_removed':
-        return 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400';
+        return 'bg-red-900/30 text-red-400';
       case 'attachment_updated':
-        return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400';
+        return 'bg-blue-900/30 text-blue-400';
       case 'label_added':
       case 'label_removed':
-        return 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400';
+        return 'bg-orange-900/30 text-orange-400';
       case 'timeline_updated':
-        return 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400';
+        return 'bg-indigo-900/30 text-indigo-400';
       case 'due_date_set':
       case 'due_date_removed':
-        return 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400';
+        return 'bg-amber-900/30 text-amber-400';
       case 'start_date_set':
       case 'start_date_removed':
-        return 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400';
+        return 'bg-green-900/30 text-green-400';
       case 'checklist_added':
       case 'checklist_updated':
       case 'checklist_removed':
-        return 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400';
+        return 'bg-teal-900/30 text-teal-400';
       default:
-        return 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400';
+        return 'bg-muted text-muted-foreground';
     }
   };
 
@@ -1163,34 +1207,43 @@ export function CardModal({
 
   const confirmDeleteComment = async () => {
     if (!commentToDelete) return;
+    const idToDelete = commentToDelete;
+    const removedComment = comments.find((c) => c.id === idToDelete);
 
-    setDeletingCommentId(commentToDelete);
+    // Optimistic: remove immediately and close the confirm modal right away
+    // instead of waiting on the round-trip — the comment reappears if the
+    // delete actually fails.
+    setComments((prev) => prev.filter((comment) => comment.id !== idToDelete));
+    setDeletingCommentId(idToDelete);
     setShowDeleteModal(false);
+    setCommentToDelete(null);
 
     try {
       const response = await fetch(
-        `/api/cards/${card?.id}/comments/${commentToDelete}`,
+        `/api/cards/${card?.id}/comments/${idToDelete}`,
         {
           method: 'DELETE',
         }
       );
 
       if (response.ok) {
-        setComments((prev) =>
-          prev.filter((comment) => comment.id !== commentToDelete)
-        );
         // Refresh activities to reflect the deletion
         fetchActivities();
       } else {
         const data = await response.json();
+        if (removedComment) {
+          setComments((prev) => [...prev, removedComment]);
+        }
         alert(`Failed to delete comment: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error deleting comment:', error);
+      if (removedComment) {
+        setComments((prev) => [...prev, removedComment]);
+      }
       alert('Failed to delete comment. Please try again.');
     } finally {
       setDeletingCommentId(null);
-      setCommentToDelete(null);
     }
   };
 
@@ -1399,6 +1452,14 @@ export function CardModal({
     checklistId: string
   ): Promise<boolean> => {
     if (!card) return false;
+    const removedChecklist = checklists.find((c) => c.id === checklistId);
+    const removedIndex = checklists.findIndex((c) => c.id === checklistId);
+
+    // Optimistic: remove immediately instead of waiting on the round-trip —
+    // restored in place if the delete actually fails.
+    setChecklists((prev) =>
+      prev.filter((checklist) => checklist.id !== checklistId)
+    );
 
     try {
       const response = await fetch(
@@ -1409,19 +1470,30 @@ export function CardModal({
       );
 
       if (response.ok) {
-        setChecklists((prev) =>
-          prev.filter((checklist) => checklist.id !== checklistId)
-        );
         // Refresh activities to show the checklist deletion activity
         fetchActivities();
         return true;
       } else {
         const data = await response.json();
         console.error('Failed to delete checklist:', data.error);
+        if (removedChecklist) {
+          setChecklists((prev) => {
+            const next = [...prev];
+            next.splice(removedIndex, 0, removedChecklist);
+            return next;
+          });
+        }
         return false;
       }
     } catch (error) {
       console.error('Error deleting checklist:', error);
+      if (removedChecklist) {
+        setChecklists((prev) => {
+          const next = [...prev];
+          next.splice(removedIndex, 0, removedChecklist);
+          return next;
+        });
+      }
       return false;
     }
   };
@@ -1432,7 +1504,8 @@ export function CardModal({
   ): Promise<boolean> => {
     if (!card) return false;
 
-    setIsAddingChecklistItem(true);
+    setPendingChecklistItemAdds((n) => n + 1);
+    pendingChecklistItemOpsRef.current += 1;
 
     // Create temporary item for optimistic update with a "saving" indicator
     const tempItem: ChecklistItem = {
@@ -1453,23 +1526,33 @@ export function CardModal({
     );
 
     try {
-      const response = await fetch(
-        `/api/cards/${card.id}/checklists/${checklistId}/items`,
-        {
+      // Chain this request behind any other still-in-flight add/delete for
+      // the same checklist instead of firing them all at once.
+      const previous =
+        checklistItemQueueRef.current.get(checklistId) || Promise.resolve();
+      const thisAdd = previous.then(() =>
+        fetch(`/api/cards/${card.id}/checklists/${checklistId}/items`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ text }),
-        }
+        })
       );
+      // Keep the chain alive even if this request fails, so later queued
+      // operations don't get stuck waiting on a rejected promise.
+      checklistItemQueueRef.current.set(
+        checklistId,
+        thisAdd.catch(() => undefined)
+      );
+      const response = await thisAdd;
 
       const data = await response.json();
 
       if (response.ok) {
         // Replace temp item with real item from server
-        setChecklists((prev) =>
-          prev.map((checklist) =>
+        setChecklists((prev) => {
+          const updated = prev.map((checklist) =>
             checklist.id === checklistId
               ? {
                   ...checklist,
@@ -1478,8 +1561,10 @@ export function CardModal({
                   ),
                 }
               : checklist
-          )
-        );
+          );
+          setCache(cacheUtils.getCardChecklistsKey(card.id), updated, CACHE_TTL);
+          return updated;
+        });
         return true;
       } else {
         console.error('Failed to add checklist item:', data.error);
@@ -1515,7 +1600,11 @@ export function CardModal({
       );
       return false;
     } finally {
-      setIsAddingChecklistItem(false);
+      setPendingChecklistItemAdds((n) => Math.max(0, n - 1));
+      pendingChecklistItemOpsRef.current = Math.max(
+        0,
+        pendingChecklistItemOpsRef.current - 1
+      );
     }
   };
 
@@ -1526,7 +1615,8 @@ export function CardModal({
   ): Promise<boolean> => {
     if (!card) return false;
 
-    setIsUpdatingChecklistItem(true);
+    setPendingChecklistItemUpdates((n) => n + 1);
+    pendingChecklistItemOpsRef.current += 1;
 
     // Store original values for rollback
     const originalValues: Partial<ChecklistItem> = {};
@@ -1557,23 +1647,36 @@ export function CardModal({
     );
 
     try {
-      const response = await fetch(
-        `/api/cards/${card.id}/checklists/${checklistId}/items/${itemId}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(updates),
-        }
+      // Chain this request behind any other still-in-flight add/update/
+      // delete for the same checklist instead of firing them all at once.
+      const previous =
+        checklistItemQueueRef.current.get(checklistId) || Promise.resolve();
+      const thisUpdate = previous.then(() =>
+        fetch(
+          `/api/cards/${card.id}/checklists/${checklistId}/items/${itemId}`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(updates),
+          }
+        )
       );
+      // Keep the chain alive even if this request fails, so later queued
+      // operations don't get stuck waiting on a rejected promise.
+      checklistItemQueueRef.current.set(
+        checklistId,
+        thisUpdate.catch(() => undefined)
+      );
+      const response = await thisUpdate;
 
       const data = await response.json();
 
       if (response.ok) {
         // Update with server response to ensure consistency
-        setChecklists((prev) =>
-          prev.map((checklist) =>
+        setChecklists((prev) => {
+          const updated = prev.map((checklist) =>
             checklist.id === checklistId
               ? {
                   ...checklist,
@@ -1582,8 +1685,10 @@ export function CardModal({
                   ),
                 }
               : checklist
-          )
-        );
+          );
+          setCache(cacheUtils.getCardChecklistsKey(card.id), updated, CACHE_TTL);
+          return updated;
+        });
         return true;
       } else {
         console.error('Failed to update checklist item:', data.error);
@@ -1619,7 +1724,11 @@ export function CardModal({
       );
       return false;
     } finally {
-      setIsUpdatingChecklistItem(false);
+      setPendingChecklistItemUpdates((n) => Math.max(0, n - 1));
+      pendingChecklistItemOpsRef.current = Math.max(
+        0,
+        pendingChecklistItemOpsRef.current - 1
+      );
     }
   };
 
@@ -1629,14 +1738,15 @@ export function CardModal({
   ): Promise<boolean> => {
     if (!card) return false;
 
-    setIsDeletingChecklistItem(true);
+    setPendingChecklistItemDeletes((n) => n + 1);
+    pendingChecklistItemOpsRef.current += 1;
 
     // Store the item for potential restoration
     let deletedItem: ChecklistItem | null = null;
 
     // Optimistic update - remove item immediately
-    setChecklists((prev) =>
-      prev.map((checklist) => {
+    setChecklists((prev) => {
+      const updated = prev.map((checklist) => {
         if (checklist.id === checklistId) {
           deletedItem =
             checklist.items.find((item) => item.id === itemId) || null;
@@ -1646,16 +1756,31 @@ export function CardModal({
           };
         }
         return checklist;
-      })
-    );
+      });
+      setCache(cacheUtils.getCardChecklistsKey(card.id), updated, CACHE_TTL);
+      return updated;
+    });
 
     try {
-      const response = await fetch(
-        `/api/cards/${card.id}/checklists/${checklistId}/items/${itemId}`,
-        {
-          method: 'DELETE',
-        }
+      // Chain this request behind any other still-in-flight add/delete for
+      // the same checklist instead of firing them all at once.
+      const previous =
+        checklistItemQueueRef.current.get(checklistId) || Promise.resolve();
+      const thisDelete = previous.then(() =>
+        fetch(
+          `/api/cards/${card.id}/checklists/${checklistId}/items/${itemId}`,
+          {
+            method: 'DELETE',
+          }
+        )
       );
+      // Keep the chain alive even if this request fails, so later queued
+      // operations don't get stuck waiting on a rejected promise.
+      checklistItemQueueRef.current.set(
+        checklistId,
+        thisDelete.catch(() => undefined)
+      );
+      const response = await thisDelete;
 
       if (response.ok) {
         return true;
@@ -1696,7 +1821,11 @@ export function CardModal({
       }
       return false;
     } finally {
-      setIsDeletingChecklistItem(false);
+      setPendingChecklistItemDeletes((n) => Math.max(0, n - 1));
+      pendingChecklistItemOpsRef.current = Math.max(
+        0,
+        pendingChecklistItemOpsRef.current - 1
+      );
     }
   };
 
@@ -1795,34 +1924,38 @@ export function CardModal({
 
   const confirmDeleteAttachment = async () => {
     if (!card || !attachmentToDelete) return;
+    const attachmentBeingDeleted = attachmentToDelete;
 
+    // Optimistic: remove immediately and close the confirm modal right away
+    // instead of waiting on the round-trip — the attachment reappears if
+    // the delete actually fails.
+    setAttachments((prev) =>
+      prev.filter((att) => att.id !== attachmentBeingDeleted.id)
+    );
+    setShowDeleteAttachmentModal(false);
+    setAttachmentToDelete(null);
     setIsDeletingAttachment(true);
 
     try {
       const response = await fetch(
-        `/api/cards/${card.id}/attachments/${attachmentToDelete.id}`,
+        `/api/cards/${card.id}/attachments/${attachmentBeingDeleted.id}`,
         {
           method: 'DELETE',
         }
       );
 
       if (response.ok) {
-        // Remove attachment from state
-        setAttachments((prev) =>
-          prev.filter((att) => att.id !== attachmentToDelete.id)
-        );
         // Refresh activities to show the deletion activity
         fetchActivities();
-        // Close modal
-        setShowDeleteAttachmentModal(false);
-        setAttachmentToDelete(null);
       } else {
         const data = await response.json();
         console.error('Failed to delete attachment:', data.error);
+        setAttachments((prev) => [...prev, attachmentBeingDeleted]);
         alert(`Failed to delete attachment: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error deleting attachment:', error);
+      setAttachments((prev) => [...prev, attachmentBeingDeleted]);
       alert(
         `Failed to delete attachment: ${
           error instanceof Error ? error.message : 'Network error'
@@ -2009,7 +2142,7 @@ export function CardModal({
         }
       }}
     >
-      <div className='bg-card rounded-xl shadow-2xl w-full max-w-sm sm:max-w-md md:max-w-4xl lg:max-w-6xl h-[95vh] sm:h-[90vh] border border-border overflow-hidden flex flex-col'>
+      <div className='bg-card/90 backdrop-blur-xl rounded-xl shadow-2xl w-full max-w-sm sm:max-w-md md:max-w-4xl lg:max-w-6xl h-[95vh] sm:h-[90vh] border border-border overflow-hidden flex flex-col animate-in fade-in-50 zoom-in-95 duration-200'>
         {/* Header */}
         <div className='flex items-start gap-2 sm:gap-4 p-2 sm:p-4 border-b border-border bg-muted/30 flex-shrink-0'>
           <div className='flex-1 min-w-0'>
@@ -2038,7 +2171,7 @@ export function CardModal({
                   </h2>
                 )}
                 {hasActiveSaveOperations() && (
-                  <div className='hidden sm:flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full border border-amber-200 whitespace-nowrap'>
+                  <div className='hidden sm:flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-400 text-xs rounded-full border border-amber-500/20 whitespace-nowrap'>
                     <div className='w-2 h-2 bg-amber-500 rounded-full animate-pulse'></div>
                     Saving...
                   </div>
@@ -2086,7 +2219,7 @@ export function CardModal({
             onClick={handleModalClose}
             className={`p-1.5 sm:p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors touch-manipulation ${
               hasActiveSaveOperations()
-                ? 'animate-pulse bg-amber-50 border border-amber-200'
+                ? 'animate-pulse bg-amber-500/10 border border-amber-500/20'
                 : ''
             }`}
             title={
@@ -2172,7 +2305,7 @@ export function CardModal({
                         setIsEditingDescription(false);
                       }}
                       disabled={isSaving}
-                      className='px-3 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-xs sm:text-sm font-medium rounded-md transition-colors touch-manipulation'
+                      className='px-3 py-2 bg-transparent border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 text-xs sm:text-sm font-medium rounded-md transition-colors touch-manipulation'
                     >
                       Cancel
                     </button>
@@ -2210,10 +2343,21 @@ export function CardModal({
                       Members
                     </h3>
                   </div>
+                  {/* Disabled while this card's own member list is still
+                      loading — opening the picker before `cardMembers`
+                      resolves meant it filtered "already assigned" against
+                      an empty list, so someone already on the card would
+                      show up as available and fail with "User is already a
+                      member of this card" when clicked. */}
                   <button
                     onClick={() => setShowMemberPicker(true)}
-                    className='flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors'
-                    title='Add member'
+                    disabled={isLoadingMembers}
+                    className='flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent'
+                    title={
+                      isLoadingMembers
+                        ? 'Loading current members…'
+                        : 'Add member'
+                    }
                   >
                     <Plus className='w-3 h-3' />
                     Add
@@ -2221,8 +2365,13 @@ export function CardModal({
                 </div>
 
                 {isLoadingMembers ? (
-                  <div className='flex items-center justify-center py-6'>
-                    <div className='w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
+                  <div className='flex -space-x-2 py-1'>
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className='w-6 h-6 rounded-full bg-muted/40 animate-pulse ring-2 ring-card'
+                      />
+                    ))}
                   </div>
                 ) : cardMembers.length > 0 ? (
                   <div className='space-y-3'>
@@ -2240,24 +2389,24 @@ export function CardModal({
                           >
                             <div className='relative'>
                               <UserAvatar profile={member.profiles} size={40} />
-                              <div className='absolute inset-0 rounded-full border-2 border-white dark:border-gray-800 group-hover/avatar:border-primary transition-colors'></div>
+                              <div className='absolute inset-0 rounded-full border-2 border-card group-hover/avatar:border-primary transition-colors'></div>
                             </div>
 
                             {/* Hover Tooltip - Simple right positioning */}
-                            <div className='absolute left-full top-1/2 transform -translate-y-1/2 ml-3 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-xl opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200 pointer-events-none z-[100] whitespace-nowrap'>
+                            <div className='absolute left-full top-1/2 transform -translate-y-1/2 ml-3 px-3 py-2 bg-popover text-popover-foreground border border-border text-sm rounded-lg shadow-xl opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-200 pointer-events-none z-[100] whitespace-nowrap'>
                               <div className='font-medium'>
                                 {member.profiles.full_name || 'Unknown User'}
                               </div>
-                              <div className='text-xs text-gray-300'>
+                              <div className='text-xs text-muted-foreground'>
                                 {member.profiles.email}
                               </div>
                               {/* Left arrow pointing to avatar */}
-                              <div className='absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900'></div>
+                              <div className='absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-popover'></div>
                             </div>
                           </div>
                         ))}
                         {cardMembers.length > 5 && (
-                          <div className='w-10 h-10 rounded-full bg-muted border-2 border-white dark:border-gray-800 flex items-center justify-center text-xs font-medium text-muted-foreground'>
+                          <div className='w-10 h-10 rounded-full bg-muted border-2 border-card flex items-center justify-center text-xs font-medium text-muted-foreground'>
                             +{cardMembers.length - 5}
                           </div>
                         )}
@@ -2345,7 +2494,7 @@ export function CardModal({
                             filteredCardMembers.map((member, index) => (
                               <div
                                 key={member.id}
-                                className='flex items-center gap-3 p-2.5 bg-gradient-to-r from-muted/20 to-muted/30 rounded-xl border border-border/30 hover:border-border/60 hover:from-muted/30 hover:to-muted/40 transition-all duration-200 group animate-slide-in-left'
+                                className='flex items-center gap-3 p-2.5 bg-muted/25 rounded-xl border border-border/30 hover:border-border/60 transition-colors duration-200 group animate-slide-in-left'
                                 style={{
                                   animationDelay: `${index * 50}ms`,
                                 }}
@@ -2370,8 +2519,8 @@ export function CardModal({
                                     }
                                     className={`p-1.5 text-muted-foreground rounded-lg transition-all duration-200 ${
                                       isMobile
-                                        ? 'opacity-100 text-red-500 bg-red-50 dark:bg-red-900/20'
-                                        : 'hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100'
+                                        ? 'opacity-100 text-destructive bg-destructive/10'
+                                        : 'hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100'
                                     }`}
                                     title='Remove member'
                                   >
@@ -2406,9 +2555,13 @@ export function CardModal({
                 )}
               </div>
 
-              {/* Card Dates Section - Compact Timeline */}
-              {(card.start_date || card.due_date) && (
-                <div className='mb-6'>
+              {/* Card Dates Section - Compact Timeline. Always rendered —
+                  this used to be gated behind `card.start_date ||
+                  card.due_date`, which meant the "Add start date"/"Add due
+                  date" placeholder buttons inside it were invisible on any
+                  card that had neither date set yet, i.e. there was no way
+                  to add a first date at all. */}
+              <div className='mb-6'>
                   <div className='flex items-center gap-2 mb-3'>
                     <Calendar className='w-4 h-4 text-muted-foreground' />
                     <h3 className='text-sm font-medium text-foreground'>
@@ -2423,25 +2576,23 @@ export function CardModal({
                       {card.start_date ? (
                         <div
                           onClick={openDatePickerForStart}
-                          className={`flex-1 flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800 cursor-pointer transition-colors group ${
-                            !isMobile
-                              ? 'hover:bg-green-100 dark:hover:bg-green-900/30'
-                              : ''
+                          className={`flex-1 flex items-center gap-2 p-2 bg-success/10 border border-success/20 rounded-lg cursor-pointer transition-colors group ${
+                            !isMobile ? 'hover:bg-success/15' : ''
                           }`}
                         >
-                          <div className='w-6 h-6 bg-green-100 text-green-600 rounded-md flex items-center justify-center dark:bg-green-900/40 dark:text-green-400'>
+                          <div className='w-6 h-6 bg-success/15 text-success rounded-md flex items-center justify-center'>
                             <Calendar className='w-3 h-3' />
                           </div>
                           <div className='flex-1 min-w-0'>
-                            <div className='text-xs font-medium text-green-800 dark:text-green-200'>
+                            <div className='text-xs font-medium text-success'>
                               Start
                             </div>
-                            <div className='text-xs text-green-600 dark:text-green-400 truncate'>
+                            <div className='text-xs text-success/80 truncate'>
                               {formatDate(card.start_date)}
                             </div>
                           </div>
                           <Edit2
-                            className={`w-3 h-3 text-green-600 dark:text-green-400 transition-opacity ${
+                            className={`w-3 h-3 text-success transition-opacity ${
                               isMobile
                                 ? 'opacity-100'
                                 : 'opacity-0 group-hover:opacity-100'
@@ -2451,7 +2602,7 @@ export function CardModal({
                       ) : (
                         <div
                           onClick={openDatePickerForStart}
-                          className='flex-1 flex items-center gap-2 p-2 border-2 border-dashed border-muted-foreground/30 rounded-lg cursor-pointer hover:border-green-400 hover:bg-green-50/50 dark:hover:bg-green-900/10 transition-colors group'
+                          className='flex-1 flex items-center gap-2 p-2 border-2 border-dashed border-muted-foreground/30 rounded-lg cursor-pointer hover:border-success/40 hover:bg-success/5 transition-colors group'
                         >
                           <div className='w-6 h-6 bg-muted text-muted-foreground rounded-md flex items-center justify-center'>
                             <Calendar className='w-3 h-3' />
@@ -2461,13 +2612,13 @@ export function CardModal({
                               Add start date
                             </div>
                           </div>
-                          <Plus className='w-3 h-3 text-muted-foreground group-hover:text-green-600 transition-colors' />
+                          <Plus className='w-3 h-3 text-muted-foreground group-hover:text-success transition-colors' />
                         </div>
                       )}
 
                       {/* Timeline connector */}
                       <div className='flex items-center'>
-                        <div className='w-8 h-px bg-gradient-to-r from-green-300 to-amber-300 dark:from-green-600 dark:to-amber-600'></div>
+                        <div className='w-8 h-px bg-border'></div>
                         <ChevronRight className='w-3 h-3 text-muted-foreground mx-1' />
                       </div>
 
@@ -2477,19 +2628,19 @@ export function CardModal({
                           onClick={openDatePickerForDue}
                           className={`flex-1 flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:opacity-80 transition-all group ${
                             card.due_status === 'complete'
-                              ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
+                              ? 'bg-success/10 border-success/20 hover:bg-success/15'
                               : card.due_status === 'overdue'
-                              ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30'
-                              : 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+                              ? 'bg-destructive/10 border-destructive/20 hover:bg-destructive/15'
+                              : 'bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/15'
                           }`}
                         >
                           <div
                             className={`w-6 h-6 rounded-md flex items-center justify-center ${
                               card.due_status === 'complete'
-                                ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400'
+                                ? 'bg-success/15 text-success'
                                 : card.due_status === 'overdue'
-                                ? 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400'
-                                : 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400'
+                                ? 'bg-destructive/15 text-destructive'
+                                : 'bg-amber-500/15 text-amber-400'
                             }`}
                           >
                             <Clock className='w-3 h-3' />
@@ -2498,24 +2649,24 @@ export function CardModal({
                             <div
                               className={`text-xs font-medium flex items-center gap-1 ${
                                 card.due_status === 'complete'
-                                  ? 'text-emerald-800 dark:text-emerald-200'
+                                  ? 'text-success'
                                   : card.due_status === 'overdue'
-                                  ? 'text-red-800 dark:text-red-200'
-                                  : 'text-amber-800 dark:text-amber-200'
+                                  ? 'text-destructive'
+                                  : 'text-amber-400'
                               }`}
                             >
                               Due
                               {card.due_status === 'complete' && (
-                                <Check className='w-3 h-3 text-emerald-600' />
+                                <Check className='w-3 h-3 text-success' />
                               )}
                             </div>
                             <div
                               className={`text-xs truncate ${
                                 card.due_status === 'complete'
-                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  ? 'text-success/80'
                                   : card.due_status === 'overdue'
-                                  ? 'text-red-600 dark:text-red-400'
-                                  : 'text-amber-600 dark:text-amber-400'
+                                  ? 'text-destructive/80'
+                                  : 'text-amber-400/80'
                               }`}
                             >
                               {formatDate(card.due_date)}
@@ -2524,17 +2675,17 @@ export function CardModal({
                           <Edit2
                             className={`w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity ${
                               card.due_status === 'complete'
-                                ? 'text-emerald-600 dark:text-emerald-400'
+                                ? 'text-success'
                                 : card.due_status === 'overdue'
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-amber-600 dark:text-amber-400'
+                                ? 'text-destructive'
+                                : 'text-amber-400'
                             }`}
                           />
                         </div>
                       ) : (
                         <div
                           onClick={openDatePickerForDue}
-                          className='flex-1 flex items-center gap-2 p-2 border-2 border-dashed border-muted-foreground/30 rounded-lg cursor-pointer hover:border-amber-400 hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-colors group'
+                          className='flex-1 flex items-center gap-2 p-2 border-2 border-dashed border-muted-foreground/30 rounded-lg cursor-pointer hover:border-amber-500/40 hover:bg-amber-500/5 transition-colors group'
                         >
                           <div className='w-6 h-6 bg-muted text-muted-foreground rounded-md flex items-center justify-center'>
                             <Clock className='w-3 h-3' />
@@ -2544,7 +2695,7 @@ export function CardModal({
                               Add due date
                             </div>
                           </div>
-                          <Plus className='w-3 h-3 text-muted-foreground group-hover:text-amber-600 transition-colors' />
+                          <Plus className='w-3 h-3 text-muted-foreground group-hover:text-amber-400 transition-colors' />
                         </div>
                       )}
                     </div>
@@ -2555,10 +2706,10 @@ export function CardModal({
                         <span
                           className={`text-xs px-2 py-1 rounded-full font-medium ${
                             card.due_status === 'complete'
-                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              ? 'bg-success/15 text-success'
                               : card.due_status === 'overdue'
-                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                              ? 'bg-destructive/15 text-destructive'
+                              : 'bg-amber-500/15 text-amber-400'
                           }`}
                         >
                           {card.due_status.replace('_', ' ').toUpperCase()}
@@ -2567,7 +2718,6 @@ export function CardModal({
                     )}
                   </div>
                 </div>
-              )}
 
               {/* Checklists Section */}
               <div className='mb-6'>
@@ -2590,8 +2740,19 @@ export function CardModal({
                 </div>
 
                 {isLoadingChecklists ? (
-                  <div className='flex items-center justify-center py-8'>
-                    <div className='w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
+                  <div className='space-y-3 py-1'>
+                    <div className='h-4 w-1/3 bg-muted/40 rounded animate-pulse' />
+                    <div className='space-y-2'>
+                      {[0, 1, 2].map((i) => (
+                        <div key={i} className='flex items-center gap-2'>
+                          <div className='w-4 h-4 rounded bg-muted/40 animate-pulse' />
+                          <div
+                            className='h-3 bg-muted/40 rounded animate-pulse'
+                            style={{ width: `${60 - i * 10}%` }}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ) : checklists.length > 0 ? (
                   <div className='space-y-4'>
@@ -2639,8 +2800,13 @@ export function CardModal({
                 </div>
 
                 {isLoadingAttachments ? (
-                  <div className='flex items-center justify-center py-8'>
-                    <div className='w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
+                  <div className='grid grid-cols-2 sm:grid-cols-3 gap-3 py-1'>
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className='h-20 rounded-lg bg-muted/40 animate-pulse'
+                      />
+                    ))}
                   </div>
                 ) : attachments.length > 0 ? (
                   <div className='space-y-3'>
@@ -2751,7 +2917,7 @@ export function CardModal({
                     onClick={() =>
                       setIsAddToCardDropdownOpen(!isAddToCardDropdownOpen)
                     }
-                    className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-sm font-medium text-sm'
+                    className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors shadow-sm font-medium text-sm'
                     title='Add to card'
                   >
                     <Plus className='w-4 h-4' />
@@ -2768,13 +2934,15 @@ export function CardModal({
                         className='fixed inset-0 z-10'
                         onClick={() => setIsAddToCardDropdownOpen(false)}
                       />
-                      <div className='absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-xl z-20 py-2'>
+                      <div className='absolute top-full left-0 right-0 mt-2 bg-card/95 backdrop-blur-xl border border-border rounded-xl shadow-xl z-20 py-2 animate-in fade-in-0 zoom-in-95 duration-150'>
                         <button
                           onClick={() => {
+                            if (isLoadingMembers) return;
                             setShowMemberPicker(true);
                             setIsAddToCardDropdownOpen(false);
                           }}
-                          className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'
+                          disabled={isLoadingMembers}
+                          className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent'
                         >
                           <User className='w-4 h-4 text-muted-foreground' />
                           Members
@@ -2830,7 +2998,7 @@ export function CardModal({
                     onClick={() =>
                       setIsActionsDropdownOpen(!isActionsDropdownOpen)
                     }
-                    className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-sm font-medium text-sm'
+                    className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-transparent border border-border text-muted-foreground rounded-lg hover:text-foreground hover:border-primary/50 transition-colors font-medium text-sm'
                     title='Card actions'
                   >
                     <Settings className='w-4 h-4' />
@@ -2847,7 +3015,7 @@ export function CardModal({
                         className='fixed inset-0 z-10'
                         onClick={() => setIsActionsDropdownOpen(false)}
                       />
-                      <div className='absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-xl z-20 py-2'>
+                      <div className='absolute top-full left-0 right-0 mt-2 bg-card/95 backdrop-blur-xl border border-border rounded-xl shadow-xl z-20 py-2 animate-in fade-in-0 zoom-in-95 duration-150'>
                         <button
                           onClick={() => {
                             handleOpenMoveModal();
@@ -2959,31 +3127,109 @@ export function CardModal({
               <div className='flex-1 overflow-y-auto custom-scrollbar pt-2'>
                 {activeTab === 'comments' ? (
                   isLoadingComments ? (
-                    <div className='flex justify-center items-center h-full'>
-                      <div className='w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
-                    </div>
-                  ) : filteredAndSortedComments.length > 0 ? (
-                    filteredAndSortedComments.map((comment) => (
-                      <div
-                        key={comment.id}
-                        className='p-2 flex items-start gap-3'
-                      >
-                        <UserAvatar profile={comment.profiles} size={32} />
-                        <div className='flex-1'>
-                          <div className='flex items-baseline gap-2'>
-                            <p className='font-semibold text-sm'>
-                              {comment.profiles.full_name || 'User'}
-                            </p>
-                            <p className='text-xs text-muted-foreground'>
-                              {formatTimestamp(comment.created_at)}
-                            </p>
-                          </div>
-                          <div className='bg-muted rounded-lg p-2 mt-1 text-sm text-foreground'>
-                            {comment.content}
+                    <div className='space-y-4 py-1'>
+                      {[0, 1].map((i) => (
+                        <div key={i} className='flex items-start gap-2'>
+                          <div className='w-7 h-7 rounded-full bg-muted/40 animate-pulse flex-shrink-0' />
+                          <div className='flex-1 space-y-1.5'>
+                            <div className='h-3 w-24 bg-muted/40 rounded animate-pulse' />
+                            <div className='h-3 w-full bg-muted/40 rounded animate-pulse' />
                           </div>
                         </div>
-                      </div>
-                    ))
+                      ))}
+                    </div>
+                  ) : filteredAndSortedComments.length > 0 ? (
+                    filteredAndSortedComments.map((comment) => {
+                      const isOwnComment =
+                        currentUser && comment.profiles.id === currentUser.id;
+                      const isEditingThis = editingCommentId === comment.id;
+                      const isSavingThis =
+                        editingSavingCommentId === comment.id;
+
+                      return (
+                        <div
+                          key={comment.id}
+                          className='p-2 flex items-start gap-3 group'
+                        >
+                          <UserAvatar profile={comment.profiles} size={32} />
+                          <div className='flex-1 min-w-0'>
+                            <div className='flex items-baseline gap-2'>
+                              <p className='font-semibold text-sm'>
+                                {comment.profiles.full_name || 'User'}
+                              </p>
+                              <p className='text-xs text-muted-foreground'>
+                                {formatTimestamp(comment.created_at)}
+                                {comment.is_edited && ' (edited)'}
+                              </p>
+
+                              {isOwnComment && !isEditingThis && (
+                                <div className='ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
+                                  <button
+                                    onClick={() => handleEditComment(comment)}
+                                    title='Edit comment'
+                                    className='p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors'
+                                  >
+                                    <Edit2 className='w-3.5 h-3.5' />
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleDeleteComment(comment.id)
+                                    }
+                                    title='Delete comment'
+                                    className='p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors'
+                                  >
+                                    <Trash2 className='w-3.5 h-3.5' />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {isEditingThis ? (
+                              <div className='mt-1 space-y-2'>
+                                <textarea
+                                  value={editingCommentContent}
+                                  onChange={(e) =>
+                                    setEditingCommentContent(e.target.value)
+                                  }
+                                  className='w-full px-2.5 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none'
+                                  rows={2}
+                                  disabled={isSavingThis}
+                                  autoFocus
+                                />
+                                <div className='flex items-center gap-2'>
+                                  <button
+                                    onClick={() =>
+                                      handleSaveEditComment(comment.id)
+                                    }
+                                    disabled={
+                                      isSavingThis ||
+                                      !editingCommentContent.trim()
+                                    }
+                                    className='px-3 py-1 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 rounded-md transition-colors'
+                                  >
+                                    {isSavingThis ? 'Saving...' : 'Save'}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingCommentId(null);
+                                      setEditingCommentContent('');
+                                    }}
+                                    disabled={isSavingThis}
+                                    className='px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground rounded-md transition-colors'
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className='bg-muted rounded-lg p-2 mt-1 text-sm text-foreground'>
+                                {comment.content}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
                   ) : (
                     <p className='text-center text-sm text-muted-foreground p-4'>
                       No comments yet.
@@ -2991,8 +3237,16 @@ export function CardModal({
                   )
                 ) : // Activity Tab
                 isLoadingActivities ? (
-                  <div className='flex justify-center items-center h-full'>
-                    <div className='w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin' />
+                  <div className='space-y-3 py-1'>
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className='flex items-center gap-2'>
+                        <div className='w-6 h-6 rounded-full bg-muted/40 animate-pulse flex-shrink-0' />
+                        <div
+                          className='h-3 bg-muted/40 rounded animate-pulse'
+                          style={{ width: `${70 - i * 15}%` }}
+                        />
+                      </div>
+                    ))}
                   </div>
                 ) : activities.length > 0 ? (
                   activities.map((activity) => (
@@ -3040,10 +3294,10 @@ export function CardModal({
         {/* Card Delete Confirmation Modal */}
         {showDeleteCardConfirm && (
           <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4'>
-            <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full p-6'>
+            <div className='bg-card/90 backdrop-blur-xl rounded-xl shadow-2xl border border-border max-w-md w-full p-6'>
               <div className='flex items-center gap-3 mb-4'>
-                <div className='w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center'>
-                  <Trash2 className='w-5 h-5 text-red-500' />
+                <div className='w-10 h-10 bg-destructive/15 rounded-full flex items-center justify-center'>
+                  <Trash2 className='w-5 h-5 text-destructive' />
                 </div>
                 <div>
                   <h3 className='text-lg font-semibold text-foreground'>
@@ -3064,7 +3318,7 @@ export function CardModal({
               <div className='flex gap-3 justify-end'>
                 <button
                   onClick={() => setShowDeleteCardConfirm(false)}
-                  className='px-4 py-2 text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded-md transition-colors'
+                  className='px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border border-border hover:border-primary/50 rounded-md transition-colors'
                 >
                   Cancel
                 </button>
@@ -3073,7 +3327,7 @@ export function CardModal({
                     onDeleteCard?.(card.id);
                     setShowDeleteCardConfirm(false);
                   }}
-                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors'
+                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-destructive-foreground bg-destructive hover:bg-destructive/90 rounded-md transition-colors'
                 >
                   <Trash2 className='w-4 h-4' />
                   Confirm Deletion
@@ -3085,10 +3339,10 @@ export function CardModal({
 
         {showDeleteModal && (
           <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4'>
-            <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full p-6'>
+            <div className='bg-card/90 backdrop-blur-xl rounded-xl shadow-2xl border border-border max-w-md w-full p-6'>
               <div className='flex items-center gap-3 mb-4'>
-                <div className='w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center'>
-                  <Trash2 className='w-5 h-5 text-red-500' />
+                <div className='w-10 h-10 bg-destructive/15 rounded-full flex items-center justify-center'>
+                  <Trash2 className='w-5 h-5 text-destructive' />
                 </div>
                 <div>
                   <h3 className='text-lg font-semibold text-foreground'>
@@ -3108,14 +3362,14 @@ export function CardModal({
               <div className='flex gap-3 justify-end'>
                 <button
                   onClick={cancelDeleteComment}
-                  className='px-4 py-2 text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded-md transition-colors'
+                  className='px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border border-border hover:border-primary/50 rounded-md transition-colors'
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmDeleteComment}
                   disabled={deletingCommentId !== null}
-                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
+                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-destructive-foreground bg-destructive hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
                 >
                   {deletingCommentId ? (
                     <>
@@ -3136,10 +3390,10 @@ export function CardModal({
 
         {showDeleteAttachmentModal && attachmentToDelete && (
           <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4'>
-            <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full p-6'>
+            <div className='bg-card/90 backdrop-blur-xl rounded-xl shadow-2xl border border-border max-w-md w-full p-6'>
               <div className='flex items-center gap-3 mb-4'>
-                <div className='w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center'>
-                  <Paperclip className='w-5 h-5 text-red-500' />
+                <div className='w-10 h-10 bg-destructive/15 rounded-full flex items-center justify-center'>
+                  <Paperclip className='w-5 h-5 text-destructive' />
                 </div>
                 <div>
                   <h3 className='text-lg font-semibold text-foreground'>
@@ -3166,7 +3420,7 @@ export function CardModal({
               <div className='flex gap-3 justify-end'>
                 <button
                   onClick={cancelDeleteAttachment}
-                  className='px-4 py-2 text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded-md transition-colors'
+                  className='px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border border-border hover:border-primary/50 rounded-md transition-colors'
                   disabled={isDeletingAttachment}
                 >
                   Cancel
@@ -3174,7 +3428,7 @@ export function CardModal({
                 <button
                   onClick={confirmDeleteAttachment}
                   disabled={isDeletingAttachment}
-                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
+                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-destructive-foreground bg-destructive hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
                 >
                   {isDeletingAttachment ? (
                     <>
@@ -3229,10 +3483,10 @@ export function CardModal({
         {/* Save Warning Modal */}
         {showSaveWarningModal && (
           <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4'>
-            <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full'>
+            <div className='bg-card/90 backdrop-blur-xl rounded-xl shadow-2xl border border-border max-w-md w-full'>
               <div className='p-6'>
                 <div className='flex items-center gap-3 mb-4'>
-                  <div className='w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center'>
+                  <div className='w-10 h-10 bg-amber-500/15 rounded-full flex items-center justify-center'>
                     <div className='w-3 h-3 bg-amber-500 rounded-full animate-pulse'></div>
                   </div>
                   <div>
@@ -3254,7 +3508,7 @@ export function CardModal({
                 <div className='flex gap-3 justify-end'>
                   <button
                     onClick={handleCancelClose}
-                    className='px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors'
+                    className='px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border border-border hover:border-primary/50 rounded-md transition-colors'
                   >
                     Wait for Save
                   </button>
@@ -3280,6 +3534,7 @@ export function CardModal({
           cardId={card.id}
           currentMembers={cardMembers}
           onMemberAdded={handleMemberAdded}
+          onRemoveMember={handleRemoveMember}
           autoCloseAfterAdd={false}
           allowMultipleSelections={true}
           cachedWorkspaceMembers={cachedWorkspaceMembers}

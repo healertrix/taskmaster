@@ -1,21 +1,10 @@
 'use client';
 
 import Image from 'next/image';
-import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import OneTapComponent from '@/app/components/auth/OneTapComponent';
-import {
-  CheckSquare,
-  ArrowRight,
-  Lock,
-  Shield,
-  Zap,
-  Layout,
-  Users,
-  Calendar,
-  AlertCircle,
-} from 'lucide-react';
+import { CheckSquare, Lock, Zap, AlertCircle } from 'lucide-react';
 
 export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
@@ -45,69 +34,42 @@ export default function Login() {
 
   return (
     <div className='flex min-h-screen flex-col lg:flex-row overflow-hidden'>
-      {/* Left side - Illustration/Preview (more compact) */}
-      <div className='hidden lg:flex flex-1 bg-gradient-to-br from-background/95 to-background/80 relative'>
-        {/* Enhanced decorative elements */}
-        <div className='absolute inset-0 bg-grid-pattern-dark opacity-10'></div>
-        <div className='absolute top-1/3 -left-24 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-pulse duration-7000'></div>
-        <div className='absolute bottom-1/3 -right-24 w-96 h-96 bg-accent/20 rounded-full blur-3xl animate-pulse duration-5000 delay-1000'></div>
-
-        {/* Pattern overlay */}
-        <div className='absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[length:24px_24px]'></div>
-
+      {/* Left side - product preview, trimmed to headline + mockup only */}
+      <div className='hidden lg:flex flex-1 relative'>
         <div className='relative w-full max-w-2xl mx-auto flex flex-col items-center justify-center p-6 h-full'>
-          {/* Glass card background with refined border */}
-          <div className='absolute top-8 left-8 right-8 bottom-8 rounded-2xl border border-white/10 backdrop-blur-md bg-white/[0.03] shadow-[0_8px_32px_rgba(0,0,0,0.1)]'></div>
+          {/* Glass panel, unified with the app's card/modal tokens */}
+          <div className='absolute top-8 left-8 right-8 bottom-8 rounded-2xl border border-border bg-card/75 backdrop-blur-xl'></div>
 
           <div className='relative flex flex-col items-center max-w-xl px-4'>
-            {/* Compact header with icon */}
-            <div className='mb-3 flex items-center gap-2'>
-              <div className='w-10 h-10 rounded-xl bg-primary/20 backdrop-blur-sm flex items-center justify-center'>
-                <Zap className='w-5 h-5 text-primary' />
-              </div>
-              <div className='h-px w-12 bg-gradient-to-r from-primary/40 to-transparent'></div>
+            {/* AI-first badge */}
+            <div className='mb-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 heading-enter'>
+              <Zap className='w-3.5 h-3.5 text-primary' />
+              <span className='text-xs font-medium text-primary'>
+                AI-first task management
+              </span>
             </div>
 
-            <h2 className='text-3xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-white to-white/80'>
+            <h2 className='text-3xl font-bold mb-2 text-foreground heading-enter'>
               Boost Your Productivity
             </h2>
-            <p className='text-muted-foreground text-center text-base leading-relaxed max-w-md mb-6'>
+            <p className='text-muted-foreground text-center text-base leading-relaxed max-w-md mb-4'>
               Taskmaster helps teams move work forward efficiently with
               collaborative boards, lists, and cards
             </p>
 
-            {/* Feature points with icons - more compact grid */}
-            <div className='grid grid-cols-2 gap-3 gap-y-2 mb-6 w-full'>
-              <div className='flex items-center gap-2'>
-                <div className='flex-shrink-0 w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center'>
-                  <Layout className='w-4 h-4 text-blue-400' />
-                </div>
-                <span className='text-xs font-medium'>Kanban boards</span>
-              </div>
-              <div className='flex items-center gap-2'>
-                <div className='flex-shrink-0 w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center'>
-                  <Users className='w-4 h-4 text-green-400' />
-                </div>
-                <span className='text-xs font-medium'>Collaboration</span>
-              </div>
-              <div className='flex items-center gap-2'>
-                <div className='flex-shrink-0 w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center'>
-                  <CheckSquare className='w-4 h-4 text-purple-400' />
-                </div>
-                <span className='text-xs font-medium'>Task management</span>
-              </div>
-              <div className='flex items-center gap-2'>
-                <div className='flex-shrink-0 w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center'>
-                  <Calendar className='w-4 h-4 text-orange-400' />
-                </div>
-                <span className='text-xs font-medium'>Deadlines</span>
-              </div>
+            {/* Feature detail row */}
+            <div className='flex items-center gap-3 text-xs text-muted-foreground mb-6'>
+              <span>Kanban boards</span>
+              <span className='w-1 h-1 rounded-full bg-border'></span>
+              <span>Real-time collaboration</span>
+              <span className='w-1 h-1 rounded-full bg-border'></span>
+              <span>Smart automation</span>
             </div>
 
-            {/* More compact app preview */}
-            <div className='relative w-full bg-background/40 backdrop-blur-sm rounded-xl border border-border/40 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.3)] overflow-hidden transform perspective-1000 rotate-x-1'>
+            {/* Product preview */}
+            <div className='relative w-full bg-card/90 backdrop-blur-xl rounded-xl border border-border shadow-2xl overflow-hidden transform perspective-1000 rotate-x-1'>
               {/* Window controls bar - more compact */}
-              <div className='absolute top-0 left-0 right-0 h-9 bg-background/80 border-b border-border/30 flex items-center px-3 backdrop-blur-md'>
+              <div className='absolute top-0 left-0 right-0 h-9 bg-card/95 border-b border-border flex items-center px-3 backdrop-blur-xl'>
                 <div className='w-2.5 h-2.5 rounded-full bg-red-500 mr-1.5'></div>
                 <div className='w-2.5 h-2.5 rounded-full bg-yellow-500 mr-1.5'></div>
                 <div className='w-2.5 h-2.5 rounded-full bg-green-500 mr-1.5'></div>
@@ -230,21 +192,17 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right side - Login form - Keep unchanged */}
-      <div className='flex-1 flex flex-col items-center justify-center px-6 py-12 lg:px-8 dot-pattern-dark relative'>
-        {/* Floating elements animation (decorative) */}
-        <div className='absolute top-1/4 left-1/4 w-64 h-64 bg-primary/5 rounded-full blur-3xl animate-pulse'></div>
-        <div className='absolute bottom-1/4 right-1/3 w-80 h-80 bg-accent/5 rounded-full blur-3xl animate-pulse delay-700'></div>
-
+      {/* Right side - Login form */}
+      <div className='flex-1 flex flex-col items-center justify-center px-6 py-12 lg:px-8 relative'>
         <div className='w-full max-w-md z-10'>
           <div className='flex justify-center mb-6'>
-            <div className='flex items-center gap-2 text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent'>
+            <div className='flex items-center gap-2 text-2xl font-bold text-foreground heading-enter'>
               <CheckSquare className='w-8 h-8 text-primary' />
               Taskmaster
             </div>
           </div>
 
-          <div className='flex flex-col items-center space-y-4 text-center mb-8'>
+          <div className='flex flex-col items-center space-y-4 text-center mb-8 heading-enter'>
             <h1 className='text-3xl font-bold leading-tight tracking-tight'>
               Welcome Back
             </h1>
@@ -267,13 +225,13 @@ export default function Login() {
             </div>
           )}
 
-          <div className='glass-dark rounded-xl p-8 shadow-xl backdrop-blur-sm border border-border/50'>
+          <div className='bg-card/90 backdrop-blur-xl rounded-xl shadow-2xl border border-border p-8 animate-in fade-in-50 zoom-in-95 duration-200'>
             <div className='flex flex-col space-y-8'>
               <div className='relative flex items-center justify-center'>
                 <div className='absolute inset-0 flex items-center'>
-                  <span className='w-full border-t border-border/50'></span>
+                  <span className='w-full border-t border-border'></span>
                 </div>
-                <span className='relative z-10 px-4 text-sm uppercase text-muted-foreground bg-[#131622] font-medium'>
+                <span className='relative z-10 px-4 text-sm uppercase text-muted-foreground bg-card font-medium'>
                   Continue with
                 </span>
               </div>
@@ -287,51 +245,6 @@ export default function Login() {
                     Secure Authentication
                   </span>
                 </div>
-              </div>
-
-              <div className='text-center text-xs text-muted-foreground pt-2 border-t border-border/30 space-y-2'>
-                <p>
-                  By signing in, you agree to our
-                  <Link
-                    href='#'
-                    className='underline text-primary hover:text-primary/80 mx-1 transition-colors'
-                  >
-                    Terms of Service
-                  </Link>
-                  and
-                  <Link
-                    href='#'
-                    className='underline text-primary hover:text-primary/80 ml-1 transition-colors'
-                  >
-                    Privacy Policy
-                  </Link>
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Feature highlights */}
-          <div className='mt-10 grid grid-cols-2 gap-4'>
-            <div className='flex items-start gap-2'>
-              <div className='w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0 mt-0.5'>
-                <Shield className='w-4 h-4 text-blue-500' />
-              </div>
-              <div>
-                <h3 className='text-sm font-medium'>Secure</h3>
-                <p className='text-xs text-muted-foreground'>
-                  Google authentication
-                </p>
-              </div>
-            </div>
-            <div className='flex items-start gap-2'>
-              <div className='w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0 mt-0.5'>
-                <CheckSquare className='w-4 h-4 text-green-500' />
-              </div>
-              <div>
-                <h3 className='text-sm font-medium'>Reliable</h3>
-                <p className='text-xs text-muted-foreground'>
-                  Trusted by teams
-                </p>
               </div>
             </div>
           </div>

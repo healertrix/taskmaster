@@ -37,7 +37,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw error;
         }
         setSession(data.session);
-        setUser(data.session?.user ?? null);
+        // data.session.user comes straight from storage (cookies) and isn't
+        // verified — getUser() re-checks it against the Auth server before
+        // we trust it for anything security-sensitive (e.g. RouteGuard).
+        setUser(await getVerifiedUser(data.session));
       } catch (error) {
         console.error('Error loading session:', error);
         setSession(null);
@@ -47,13 +50,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    const getVerifiedUser = async (currentSession: Session | null) => {
+      if (!currentSession) return null;
+      const { data, error } = await supabase.auth.getUser();
+      if (error) {
+        console.error('Error verifying user:', error);
+        return null;
+      }
+      return data.user;
+    };
+
     getSession();
 
-    // Set up auth listener
+    // Set up auth listener. Deliberately does NOT call getVerifiedUser()
+    // (another getUser() network round-trip) here — onAuthStateChange
+    // fires for background events too, most commonly TOKEN_REFRESHED,
+    // which the SDK emits periodically throughout a session after it has
+    // already refreshed the token via its own network call. Re-verifying
+    // via a second getUser() call on every one of those was a real,
+    // recurring source of concurrent auth calls racing Supabase's
+    // refresh-token rotation — not just a page-load-time issue, an
+    // ongoing one, which could corrupt the session badly enough that only
+    // clearing cookies recovered it. currentSession here already reflects
+    // a network-verified result of that event; trust it directly.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-
+    } = supabase.auth.onAuthStateChange((event, currentSession) => {
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
       setIsLoading(false);
@@ -80,7 +102,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase.auth.getSession();
       if (error) throw error;
       setSession(data.session);
-      setUser(data.session?.user ?? null);
+
+      if (data.session) {
+        const { data: userData, error: userError } =
+          await supabase.auth.getUser();
+        if (userError) throw userError;
+        setUser(userData.user);
+      } else {
+        setUser(null);
+      }
     } catch (error) {
       console.error('Error refreshing session:', error);
     }

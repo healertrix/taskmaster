@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
@@ -38,44 +38,36 @@ interface ColumnContainerProps {
   column: Column;
   tasks: Task[];
   getColumnStyle: (columnId: string) => string;
-  labelColors: Record<string, string>;
   dragOverInfo: DragOverInfo;
   activeTaskId?: string;
   onUpdateListName?: (listId: string, newName: string) => Promise<boolean>;
   onArchiveList?: (listId: string) => Promise<boolean>;
   onDeleteList?: (listId: string) => Promise<boolean>;
   onAddCard?: (columnId: string, cardTitle: string) => Promise<boolean>;
-  onEditTask?: (taskId: string) => void;
-  onCopyTask?: (taskId: string) => void;
-  onArchiveTask?: (taskId: string) => Promise<boolean>;
   onDeleteTask?: (taskId: string) => Promise<boolean>;
-  onManageLabels?: (taskId: string) => void;
-  onManageAssignees?: (taskId: string) => void;
-  onManageDueDate?: (taskId: string) => void;
   onMoveTask?: (taskId: string) => void;
   onOpenCard?: (taskId: string) => void;
+  onUpdateCardTitle?: (cardId: string, title: string) => Promise<boolean>;
+  onEditDates?: (cardId: string) => void;
+  onEditAssignee?: (cardId: string) => void;
 }
 
 export function ColumnContainer({
   column,
   tasks,
   getColumnStyle,
-  labelColors,
   dragOverInfo,
   activeTaskId,
   onUpdateListName,
   onArchiveList,
   onDeleteList,
   onAddCard,
-  onEditTask,
-  onCopyTask,
-  onArchiveTask,
   onDeleteTask,
-  onManageLabels,
-  onManageAssignees,
-  onManageDueDate,
   onMoveTask,
   onOpenCard,
+  onUpdateCardTitle,
+  onEditDates,
+  onEditAssignee,
 }: ColumnContainerProps) {
   // Use useDroppable for the column to accept tasks
   const { setNodeRef: setColumnRef } = useDroppable({
@@ -88,6 +80,13 @@ export function ColumnContainer({
 
   // Get task IDs for SortableContext
   const taskIds = React.useMemo(() => tasks.map((task) => task.id), [tasks]);
+
+  // Task ids that have already played their entrance animation. `tasks` is
+  // rebuilt into a new array/objects on every board data change (title
+  // edits, checklist updates, etc.), not just when a card is actually
+  // added — without this, every card would replay its slide-up animation
+  // on every unrelated update instead of only when it's genuinely new.
+  const animatedTaskIdsRef = useRef<Set<string>>(new Set());
 
   // Check if this column is the one being dragged over
   const isColumnBeingDraggedOver = dragOverInfo.columnId === column.id;
@@ -104,11 +103,8 @@ export function ColumnContainer({
     if (!shouldShow) return null;
 
     return (
-      <div className='py-2 px-2'>
-        <div
-          className='h-1 bg-primary rounded-full w-full transition-all duration-200 animate-pulse'
-          style={{ height: '4px' }}
-        />
+      <div className='py-1.5 px-2'>
+        <div className='h-0.5 bg-primary rounded-full w-full animate-in fade-in-0 zoom-in-95 duration-100' />
       </div>
     );
   };
@@ -122,14 +118,15 @@ export function ColumnContainer({
   return (
     <div
       ref={setColumnRef}
-      className='flex flex-col w-80 flex-shrink-0 mr-5 kanban-column rounded-xl overflow-hidden max-h-[calc(100vh-180px)]'
+      className='flex flex-col w-80 flex-shrink-0 mr-5 kanban-column rounded-2xl overflow-hidden max-h-[calc(100vh-180px)]'
     >
-      <div
-        className={`p-4 rounded-t-xl kanban-column-header flex justify-between items-center relative z-10 ${getColumnStyle(
-          column.id
-        )}`}
-      >
-        <div className='flex items-center gap-2 flex-1'>
+      <div className='p-4 rounded-t-2xl kanban-column-header flex justify-between items-center relative z-10'>
+        <div className='flex items-center gap-2 flex-1 min-w-0'>
+          <span
+            className={`w-2 h-2 rounded-full flex-shrink-0 ${getColumnStyle(
+              column.id
+            )}`}
+          />
           {onUpdateListName ? (
             <ListNameEditor
               listName={column.title}
@@ -140,22 +137,21 @@ export function ColumnContainer({
               {column.title}
             </span>
           )}
-          <span className='text-xs text-white/80 bg-black/20 rounded-full px-1.5 py-0.5 backdrop-blur-sm flex-shrink-0'>
+          <span className='text-xs text-muted-foreground bg-muted rounded-full px-1.5 py-0.5 flex-shrink-0'>
             {tasks.length}
           </span>
         </div>
         <ListActionsMenu
           listId={column.id}
           listName={column.title}
+          cardCount={tasks.length}
           onArchiveList={onArchiveList || (() => Promise.resolve(false))}
           onDeleteList={onDeleteList || (() => Promise.resolve(false))}
         />
       </div>
       {/* Make the content area scrollable */}
       <div
-        className={`flex-1 overflow-y-auto p-4 kanban-column-content rounded-b-xl ${getColumnStyle(
-          column.id
-        )}`}
+        className='flex-1 overflow-y-auto p-4 kanban-column-content rounded-b-2xl'
         style={{ maxHeight: 'calc(100vh - 280px)' }} // Increased height for bigger lists
       >
         <SortableContext items={taskIds}>
@@ -163,49 +159,60 @@ export function ColumnContainer({
             {/* Show indicator at the top if dropping at index 0 */}
             {renderDropIndicator(0)}
 
-            {tasks.map((task, index) => (
-              <div
-                key={task.id}
-                className={task.id === activeTaskId ? '' : 'animate-slideUp'}
-                style={{
-                  animationFillMode: 'both',
-                  animationDelay:
-                    task.id === activeTaskId ? '0ms' : `${index * 50}ms`, // Disable delay for dragged item
-                }}
-              >
-                <TaskCard
-                  task={task}
-                  labelColors={labelColors}
-                  columnId={column.id}
-                  isDragTarget={dragOverInfo.id === task.id}
-                  isBeingDragged={task.id === activeTaskId}
-                  onEditTask={onEditTask}
-                  onCopyTask={onCopyTask}
-                  onArchiveTask={onArchiveTask}
-                  onDeleteTask={onDeleteTask}
-                  onManageLabels={onManageLabels}
-                  onManageAssignees={onManageAssignees}
-                  onManageDueDate={onManageDueDate}
-                  onMoveTask={onMoveTask}
-                  onOpenCard={onOpenCard}
-                />
-                {/* Show drop indicator after each task */}
-                {renderDropIndicator(index + 1)}
-              </div>
-            ))}
+            {tasks.map((task, index) => {
+              const isFirstAppearance = !animatedTaskIdsRef.current.has(
+                task.id
+              );
+              if (isFirstAppearance) {
+                animatedTaskIdsRef.current.add(task.id);
+              }
+              const shouldAnimate =
+                isFirstAppearance && task.id !== activeTaskId;
+
+              return (
+                <div
+                  key={task.id}
+                  className={shouldAnimate ? 'animate-slideUp' : ''}
+                  style={
+                    shouldAnimate
+                      ? {
+                          animationFillMode: 'both',
+                          animationDelay: `${index * 50}ms`,
+                        }
+                      : undefined
+                  }
+                >
+                  <TaskCard
+                    task={task}
+                    columnId={column.id}
+                    isBeingDragged={task.id === activeTaskId}
+                    onDeleteTask={onDeleteTask}
+                    onMoveTask={onMoveTask}
+                    onOpenCard={onOpenCard}
+                    onUpdateCardTitle={onUpdateCardTitle}
+                    onEditDates={onEditDates}
+                    onEditAssignee={onEditAssignee}
+                  />
+                  {/* Show drop indicator after each task */}
+                  {renderDropIndicator(index + 1)}
+                </div>
+              );
+            })}
 
             {/* Empty Column Indicator */}
             {tasks.length === 0 && (
               <div
-                className={`flex h-28 items-center justify-center rounded-lg border-2 border-dashed transition-all duration-300 ease-in-out animate-scaleIn ${
+                className={`flex h-28 items-center justify-center rounded-lg border-2 border-dashed transition-colors duration-200 animate-scaleIn ${
                   showEmptyColumnIndicator
                     ? 'border-primary bg-primary/10 animate-pulse'
-                    : 'border-white/10 bg-white/5'
+                    : 'border-border'
                 }`}
               >
                 <p
                   className={`text-sm font-medium ${
-                    showEmptyColumnIndicator ? 'text-primary' : 'text-white/50'
+                    showEmptyColumnIndicator
+                      ? 'text-primary'
+                      : 'text-muted-foreground/70'
                   }`}
                 >
                   {showEmptyColumnIndicator ? 'Drop here' : 'No tasks'}

@@ -228,20 +228,20 @@ export function DateTimeRangePicker({
 
   return (
     <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4'>
-      <div className='bg-card border border-border rounded-xl shadow-2xl w-full max-w-sm sm:max-w-md h-[75vh] sm:h-[600px] flex flex-col overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'>
+      <div className='bg-card/90 backdrop-blur-xl border border-border rounded-xl shadow-2xl w-full max-w-sm sm:max-w-md h-[75vh] sm:h-[600px] flex flex-col overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200'>
         {/* Compact Header */}
-        <div className='bg-gradient-to-r from-primary to-primary/80 px-4 py-3'>
-          <div className='flex items-center justify-between text-white'>
+        <div className='px-4 py-3 border-b border-border bg-muted/30'>
+          <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
-              <CalendarDays className='w-5 h-5' />
-              <h3 className='text-lg font-semibold'>Dates</h3>
-              <div className='hidden sm:flex items-center gap-1 ml-3 text-xs text-white/70'>
-                <kbd className='px-1.5 py-0.5 bg-white/20 rounded text-xs'>
+              <CalendarDays className='w-5 h-5 text-primary' />
+              <h3 className='text-lg font-semibold text-foreground'>Dates</h3>
+              <div className='hidden sm:flex items-center gap-1 ml-3 text-xs text-muted-foreground'>
+                <kbd className='px-1.5 py-0.5 bg-muted rounded text-xs'>
                   Ctrl+Enter
                 </kbd>
                 <span>to save</span>
                 <span className='mx-1'>•</span>
-                <kbd className='px-1.5 py-0.5 bg-white/20 rounded text-xs'>
+                <kbd className='px-1.5 py-0.5 bg-muted rounded text-xs'>
                   Esc
                 </kbd>
                 <span>to close</span>
@@ -249,7 +249,7 @@ export function DateTimeRangePicker({
             </div>
             <button
               onClick={onClose}
-              className='p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200'
+              className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all duration-200'
               title='Close date picker (Esc)'
               aria-label='Close date picker'
             >
@@ -266,7 +266,7 @@ export function DateTimeRangePicker({
                 onClick={() => setIsSelectingStart(true)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                   isSelectingStart
-                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                    ? 'bg-success/15 text-success'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -277,7 +277,7 @@ export function DateTimeRangePicker({
                 onClick={() => setIsSelectingStart(false)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                   !isSelectingStart
-                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                    ? 'bg-destructive/15 text-destructive'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -448,7 +448,7 @@ export function DateTimeRangePicker({
         </div>
 
         {/* Action Buttons - Fixed at bottom */}
-        <div className='flex justify-between items-center p-4 border-t border-border bg-card'>
+        <div className='flex justify-between items-center p-4 border-t border-border bg-card/95 backdrop-blur-xl'>
           <button
             onClick={handleRemoveAll}
             className='flex items-center gap-2 px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-md transition-colors'
@@ -462,7 +462,7 @@ export function DateTimeRangePicker({
           <div className='flex gap-2'>
             <button
               onClick={onClose}
-              className='px-3 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-medium rounded-md transition-colors'
+              className='px-3 py-2 bg-transparent border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 text-sm font-medium rounded-md transition-colors'
               disabled={isLoading}
               title='Cancel (Esc)'
             >

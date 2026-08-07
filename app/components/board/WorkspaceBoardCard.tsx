@@ -16,8 +16,8 @@ interface WorkspaceBoardCardProps {
   };
 }
 
-// Memoized color display component
-const ColorBar = memo(
+// Memoized color dot: the per-board identity marker next to the title
+const ColorDot = memo(
   ({
     color,
     getColorDisplay,
@@ -31,8 +31,8 @@ const ColorBar = memo(
     );
 
     return (
-      <div
-        className={`absolute top-0 left-0 right-0 h-1.5 sm:h-2 ${
+      <span
+        className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
           colorDisplay.isCustom ? '' : colorDisplay.className
         }`}
         style={colorDisplay.isCustom ? colorDisplay.style : {}}
@@ -41,11 +41,11 @@ const ColorBar = memo(
   }
 );
 
-ColorBar.displayName = 'ColorBar';
+ColorDot.displayName = 'ColorDot';
 
 // Memoized board title component
 const BoardTitle = memo(({ name }: { name: string }) => (
-  <h3 className='font-semibold text-sm sm:text-base text-foreground mb-1 sm:mb-2 line-clamp-2 pr-8'>
+  <h3 className='font-semibold text-sm sm:text-base text-foreground line-clamp-2 pr-8'>
     {name}
   </h3>
 ));
@@ -189,19 +189,17 @@ export const WorkspaceBoardCard = memo(function WorkspaceBoardCard({
   // Memoized card content
   const cardContent = useMemo(
     () => (
-      <div className='relative z-10 flex flex-col justify-between h-full'>
-        <div>
-          <BoardTitle name={board.name} />
-          <BoardDescription description={board.description} />
-        </div>
+      <div className='relative z-10 flex flex-col justify-between h-full p-5'>
+        <div className='flex items-start justify-between gap-2'>
+          <div className='flex items-center gap-2 min-w-0'>
+            <ColorDot color={board.color} getColorDisplay={getColorDisplay} />
+            <div className='min-w-0'>
+              <BoardTitle name={board.name} />
+              <BoardDescription description={board.description} />
+            </div>
+          </div>
 
-        <div className='flex items-center justify-between'>
-          <DateDisplay
-            dateString={board.last_activity_at}
-            formatDate={formatDate}
-          />
-
-          <div className='relative z-20'>
+          <div className='relative z-20 -mt-1 -mr-1 flex-shrink-0'>
             <StarButton
               boardId={board.id}
               starred={board.starred}
@@ -210,14 +208,21 @@ export const WorkspaceBoardCard = memo(function WorkspaceBoardCard({
             />
           </div>
         </div>
+
+        <DateDisplay
+          dateString={board.last_activity_at}
+          formatDate={formatDate}
+        />
       </div>
     ),
     [
       board.name,
       board.description,
+      board.color,
       board.last_activity_at,
       board.id,
       board.starred,
+      getColorDisplay,
       formatDate,
       onToggleStar,
       isToggling,
@@ -227,9 +232,10 @@ export const WorkspaceBoardCard = memo(function WorkspaceBoardCard({
   return (
     <Link
       href={`/board/${board.id}`}
-      className='group relative block p-4 sm:p-5 rounded-xl card card-hover h-32 sm:h-40 overflow-hidden transition-all duration-200'
+      className='group relative block h-40 rounded-2xl border border-border bg-card/70 backdrop-blur-xl overflow-hidden
+        transition-all duration-300 ease-out
+        hover:-translate-y-1 hover:border-muted-foreground/40 hover:bg-card/85 hover:shadow-2xl hover:shadow-black/40'
     >
-      <ColorBar color={board.color} getColorDisplay={getColorDisplay} />
       {cardContent}
     </Link>
   );

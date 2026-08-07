@@ -1,15 +1,32 @@
 import { format, parseISO, isValid } from 'date-fns';
 
-// Combine date and time strings into a proper ISO datetime string
+// Combine date and time strings into a proper ISO datetime string.
+//
+// Date-only case (no timeStr) is written as literal UTC midnight
+// ("...T00:00:00.000Z") instead of parsing "dateStr T 00:00" as the
+// *creator's local* midnight and converting that to UTC. That conversion
+// used to shift a date-only value into a non-midnight UTC instant for
+// every timezone except UTC+0 — e.g. IST (UTC+5:30) local midnight becomes
+// 18:30 UTC the day before — and every place that infers "does this value
+// carry a real time?" by checking for a zero hour/minute would then see a
+// non-zero one and wrongly show a phantom "at 5:30 AM"/"at 6:30 PM" on a
+// date the user never attached a time to. Writing it as literal UTC
+// midnight instead means it reads back as hour 0 for every viewer,
+// everywhere — see the matching getUTCHours()/getUTCMinutes() checks below
+// and in getRelativeDateTime/formatDateTime.
 export function combineDateAndTime(
   dateStr?: string,
   timeStr?: string
 ): string | undefined {
   if (!dateStr) return undefined;
 
-  // If no time is specified, use 00:00 (midnight) to represent date-only
-  const time = timeStr || '00:00';
-  const combinedStr = `${dateStr}T${time}:00`;
+  if (!timeStr) {
+    return `${dateStr}T00:00:00.000Z`;
+  }
+
+  // A real time was picked — this is the creator's local wall-clock time,
+  // so convert it to a proper UTC instant the normal way.
+  const combinedStr = `${dateStr}T${timeStr}:00`;
 
   try {
     const date = parseISO(combinedStr);
@@ -23,14 +40,21 @@ export function combineDateAndTime(
   return undefined;
 }
 
-// Extract date part from datetime string
+// Extract date part from datetime string. Uses UTC components rather than
+// local ones — a date-only value is always stored as literal UTC midnight
+// (see combineDateAndTime above), so reading it back via local
+// getFullYear/getMonth/getDate would shift the calendar day for anyone not
+// at UTC+0 (e.g. it'd read one day earlier for negative-offset timezones).
 export function extractDate(datetimeStr?: string): string {
   if (!datetimeStr) return '';
 
   try {
     const date = parseISO(datetimeStr);
     if (isValid(date)) {
-      return format(date, 'yyyy-MM-dd');
+      const y = date.getUTCFullYear();
+      const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(date.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
     }
   } catch (error) {
     console.warn('Invalid datetime string:', datetimeStr);
@@ -39,13 +63,20 @@ export function extractDate(datetimeStr?: string): string {
   return '';
 }
 
-// Extract time part from datetime string
+// Extract time part from datetime string. Returns '' for a date-only value
+// (literal UTC midnight, see combineDateAndTime) instead of formatting it
+// in the viewer's local zone — otherwise re-opening the date picker on a
+// date-only field would pre-fill a phantom time (e.g. "05:30" for an IST
+// viewer) that was never actually set.
 export function extractTime(datetimeStr?: string): string {
   if (!datetimeStr) return '';
 
   try {
     const date = parseISO(datetimeStr);
     if (isValid(date)) {
+      if (date.getUTCHours() === 0 && date.getUTCMinutes() === 0) {
+        return '';
+      }
       return format(date, 'HH:mm');
     }
   } catch (error) {
@@ -75,8 +106,10 @@ export function formatDateTime(
   try {
     const date = parseISO(datetimeStr);
     if (isValid(date)) {
-      // Check if time is specified (not midnight/00:00)
-      const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0;
+      // Date-only values are always literal UTC midnight (see
+      // combineDateAndTime) — check UTC hours/minutes, not local ones, or
+      // this reads as "has a time" for every timezone except UTC+0.
+      const hasTime = date.getUTCHours() !== 0 || date.getUTCMinutes() !== 0;
       const shouldShowTime = forceShowTime || (includeTime && hasTime);
 
       let formatStr = includeYear ? 'MMM dd, yyyy' : 'MMM dd';
@@ -111,8 +144,9 @@ export function getRelativeDateTime(datetimeStr?: string): string {
     const diffTime = targetDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    // Check if time is specified (not midnight/00:00)
-    const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0;
+    // Same reasoning as formatDateTime above — check UTC hours/minutes,
+    // since a date-only value is always literal UTC midnight.
+    const hasTime = date.getUTCHours() !== 0 || date.getUTCMinutes() !== 0;
     const timeStr = hasTime ? ` at ${format(date, 'h:mm a')}` : '';
 
     if (diffDays === 0) return `Today${timeStr}`;

@@ -22,15 +22,13 @@ export async function PATCH(
 
     // Get current user
     const {
-      data: { session },
+      data: { user },
       error: authError,
-    } = await supabase.auth.getSession();
+    } = await supabase.auth.getUser();
 
-    if (authError || !session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const user = session.user;
 
     // Check if user is workspace owner or has admin role
     const { data: workspace, error: workspaceError } = await supabase
@@ -150,15 +148,13 @@ export async function DELETE(
 
     // Get current user
     const {
-      data: { session },
+      data: { user },
       error: authError,
-    } = await supabase.auth.getSession();
+    } = await supabase.auth.getUser();
 
-    if (authError || !session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const user = session.user;
 
     // Check current user's role in workspace
     const { data: currentUserMembership, error: currentUserError } =

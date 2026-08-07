@@ -27,23 +27,23 @@ export const MemberCard = React.memo<MemberCardProps>(
     const roleInfo = useMemo(() => {
       switch (member.role) {
         case 'owner':
-          return { icon: Crown, text: 'Owner', color: 'text-yellow-500' };
+          return { icon: Crown, text: 'Owner', color: 'text-amber-500' };
         case 'admin':
-          return { icon: Shield, text: 'Admin', color: 'text-blue-500' };
+          return { icon: Shield, text: 'Admin', color: 'text-accent' };
         default:
-          return { icon: User, text: 'Member', color: 'text-gray-500' };
+          return { icon: User, text: 'Member', color: 'text-muted-foreground' };
       }
     }, [member.role]);
 
     const roleBadge = useMemo(() => {
-      const baseClasses = 'px-2 py-1 rounded-full text-xs font-medium';
+      const baseClasses = 'px-2 py-0.5 rounded-full text-xs font-medium';
       switch (member.role) {
         case 'owner':
-          return `${baseClasses} bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200`;
+          return `${baseClasses} bg-amber-500/10 text-amber-500`;
         case 'admin':
-          return `${baseClasses} bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200`;
+          return `${baseClasses} bg-accent/10 text-accent`;
         default:
-          return `${baseClasses} bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200`;
+          return `${baseClasses} bg-muted text-muted-foreground`;
       }
     }, [member.role]);
 
@@ -92,10 +92,10 @@ export const MemberCard = React.memo<MemberCardProps>(
 
     return (
       <div
-        className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border border-border transition-colors gap-3 sm:gap-0 ${
+        className={`flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-xl transition-colors gap-3 sm:gap-0 ${
           canManageThisMember
-            ? 'sm:hover:bg-muted/50 active:bg-muted/50 cursor-pointer sm:cursor-default'
-            : 'hover:bg-muted/50 cursor-default'
+            ? 'sm:hover:bg-muted/40 active:bg-muted/40 cursor-pointer sm:cursor-default'
+            : 'hover:bg-muted/40 cursor-default'
         }`}
         onClick={handleCardClick}
       >
@@ -149,7 +149,7 @@ export const MemberCard = React.memo<MemberCardProps>(
 
               {/* Dropdown Menu */}
               {openMemberActions === member.id && (
-                <div className='absolute right-0 top-full mt-1 w-36 bg-background border border-border rounded-lg shadow-lg z-10 py-1'>
+                <div className='absolute right-0 top-full mt-1 w-36 bg-card/95 backdrop-blur-xl border border-border/50 rounded-lg shadow-2xl z-10 py-1'>
                   {/* Change Role Option */}
                   {member.role !== 'owner' &&
                     (currentUserRole === 'owner' ||
@@ -170,7 +170,7 @@ export const MemberCard = React.memo<MemberCardProps>(
                       member.role === 'member')) && (
                     <button
                       onClick={handleRemoveMember}
-                      className='w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2'
+                      className='w-full text-left px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-2'
                     >
                       <UserMinus className='w-3 h-3' />
                       Remove

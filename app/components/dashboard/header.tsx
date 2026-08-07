@@ -284,10 +284,10 @@ export function DashboardHeader() {
             <div className='flex items-center'>
               <Link
                 href='/'
-                className='font-bold text-xl flex items-center gap-2 text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity'
+                className='font-bold text-xl flex items-center gap-2 text-foreground hover:text-foreground/90 transition-colors'
               >
                 <CheckSquare className='w-6 h-6 text-primary' />
-                <span className='hidden md:block'>Taskmaster</span>
+                <span className='hidden md:block heading-enter'>Taskmaster</span>
               </Link>
             </div>
 
@@ -301,7 +301,7 @@ export function DashboardHeader() {
                 <input
                   type='text'
                   placeholder='Search tasks, projects, etc...'
-                  className='w-full pl-10 pr-4 py-2.5 superhero-header-search text-foreground placeholder-muted-foreground rounded-lg border border-border bg-background/80 focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all input'
+                  className='w-full pl-9 pr-4 py-1.5 text-sm superhero-header-search text-foreground placeholder-muted-foreground rounded-lg border transition-colors'
                   value={searchTerm}
                   onChange={handleSearchChange}
                   onFocus={handleSearchFocus}
@@ -613,7 +613,7 @@ export function DashboardHeader() {
 
                 {/* Create Dropdown Menu */}
                 {showCreateDropdown && (
-                  <div className='absolute top-full right-0 mt-2 w-80 bg-card border border-border rounded-lg shadow-2xl z-[60] overflow-hidden'>
+                  <div className='absolute top-full right-0 mt-2 w-80 bg-card/95 backdrop-blur-xl border border-border rounded-lg shadow-2xl z-[60] overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150'>
                     {/* Board Creation Section */}
                     <div className='p-4 border-b border-border'>
                       <h3 className='text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3 px-1'>
@@ -700,7 +700,7 @@ export function DashboardHeader() {
 
                 {/* Mobile Create Dropdown */}
                 {showMobileCreateDropdown && (
-                  <div className='absolute top-full right-0 mt-2 w-48 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden'>
+                  <div className='absolute top-full right-0 mt-2 w-48 bg-card/95 backdrop-blur-xl border border-border rounded-lg shadow-lg z-50 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150'>
                     <button
                       onClick={() => {
                         setIsCreateBoardModalOpen(true);
@@ -745,7 +745,7 @@ export function DashboardHeader() {
 
       {/* Mobile Search Modal */}
       {showMobileSearchModal && (
-        <div className='fixed inset-0 z-[100] md:hidden'>
+        <div className='fixed inset-0 z-[100] md:hidden animate-in fade-in-0 duration-150'>
           {/* Backdrop */}
           <div
             className='absolute inset-0 bg-black/50 backdrop-blur-sm'
@@ -755,7 +755,7 @@ export function DashboardHeader() {
           {/* Modal Content */}
           <div className='relative z-10 flex flex-col h-full'>
             {/* Header */}
-            <div className='bg-card border-b border-border p-4'>
+            <div className='bg-card/95 backdrop-blur-xl border-b border-border p-4'>
               <div className='flex items-center gap-3'>
                 <button
                   onClick={handleMobileSearchClose}
@@ -770,7 +770,7 @@ export function DashboardHeader() {
                   <input
                     type='text'
                     placeholder='Search tasks, projects, etc...'
-                    className='w-full pl-10 pr-4 py-3 text-foreground placeholder-muted-foreground rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all'
+                    className='w-full pl-10 pr-4 py-3 text-foreground placeholder-muted-foreground rounded-lg border border-muted-foreground/40 bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary transition-all'
                     value={searchTerm}
                     onChange={handleSearchChange}
                     autoFocus

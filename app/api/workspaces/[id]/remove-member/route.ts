@@ -23,15 +23,13 @@ export async function POST(
 
     // Get current user
     const {
-      data: { session },
+      data: { user },
       error: authError,
-    } = await supabase.auth.getSession();
+    } = await supabase.auth.getUser();
 
-    if (authError || !session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const user = session.user;
     console.log('Current user:', user.id);
 
     // Check if current user is the workspace owner or has admin permissions

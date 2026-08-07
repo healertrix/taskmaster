@@ -76,9 +76,36 @@ export async function DELETE(
 
     // Delete card-related data first (to respect foreign key constraints)
 
-    // Delete card comments
+    // Delete checklist items, then checklists
+    const { data: cardChecklists } = await supabase
+      .from('checklists')
+      .select('id')
+      .eq('card_id', cardId);
+    const checklistIds = (cardChecklists || []).map((c) => c.id);
+
+    if (checklistIds.length > 0) {
+      const { error: checklistItemsError } = await supabase
+        .from('checklist_items')
+        .delete()
+        .in('checklist_id', checklistIds);
+
+      if (checklistItemsError) {
+        console.error('Error deleting checklist items:', checklistItemsError);
+      }
+    }
+
+    const { error: checklistsError } = await supabase
+      .from('checklists')
+      .delete()
+      .eq('card_id', cardId);
+
+    if (checklistsError) {
+      console.error('Error deleting checklists:', checklistsError);
+    }
+
+    // Delete card comments (table is `comments`, not `card_comments`)
     const { error: commentsError } = await supabase
-      .from('card_comments')
+      .from('comments')
       .delete()
       .eq('card_id', cardId);
 
@@ -126,30 +153,32 @@ export async function DELETE(
       console.error('Error deleting card activities:', activitiesError);
     }
 
-    // Finally, delete the card itself
-    const { data: deletedCard, error: cardDeleteError } = await supabase
+    // Finally, delete the card itself. Deliberately NOT chaining
+    // .select().single() here — that requires the deleted row to also be
+    // readable back through RLS's RETURNING check, which is a separate
+    // permission from the DELETE itself. If that RETURNING read is denied
+    // (or simply returns a shape .single() doesn't like) while the delete
+    // genuinely succeeded, .single() throws and this route falsely reports
+    // failure for a delete that actually worked — this was the "delete
+    // works but shows an error" bug. Checking the delete's own error is
+    // the correct, sufficient success signal.
+    const { error: cardDeleteError } = await supabase
       .from('cards')
       .delete()
-      .eq('id', cardId)
-      .select()
-      .single();
+      .eq('id', cardId);
 
     if (cardDeleteError) {
       console.error('Error deleting card:', cardDeleteError);
       throw new Error(`Failed to delete card: ${cardDeleteError.message}`);
     }
 
-    if (!deletedCard) {
-      throw new Error('Card deletion failed - no card was deleted');
-    }
-
     return NextResponse.json({
       message: 'Card deleted successfully',
       deletedCard: {
-        id: deletedCard.id,
-        title: deletedCard.title,
-        board_id: deletedCard.board_id,
-        list_id: deletedCard.list_id,
+        id: card.id,
+        title: card.title,
+        board_id: card.board_id,
+        list_id: card.list_id,
       },
     });
   } catch (error) {

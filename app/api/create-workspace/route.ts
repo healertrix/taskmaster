@@ -5,17 +5,18 @@ export async function POST(request: Request) {
   try {
     const supabase = createClient();
 
-    // Get current authenticated user
+    // Get current authenticated user. getUser() re-verifies against the
+    // Auth server rather than trusting whatever getSession() reads straight
+    // from cookies.
     const {
-      data: { session },
+      data: { user },
       error: authError,
-    } = await supabase.auth.getSession();
+    } = await supabase.auth.getUser();
 
-    if (authError || !session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const user = session.user;
     const userName =
       user.user_metadata?.name || user.user_metadata?.full_name || 'User';
 

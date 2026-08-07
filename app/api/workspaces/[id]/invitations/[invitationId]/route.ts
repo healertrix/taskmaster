@@ -13,15 +13,13 @@ export async function DELETE(
 
     // Get current user
     const {
-      data: { session },
+      data: { user },
       error: authError,
-    } = await supabase.auth.getSession();
+    } = await supabase.auth.getUser();
 
-    if (authError || !session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const user = session.user;
 
     // Check if user is a member of this workspace with permission
     const { data: membership, error: membershipError } = await supabase
@@ -124,15 +122,13 @@ export async function PATCH(
 
     // Get current user
     const {
-      data: { session },
+      data: { user },
       error: authError,
-    } = await supabase.auth.getSession();
+    } = await supabase.auth.getUser();
 
-    if (authError || !session?.user) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const user = session.user;
 
     // Check if user is a member of this workspace with permission
     const { data: membership, error: membershipError } = await supabase

@@ -230,24 +230,26 @@ export function MoveCardModal({
 
       {/* Modal Container */}
       <div className='fixed inset-0 z-[80] flex items-center justify-center p-4 pointer-events-none'>
-        <div className='bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200 pointer-events-auto'>
-          {/* Header with Gradient */}
-          <div className='bg-gradient-to-r from-primary to-primary/90 px-6 py-4'>
-            <div className='flex items-center justify-between text-white'>
+        <div className='bg-card/90 backdrop-blur-xl border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in-50 zoom-in-95 duration-200 pointer-events-auto'>
+          {/* Header */}
+          <div className='px-6 py-4 border-b border-border bg-muted/30'>
+            <div className='flex items-center justify-between'>
               <div className='flex items-center gap-3'>
-                <div className='w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center'>
-                  <Move className='w-4 h-4' />
+                <div className='w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center'>
+                  <Move className='w-4 h-4 text-primary' />
                 </div>
                 <div>
-                  <h3 className='text-lg font-semibold'>Move Card</h3>
-                  <p className='text-sm text-white/80'>
+                  <h3 className='text-lg font-semibold text-foreground'>
+                    Move Card
+                  </h3>
+                  <p className='text-sm text-muted-foreground'>
                     Choose destination list
                   </p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className='p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200'
+                className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all duration-200'
                 title='Close modal'
                 aria-label='Close modal'
                 disabled={isMovingCard}
@@ -301,7 +303,7 @@ export function MoveCardModal({
                       <div className='flex items-center gap-3'>
                         {selectedListId ? (
                           <>
-                            <div className='w-3 h-3 bg-gradient-to-r from-green-400 to-blue-500 rounded-full' />
+                            <div className='w-3 h-3 bg-teal-400 rounded-full' />
                             <span className='font-medium text-foreground'>
                               {selectedList?.name}
                             </span>
@@ -367,7 +369,7 @@ export function MoveCardModal({
       {isListDropdownOpen && (
         <div
           ref={dropdownRef}
-          className='fixed bg-card border-2 border-border rounded-xl shadow-2xl z-[150] overflow-hidden max-h-64 overflow-y-auto'
+          className='fixed bg-card/95 backdrop-blur-xl border-2 border-border rounded-xl shadow-2xl z-[150] overflow-hidden max-h-64 overflow-y-auto animate-in fade-in-0 zoom-in-95 duration-150'
           style={{
             top: dropdownButtonRef.current
               ? `${
@@ -392,9 +394,7 @@ export function MoveCardModal({
                 setIsListDropdownOpen(false);
               }}
               className={`w-full px-4 py-3 text-left hover:bg-muted/80 transition-colors duration-200 flex items-center gap-3 border-b border-border/50 last:border-b-0 ${
-                selectedListId === list.id
-                  ? 'bg-primary/10 dark:bg-primary/10'
-                  : ''
+                selectedListId === list.id ? 'bg-primary/10' : ''
               }`}
               title={`Move card to ${list.name}`}
               type='button'
@@ -402,12 +402,12 @@ export function MoveCardModal({
               <div
                 className={`w-3 h-3 rounded-full ${
                   index % 4 === 0
-                    ? 'bg-gradient-to-r from-red-400 to-pink-500'
+                    ? 'bg-rose-400'
                     : index % 4 === 1
-                    ? 'bg-gradient-to-r from-blue-400 to-purple-500'
+                    ? 'bg-indigo-400'
                     : index % 4 === 2
-                    ? 'bg-gradient-to-r from-green-400 to-blue-500'
-                    : 'bg-gradient-to-r from-yellow-400 to-orange-500'
+                    ? 'bg-teal-400'
+                    : 'bg-amber-400'
                 }`}
               />
               <div className='flex-1'>

@@ -50,14 +50,16 @@ export function ListNameEditor({ listName, onSave }: ListNameEditorProps) {
           onChange={(e) => setEditName(e.target.value)}
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
-          className='text-sm font-semibold bg-white/10 border border-white/20 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-white/30 text-white placeholder:text-white/60 flex-1'
+          className='text-sm font-semibold bg-background border border-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-foreground placeholder:text-muted-foreground flex-1'
           autoFocus
           disabled={isSaving}
           placeholder='List name'
           aria-label='Edit list name'
           maxLength={100}
         />
-        {isSaving && <Loader2 className='w-4 h-4 animate-spin text-white/80' />}
+        {isSaving && (
+          <Loader2 className='w-4 h-4 animate-spin text-muted-foreground' />
+        )}
       </div>
     );
   }
@@ -65,11 +67,11 @@ export function ListNameEditor({ listName, onSave }: ListNameEditorProps) {
   return (
     <button
       onClick={() => setIsEditing(true)}
-      className='text-sm font-semibold text-foreground flex items-center gap-2 hover:bg-white/10 px-2 py-1 rounded transition-colors group flex-1 text-left'
+      className='text-sm font-semibold text-foreground flex items-center gap-2 hover:bg-muted/50 px-2 py-1 rounded transition-colors group flex-1 text-left'
       title='Click to edit list name'
     >
       <span className='flex-1 truncate'>{listName}</span>
-      <Edit3 className='w-3 h-3 opacity-0 group-hover:opacity-70 transition-opacity text-white/80' />
+      <Edit3 className='w-3 h-3 opacity-0 group-hover:opacity-70 transition-opacity text-muted-foreground' />
     </button>
   );
 }

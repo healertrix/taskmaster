@@ -47,18 +47,30 @@ export async function POST(
 
     // Use current timestamp as position to avoid additional query
     const nextPosition = Date.now();
+    const newItem = {
+      checklist_id: checklistId,
+      content: text.trim(),
+      is_complete: false,
+      position: nextPosition,
+    };
 
-    // Create checklist item
-    const { data: item, error: itemError } = await supabase
+    // Create checklist item. A statement timeout (57014) here is usually
+    // transient (e.g. a lock wait on a related row) rather than a real
+    // failure, so retry once before giving up.
+    let { data: item, error: itemError } = await supabase
       .from('checklist_items')
-      .insert({
-        checklist_id: checklistId,
-        content: text.trim(),
-        is_complete: false,
-        position: nextPosition,
-      })
+      .insert(newItem)
       .select()
       .single();
+
+    if (itemError?.code === '57014') {
+      console.warn('Checklist item insert timed out, retrying once...');
+      ({ data: item, error: itemError } = await supabase
+        .from('checklist_items')
+        .insert(newItem)
+        .select()
+        .single());
+    }
 
     if (itemError) {
       console.error('Error creating checklist item:', itemError);

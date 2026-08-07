@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 
 export interface Board {
   id: string;
@@ -17,14 +18,14 @@ export const useBoardStars = () => {
   const [error, setError] = useState<string | null>(null);
 
   const supabase = createClient();
+  // RouteGuard already verified the user against the Auth server before
+  // this page's hooks ever run, and AuthContext caches that verified user —
+  // reuse it instead of every hook paying its own getUser() round-trip.
+  const { user, isLoading: authLoading } = useAuth();
 
   // Fetch starred boards for the current user
   const fetchStarredBoards = useCallback(async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
       if (!user) {
         setStarredBoards([]);
         return;
@@ -62,15 +63,11 @@ export const useBoardStars = () => {
       console.error('Error in fetchStarredBoards:', err);
       setStarredBoards([]);
     }
-  }, [supabase]);
+  }, [supabase, user]);
 
   // Fetch recent boards with starred status
   const fetchRecentBoards = useCallback(async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
       if (!user) {
         setRecentBoards([]);
         return;
@@ -158,16 +155,12 @@ export const useBoardStars = () => {
       console.error('Error in fetchRecentBoards:', err);
       setRecentBoards([]);
     }
-  }, [supabase]);
+  }, [supabase, user]);
 
   // Toggle board star status
   const toggleBoardStar = useCallback(
     async (boardId: string) => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
         if (!user) {
           console.warn('User not authenticated');
           return;
@@ -238,7 +231,7 @@ export const useBoardStars = () => {
         console.error('Error toggling board star:', err);
       }
     },
-    [supabase, starredBoards]
+    [supabase, starredBoards, user]
   );
 
   // Refetch data
@@ -249,8 +242,11 @@ export const useBoardStars = () => {
     setLoading(false);
   }, [fetchStarredBoards, fetchRecentBoards]);
 
-  // Initial data fetch
+  // Initial data fetch — wait for AuthContext to resolve so `user` isn't
+  // still null just because its own getUser() call hasn't finished yet.
   useEffect(() => {
+    if (authLoading) return;
+
     const loadData = async () => {
       setLoading(true);
       setError(null);
@@ -259,7 +255,7 @@ export const useBoardStars = () => {
     };
 
     loadData();
-  }, [fetchStarredBoards, fetchRecentBoards]);
+  }, [authLoading, fetchStarredBoards, fetchRecentBoards]);
 
   return {
     starredBoards,

@@ -83,7 +83,7 @@ export function VirtualizedBoardGrid({
       <button
         key='create-board-btn'
         onClick={onCreateBoard}
-        className='h-32 sm:h-40 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
+        className='h-40 rounded-2xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 backdrop-blur-xl hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
       >
         <div className='w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/10 flex items-center justify-center mb-2 sm:mb-3 group-hover:bg-primary/20 transition-colors'>
           <svg

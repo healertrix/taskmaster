@@ -8,20 +8,14 @@ import {
   ArrowLeft,
   Users,
   UserPlus,
-  Mail,
-  Crown,
   Shield,
   User,
-  ChevronRight,
-  Send,
   X,
   Loader2,
-  Check,
   CheckCircle2,
   AlertCircle,
   Trash2,
   UserMinus,
-  MoreHorizontal,
 } from 'lucide-react';
 import Link from 'next/link';
 import { canUserInviteMembers } from '@/utils/permissions';
@@ -395,11 +389,11 @@ export default function WorkspaceMembersPage() {
 
   if (error) {
     return (
-      <div className='min-h-screen dot-pattern-dark'>
+      <div className='min-h-screen'>
         <DashboardHeader />
-        <main className='container mx-auto max-w-7xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+        <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
           <div className='flex items-center justify-center h-64'>
-            <div className='text-red-500 text-center text-sm sm:text-base px-4'>
+            <div className='text-destructive text-center text-sm sm:text-base px-4'>
               {error || 'An error occurred'}
             </div>
           </div>
@@ -409,94 +403,58 @@ export default function WorkspaceMembersPage() {
   }
 
   return (
-    <div className='min-h-screen dot-pattern-dark'>
+    <div className='min-h-screen'>
       <DashboardHeader />
 
-      <main className='container mx-auto max-w-4xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+      <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
         {/* Header */}
-        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8'>
-          {/* Mobile: Title first, then description */}
-          <div className='flex flex-col gap-3 sm:hidden min-w-0'>
-            <div className='flex items-center gap-2'>
-              <button
-                onClick={handleGoBack}
-                className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
-                aria-label='Go back'
-              >
-                <ArrowLeft className='w-4 h-4' />
-              </button>
-              <div className='min-w-0 flex-1'>
-                <h1 className='text-lg font-bold text-foreground truncate'>
-                  {workspace.name} Members
-                </h1>
-              </div>
-            </div>
-            <div className='ml-7'>
-              <p className='text-xs text-muted-foreground'>
-                Manage workspace members and permissions
-              </p>
-            </div>
+        <div className='flex items-center gap-3 mb-6'>
+          <button
+            onClick={handleGoBack}
+            className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
+            aria-label='Go back'
+          >
+            <ArrowLeft className='w-4 h-4 sm:w-5 sm:h-5' />
+          </button>
+          <div className='min-w-0 flex-1'>
+            <h1 className='text-xl sm:text-2xl font-bold text-foreground truncate heading-enter'>
+              {workspace.name}
+            </h1>
+            <p className='text-muted-foreground text-xs sm:text-sm'>
+              {members.length} member{members.length === 1 ? '' : 's'}
+            </p>
           </div>
 
-          {/* Desktop: Traditional layout */}
-          <div className='hidden sm:flex items-center gap-4 min-w-0 flex-1'>
+          {canAddMembers && (
             <button
-              onClick={handleGoBack}
-              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0'
-              aria-label='Go back'
+              onClick={() => setShowAddMemberModal(true)}
+              className='btn btn-primary flex items-center gap-2 px-3 sm:px-4 py-2 flex-shrink-0'
+              title='Add members'
+              aria-label='Add members'
             >
-              <ArrowLeft className='w-5 h-5' />
+              <UserPlus className='w-4 h-4' />
+              <span className='hidden sm:inline'>Add members</span>
             </button>
-            <div className='min-w-0 flex-1'>
-              <h1 className='text-2xl font-bold text-foreground'>
-                {workspace.name} Members
-              </h1>
-              <p className='text-muted-foreground text-sm'>
-                Manage workspace members and permissions
-              </p>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className='flex items-center justify-end gap-3 flex-shrink-0'>
-            {canAddMembers && (
-              <button
-                onClick={() => setShowAddMemberModal(true)}
-                className='inline-flex items-center justify-center gap-2 px-3 py-2 sm:w-auto sm:px-4 sm:py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all duration-200 shadow-sm hover:shadow-md text-sm'
-                title='Add Members'
-                aria-label='Add Members'
-              >
-                <UserPlus className='w-4 h-4 sm:w-5 sm:h-5' />
-                <span className='text-sm font-medium'>Add</span>
-                <span className='hidden sm:inline'>Members</span>
-              </button>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Navigation Tabs */}
-        <div className='mb-6 sm:mb-8'>
-          <div className='flex items-center gap-1 border-b border-border overflow-x-auto'>
-            <span className='px-3 sm:px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary whitespace-nowrap'>
-              Members
-            </span>
-            <Link
-              href={`/workspace/${workspaceId}/settings`}
-              className='px-3 sm:px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-b-2 hover:border-primary transition-colors whitespace-nowrap'
-            >
-              Settings
-            </Link>
-          </div>
+        <div className='mb-6 flex items-center gap-1 border-b border-border/60'>
+          <span className='px-3 sm:px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary whitespace-nowrap'>
+            Members
+          </span>
+          <Link
+            href={`/workspace/${workspaceId}/settings`}
+            className='px-3 sm:px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border-b-2 border-transparent hover:border-border transition-colors whitespace-nowrap'
+          >
+            Settings
+          </Link>
         </div>
 
-        <div className='space-y-4 sm:space-y-6'>
+        <div className='space-y-4'>
           {/* Members List */}
-          <div className='card p-4 sm:p-6'>
-            <h2 className='text-base sm:text-lg font-semibold mb-3 sm:mb-4'>
-              Workspace members ({members.length})
-            </h2>
-
-            <div className='space-y-2'>
+          <div className='bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl p-4 sm:p-5'>
+            <div className='space-y-1.5'>
               {members.map((member) => (
                 <MemberCard
                   key={member.id}
@@ -516,13 +474,13 @@ export default function WorkspaceMembersPage() {
           {/* Empty state */}
           {members.length === 0 && (
             <div className='flex flex-col items-center justify-center py-16 text-center'>
-              <div className='w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mb-4'>
-                <Users className='w-8 h-8 text-muted-foreground' />
+              <div className='w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4'>
+                <Users className='w-7 h-7 text-primary/70' />
               </div>
-              <h3 className='text-lg font-semibold text-foreground mb-2'>
+              <h3 className='text-base font-medium text-foreground mb-1'>
                 No members yet
               </h3>
-              <p className='text-muted-foreground mb-4 max-w-md'>
+              <p className='text-sm text-muted-foreground mb-4 max-w-md'>
                 {canAddMembers
                   ? 'Get started by inviting members to this workspace. Members can collaborate on boards and projects.'
                   : "This workspace doesn't have any members yet. Contact an admin to add members to this workspace."}
@@ -530,10 +488,10 @@ export default function WorkspaceMembersPage() {
               {canAddMembers && (
                 <button
                   onClick={() => setShowAddMemberModal(true)}
-                  className='btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center gap-2'
+                  className='btn btn-primary px-4 py-2 flex items-center gap-2'
                 >
                   <UserPlus className='w-4 h-4' />
-                  Invite Members
+                  Invite members
                 </button>
               )}
             </div>
@@ -551,112 +509,97 @@ export default function WorkspaceMembersPage() {
       {/* Remove Member Confirmation Modal */}
       {showRemoveConfirm && memberToRemove && (
         <div className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4'>
-          <div className='bg-gradient-to-br from-background via-background to-background/95 border border-border/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden'>
+          <div className='bg-card/90 backdrop-blur-xl border border-border rounded-xl shadow-2xl w-full max-w-md animate-in fade-in-50 zoom-in-95 duration-200'>
             {/* Header */}
-            <div className='relative bg-gradient-to-r from-red-500/10 via-red-500/5 to-transparent p-6 border-b border-border/50'>
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-3'>
-                  <div className='w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center'>
-                    <UserMinus className='w-5 h-5 text-red-500' />
-                  </div>
-                  <div>
-                    <h3 className='text-xl font-semibold text-foreground'>
-                      Remove Member
-                    </h3>
-                    <p className='text-sm text-muted-foreground'>
-                      This action cannot be undone
-                    </p>
-                  </div>
+            <div className='flex items-center justify-between p-5 border-b border-border/50'>
+              <div className='flex items-center gap-3'>
+                <div className='w-9 h-9 rounded-full bg-destructive/15 flex items-center justify-center'>
+                  <UserMinus className='w-4 h-4 text-destructive' />
                 </div>
-                <button
-                  onClick={() => {
-                    setShowRemoveConfirm(false);
-                    setMemberToRemove(null);
-                  }}
-                  className='w-8 h-8 rounded-full bg-muted/50 hover:bg-muted/80 flex items-center justify-center transition-colors'
-                  aria-label='Close modal'
-                >
-                  <X className='w-4 h-4' />
-                </button>
+                <div>
+                  <h3 className='text-base font-semibold text-foreground'>
+                    Remove member
+                  </h3>
+                  <p className='text-xs text-muted-foreground'>
+                    This action cannot be undone
+                  </p>
+                </div>
               </div>
+              <button
+                onClick={() => {
+                  setShowRemoveConfirm(false);
+                  setMemberToRemove(null);
+                }}
+                className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+                aria-label='Close modal'
+              >
+                <X className='w-4 h-4' />
+              </button>
             </div>
 
             {/* Content */}
-            <div className='p-6 space-y-4'>
-              <div className='flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl dark:bg-red-900/20 dark:border-red-800'>
-                <div className='w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center text-white font-medium text-lg'>
+            <div className='p-5 space-y-3'>
+              <div className='flex items-center gap-3 p-3 bg-muted/30 border border-border/50 rounded-lg'>
+                <div className='w-10 h-10 rounded-full bg-destructive flex items-center justify-center text-destructive-foreground font-medium flex-shrink-0'>
                   {memberToRemove.profile.full_name?.charAt(0).toUpperCase() ||
                     memberToRemove.profile.email.charAt(0).toUpperCase()}
                 </div>
-                <div>
-                  <div className='font-medium text-foreground'>
+                <div className='min-w-0'>
+                  <div className='font-medium text-foreground text-sm truncate'>
                     {memberToRemove.profile.full_name ||
                       memberToRemove.profile.email}
                   </div>
-                  <div className='text-sm text-muted-foreground'>
+                  <div className='text-xs text-muted-foreground truncate'>
                     {memberToRemove.profile.email}
                   </div>
-                  <div className='text-xs text-red-600 dark:text-red-400 mt-1'>
-                    {memberToRemove.role === 'owner'
-                      ? 'Owner'
-                      : memberToRemove.role === 'admin'
-                      ? 'Admin'
-                      : 'Member'}
-                  </div>
+                </div>
+                <div className='ml-auto text-xs text-muted-foreground flex-shrink-0'>
+                  {memberToRemove.role === 'owner'
+                    ? 'Owner'
+                    : memberToRemove.role === 'admin'
+                    ? 'Admin'
+                    : 'Member'}
                 </div>
               </div>
 
-              <div className='bg-amber-50 border border-amber-200 rounded-xl p-4 dark:bg-amber-900/20 dark:border-amber-800'>
-                <div className='flex items-start gap-3'>
-                  <AlertCircle className='w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5' />
-                  <div className='text-sm'>
-                    <p className='font-medium text-amber-800 dark:text-amber-200 mb-1'>
-                      Are you sure you want to remove this member?
-                    </p>
-                    <p className='text-amber-700 dark:text-amber-300'>
-                      They will lose access to this workspace and all its
-                      boards. You can add them back later if needed.
-                    </p>
-                  </div>
-                </div>
+              <div className='flex items-start gap-2.5 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg'>
+                <AlertCircle className='w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5' />
+                <p className='text-xs text-muted-foreground'>
+                  They will lose access to this workspace and all its boards.
+                  You can add them back later if needed.
+                </p>
               </div>
             </div>
 
             {/* Footer */}
-            <div className='bg-gradient-to-r from-muted/20 to-transparent p-6 border-t border-border/50'>
-              <div className='flex justify-end gap-3'>
-                <button
-                  onClick={() => {
-                    setShowRemoveConfirm(false);
-                    setMemberToRemove(null);
-                  }}
-                  disabled={isRemovingMember}
-                  className='px-6 py-2.5 text-muted-foreground hover:text-foreground transition-colors font-medium disabled:opacity-50'
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleRemoveMember}
-                  disabled={isRemovingMember}
-                  className={`px-6 py-2.5 bg-gradient-to-r from-red-500 to-red-600 text-white font-medium rounded-lg flex items-center gap-2 transition-all duration-200 ${
-                    isRemovingMember
-                      ? 'opacity-50 cursor-not-allowed'
-                      : 'hover:from-red-600 hover:to-red-700 hover:shadow-lg hover:shadow-red-500/25 active:scale-95'
-                  }`}
-                >
-                  {isRemovingMember ? (
-                    <>
-                      <Loader2 className='w-4 h-4 animate-spin' />
-                      <span>Removing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className='w-4 h-4' />
-                      <span>Remove Member</span>
-                    </>
-                  )}
-                </button>
-              </div>
+            <div className='flex justify-end gap-2 p-5 pt-0'>
+              <button
+                onClick={() => {
+                  setShowRemoveConfirm(false);
+                  setMemberToRemove(null);
+                }}
+                disabled={isRemovingMember}
+                className='btn btn-ghost px-4 py-2'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRemoveMember}
+                disabled={isRemovingMember}
+                className='px-4 py-2 bg-destructive hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed text-destructive-foreground text-sm font-medium rounded-lg flex items-center gap-2 transition-colors'
+              >
+                {isRemovingMember ? (
+                  <>
+                    <Loader2 className='w-4 h-4 animate-spin' />
+                    Removing...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className='w-4 h-4' />
+                    Remove member
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -664,57 +607,52 @@ export default function WorkspaceMembersPage() {
 
       {/* Change Role Modal */}
       {showChangeRoleModal && memberToChangeRole && (
-        <div className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4'>
-          <div className='bg-gradient-to-br from-background via-background to-background/95 border border-border/50 rounded-2xl shadow-2xl w-full max-w-md mx-2 sm:mx-4 overflow-hidden max-h-[90vh] overflow-y-auto'>
+        <div className='fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4'>
+          <div className='bg-card/90 backdrop-blur-xl border border-border rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-in fade-in-50 zoom-in-95 duration-200'>
             {/* Header */}
-            <div className='relative bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4 sm:p-6 border-b border-border/50'>
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-2 sm:gap-3'>
-                  <div className='w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-primary/20 flex items-center justify-center'>
-                    <Shield className='w-4 h-4 sm:w-5 sm:h-5 text-primary' />
-                  </div>
-                  <div>
-                    <h3 className='text-lg sm:text-xl font-semibold text-foreground'>
-                      Change Role
-                    </h3>
-                    <p className='text-xs sm:text-sm text-muted-foreground'>
-                      Update member permissions
-                    </p>
-                  </div>
+            <div className='flex items-center justify-between p-5 border-b border-border/50'>
+              <div className='flex items-center gap-3'>
+                <div className='w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center'>
+                  <Shield className='w-4 h-4 text-primary' />
                 </div>
-                <button
-                  onClick={() => {
-                    setShowChangeRoleModal(false);
-                    setMemberToChangeRole(null);
-                  }}
-                  className='w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-muted/50 hover:bg-muted/80 active:bg-muted/90 flex items-center justify-center transition-colors touch-manipulation'
-                  aria-label='Close modal'
-                >
-                  <X className='w-4 h-4 sm:w-5 sm:h-5' />
-                </button>
+                <div>
+                  <h3 className='text-base font-semibold text-foreground'>
+                    Change role
+                  </h3>
+                  <p className='text-xs text-muted-foreground'>
+                    Update member permissions
+                  </p>
+                </div>
               </div>
+              <button
+                onClick={() => {
+                  setShowChangeRoleModal(false);
+                  setMemberToChangeRole(null);
+                }}
+                className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+                aria-label='Close modal'
+              >
+                <X className='w-4 h-4' />
+              </button>
             </div>
 
             {/* Content */}
-            <div className='p-4 sm:p-6 space-y-3 sm:space-y-4'>
+            <div className='p-5 space-y-3'>
               {/* Member Info */}
-              <div className='flex items-center gap-3 p-3 sm:p-4 bg-muted/30 rounded-xl'>
-                <div className='w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground font-medium text-base sm:text-lg flex-shrink-0'>
+              <div className='flex items-center gap-3 p-3 bg-muted/30 rounded-lg'>
+                <div className='w-9 h-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-medium text-sm flex-shrink-0'>
                   {memberToChangeRole.profile.full_name
                     ?.charAt(0)
                     .toUpperCase() ||
                     memberToChangeRole.profile.email.charAt(0).toUpperCase()}
                 </div>
                 <div className='min-w-0 flex-1'>
-                  <div className='font-medium text-foreground text-sm sm:text-base truncate'>
+                  <div className='font-medium text-foreground text-sm truncate'>
                     {memberToChangeRole.profile.full_name ||
                       memberToChangeRole.profile.email}
                   </div>
-                  <div className='text-xs sm:text-sm text-muted-foreground truncate'>
-                    {memberToChangeRole.profile.email}
-                  </div>
-                  <div className='text-xs text-muted-foreground mt-1'>
-                    Current role:{' '}
+                  <div className='text-xs text-muted-foreground truncate'>
+                    Currently{' '}
                     {memberToChangeRole.role === 'owner'
                       ? 'Owner'
                       : memberToChangeRole.role === 'admin'
@@ -725,106 +663,88 @@ export default function WorkspaceMembersPage() {
               </div>
 
               {/* Role Selection */}
-              <div className='space-y-2 sm:space-y-3'>
-                <label className='text-sm font-medium text-foreground'>
-                  Select new role:
-                </label>
-                <div className='space-y-2'>
-                  {(['admin', 'member'] as const).map((role) => (
-                    <label
-                      key={role}
-                      className={`flex items-start sm:items-center gap-3 p-3 sm:p-4 rounded-lg border cursor-pointer transition-all touch-manipulation ${
-                        newRole === role
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border hover:bg-muted/50 active:bg-muted/70'
-                      }`}
-                    >
-                      <input
-                        type='radio'
-                        name='role'
-                        value={role}
-                        checked={newRole === role}
-                        onChange={(e) =>
-                          setNewRole(e.target.value as 'admin' | 'member')
-                        }
-                        className='w-4 h-4 text-primary mt-0.5 sm:mt-0 flex-shrink-0'
-                      />
-                      <div className='flex items-center gap-2 flex-shrink-0'>
-                        {role === 'admin' ? (
-                          <Shield className='w-4 h-4 text-blue-500' />
-                        ) : (
-                          <User className='w-4 h-4 text-gray-500' />
-                        )}
-                        <span className='font-medium text-foreground text-sm sm:text-base'>
-                          {role === 'admin' ? 'Admin' : 'Member'}
-                        </span>
-                      </div>
-                      <div className='text-xs text-muted-foreground mt-1 sm:mt-0 sm:ml-auto'>
+              <div className='space-y-2'>
+                {(['admin', 'member'] as const).map((role) => (
+                  <label
+                    key={role}
+                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                      newRole === role
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border/50 hover:bg-muted/40'
+                    }`}
+                  >
+                    <input
+                      type='radio'
+                      name='role'
+                      value={role}
+                      checked={newRole === role}
+                      onChange={(e) =>
+                        setNewRole(e.target.value as 'admin' | 'member')
+                      }
+                      className='w-4 h-4 text-primary flex-shrink-0'
+                    />
+                    {role === 'admin' ? (
+                      <Shield className='w-4 h-4 text-accent flex-shrink-0' />
+                    ) : (
+                      <User className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+                    )}
+                    <div className='min-w-0 flex-1'>
+                      <span className='font-medium text-foreground text-sm block'>
+                        {role === 'admin' ? 'Admin' : 'Member'}
+                      </span>
+                      <span className='text-xs text-muted-foreground'>
                         {role === 'admin'
                           ? 'Can manage members and boards'
                           : 'Can view and edit boards'}
-                      </div>
-                    </label>
-                  ))}
-                </div>
+                      </span>
+                    </div>
+                  </label>
+                ))}
               </div>
 
               {/* Warning if changing to admin */}
               {newRole === 'admin' && memberToChangeRole.role === 'member' && (
-                <div className='bg-blue-50 border border-blue-200 rounded-xl p-3 sm:p-4 dark:bg-blue-900/20 dark:border-blue-800'>
-                  <div className='flex items-start gap-2 sm:gap-3'>
-                    <Shield className='w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5' />
-                    <div className='text-xs sm:text-sm'>
-                      <p className='font-medium text-blue-800 dark:text-blue-200 mb-1'>
-                        Promoting to Admin
-                      </p>
-                      <p className='text-blue-700 dark:text-blue-300'>
-                        This user will be able to add/remove members and manage
-                        workspace settings.
-                      </p>
-                    </div>
-                  </div>
+                <div className='flex items-start gap-2.5 p-3 bg-accent/10 border border-accent/30 rounded-lg'>
+                  <Shield className='w-4 h-4 text-accent flex-shrink-0 mt-0.5' />
+                  <p className='text-xs text-muted-foreground'>
+                    This user will be able to add/remove members and manage
+                    workspace settings.
+                  </p>
                 </div>
               )}
             </div>
 
             {/* Footer */}
-            <div className='bg-gradient-to-r from-muted/20 to-transparent p-4 sm:p-6 border-t border-border/50'>
-              <div className='flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3'>
-                <button
-                  onClick={() => {
-                    setShowChangeRoleModal(false);
-                    setMemberToChangeRole(null);
-                  }}
-                  disabled={isChangingRole}
-                  className='w-full sm:w-auto px-4 sm:px-6 py-3 sm:py-2.5 text-muted-foreground hover:text-foreground active:text-foreground transition-colors font-medium disabled:opacity-50 touch-manipulation'
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleChangeRole}
-                  disabled={
-                    isChangingRole || newRole === memberToChangeRole.role
-                  }
-                  className={`w-full sm:w-auto px-4 sm:px-6 py-3 sm:py-2.5 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground font-medium rounded-lg flex items-center justify-center gap-2 transition-all duration-200 touch-manipulation ${
-                    isChangingRole || newRole === memberToChangeRole.role
-                      ? 'opacity-50 cursor-not-allowed'
-                      : 'hover:from-primary/90 hover:to-primary hover:shadow-lg hover:shadow-primary/25 active:scale-[0.98]'
-                  }`}
-                >
-                  {isChangingRole ? (
-                    <>
-                      <Loader2 className='w-4 h-4 animate-spin' />
-                      <span>Changing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Shield className='w-4 h-4' />
-                      <span>Change Role</span>
-                    </>
-                  )}
-                </button>
-              </div>
+            <div className='flex justify-end gap-2 p-5 pt-0'>
+              <button
+                onClick={() => {
+                  setShowChangeRoleModal(false);
+                  setMemberToChangeRole(null);
+                }}
+                disabled={isChangingRole}
+                className='btn btn-ghost px-4 py-2'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleChangeRole}
+                disabled={
+                  isChangingRole || newRole === memberToChangeRole.role
+                }
+                className='btn btn-primary px-4 py-2 flex items-center gap-2'
+              >
+                {isChangingRole ? (
+                  <>
+                    <Loader2 className='w-4 h-4 animate-spin' />
+                    Changing...
+                  </>
+                ) : (
+                  <>
+                    <Shield className='w-4 h-4' />
+                    Change role
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -839,13 +759,11 @@ export default function WorkspaceMembersPage() {
               : 'animate-in slide-in-from-bottom-2 fade-in opacity-100 scale-100'
           }`}
         >
-          <div className='bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 shadow-2xl max-w-sm backdrop-blur-sm'>
+          <div className='bg-card/95 backdrop-blur-xl border border-success/30 rounded-lg p-4 shadow-2xl max-w-sm'>
             <div className='flex items-center gap-3'>
-              <div className='flex-shrink-0'>
-                <CheckCircle2 className='w-5 h-5 text-green-600 dark:text-green-400' />
-              </div>
+              <CheckCircle2 className='w-5 h-5 text-success flex-shrink-0' />
               <div className='flex-1'>
-                <p className='text-sm font-medium text-green-800 dark:text-green-200'>
+                <p className='text-sm font-medium text-foreground'>
                   {successMessage}
                 </p>
               </div>
@@ -857,7 +775,7 @@ export default function WorkspaceMembersPage() {
                     setIsSuccessToastFading(false);
                   }, 300);
                 }}
-                className='flex-shrink-0 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 transition-colors'
+                className='flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors'
                 aria-label='Close success notification'
               >
                 <X className='w-4 h-4' />
@@ -876,13 +794,11 @@ export default function WorkspaceMembersPage() {
               : 'animate-in slide-in-from-bottom-2 fade-in opacity-100 scale-100'
           }`}
         >
-          <div className='bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 shadow-2xl max-w-sm backdrop-blur-sm'>
+          <div className='bg-card/95 backdrop-blur-xl border border-destructive/30 rounded-lg p-4 shadow-2xl max-w-sm'>
             <div className='flex items-center gap-3'>
-              <div className='flex-shrink-0'>
-                <AlertCircle className='w-5 h-5 text-red-600 dark:text-red-400' />
-              </div>
+              <AlertCircle className='w-5 h-5 text-destructive flex-shrink-0' />
               <div className='flex-1'>
-                <p className='text-sm font-medium text-red-800 dark:text-red-200'>
+                <p className='text-sm font-medium text-foreground'>
                   {errorMessage}
                 </p>
               </div>
@@ -894,7 +810,7 @@ export default function WorkspaceMembersPage() {
                     setIsErrorToastFading(false);
                   }, 300);
                 }}
-                className='flex-shrink-0 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors'
+                className='flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors'
                 aria-label='Close error notification'
               >
                 <X className='w-4 h-4' />
@@ -907,9 +823,9 @@ export default function WorkspaceMembersPage() {
       {/* Global Loading Overlay for Critical Actions */}
       {(isRemovingMember || isChangingRole) && (
         <div className='fixed inset-0 bg-black/10 backdrop-blur-sm z-[90] flex items-center justify-center'>
-          <div className='bg-background/90 backdrop-blur border border-border rounded-lg p-6 shadow-xl'>
+          <div className='bg-card/95 backdrop-blur-xl border border-border rounded-lg p-6 shadow-2xl'>
             <div className='flex items-center gap-4'>
-              <Loader2 className='w-8 h-8 animate-spin' />
+              <Loader2 className='w-8 h-8 animate-spin text-primary' />
               <div>
                 <p className='font-medium text-foreground'>
                   {isRemovingMember ? 'Removing member...' : 'Changing role...'}

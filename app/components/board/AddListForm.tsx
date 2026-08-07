@@ -69,7 +69,7 @@ export function AddListForm({ onCreateList, isCreating }: AddListFormProps) {
 
   return (
     <div className='flex-shrink-0 w-80'>
-      <div className='bg-card rounded-xl p-3 shadow-lg border border-border'>
+      <div className='bg-card/90 backdrop-blur-xl rounded-xl p-3 shadow-lg border border-border animate-in fade-in-0 slide-in-from-top-1 duration-150'>
         <form onSubmit={handleSubmit} className='space-y-3'>
           <div>
             <input

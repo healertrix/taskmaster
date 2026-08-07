@@ -67,7 +67,6 @@ export function Checklist({
   const [deletingItemIds, setDeletingItemIds] = useState<Set<string>>(
     new Set()
   );
-  const [isDeletingChecklist, setIsDeletingChecklist] = useState(false);
 
   // New state for tracking saving items
   const [savingItemIds, setSavingItemIds] = useState<Set<string>>(new Set());
@@ -246,13 +245,12 @@ export function Checklist({
     });
   };
 
-  const handleDeleteChecklist = async () => {
-    setIsDeletingChecklist(true);
-    const success = await onDeleteChecklist(checklist.id);
-    if (success) {
-      setShowDeleteConfirm(false);
-    }
-    setIsDeletingChecklist(false);
+  const handleDeleteChecklist = () => {
+    // The checklist is removed from the board optimistically as soon as
+    // this fires, so there's nothing to wait on here — close immediately
+    // rather than blocking the confirm dialog on the round-trip.
+    setShowDeleteConfirm(false);
+    onDeleteChecklist(checklist.id);
   };
 
   return (
@@ -368,9 +366,9 @@ export function Checklist({
               key={item.id}
               className={`flex items-center gap-3 p-2 rounded-lg border transition-all duration-200 ${
                 isDeleting
-                  ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800 opacity-50'
+                  ? 'bg-destructive/10 border-destructive/20 opacity-50'
                   : item.completed
-                  ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
+                  ? 'bg-success/10 border-success/20'
                   : 'bg-background border-border hover:bg-muted/50'
               }`}
               onMouseEnter={() =>
@@ -556,11 +554,11 @@ export function Checklist({
       {/* Enhanced Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className='fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4'>
-          <div className='bg-card rounded-xl shadow-2xl border border-border max-w-md w-full'>
+          <div className='bg-card/90 backdrop-blur-xl rounded-xl shadow-2xl border border-border max-w-md w-full animate-in fade-in-50 zoom-in-95 duration-200'>
             <div className='p-6'>
               <div className='flex items-center gap-3 mb-4'>
-                <div className='w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center'>
-                  <Trash2 className='w-5 h-5 text-red-600 dark:text-red-400' />
+                <div className='w-10 h-10 bg-destructive/15 rounded-full flex items-center justify-center'>
+                  <Trash2 className='w-5 h-5 text-destructive' />
                 </div>
                 <div>
                   <h3 className='text-lg font-semibold text-foreground'>
@@ -582,27 +580,16 @@ export function Checklist({
               <div className='flex gap-3 justify-end'>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className='px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors'
-                  disabled={isDeletingChecklist}
+                  className='px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border border-border hover:border-primary/50 rounded-md transition-colors'
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDeleteChecklist}
-                  disabled={isDeletingChecklist}
-                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors'
+                  className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-destructive-foreground bg-destructive hover:bg-destructive/90 rounded-md transition-colors'
                 >
-                  {isDeletingChecklist ? (
-                    <>
-                      <Loader2 className='w-4 h-4 animate-spin' />
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className='w-4 h-4' />
-                      Delete Checklist
-                    </>
-                  )}
+                  <Trash2 className='w-4 h-4' />
+                  Delete Checklist
                 </button>
               </div>
             </div>

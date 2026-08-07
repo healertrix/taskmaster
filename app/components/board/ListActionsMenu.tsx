@@ -1,80 +1,71 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreHorizontal, X, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Trash2 } from 'lucide-react';
 
 interface ListActionsMenuProps {
   listId: string;
   listName: string;
+  cardCount?: number;
   onDeleteList?: (listId: string) => Promise<boolean>;
 }
+
+// Approximate on-screen sizes, kept in sync with the menu markup below —
+// used to keep the menu on-screen and avoid overlapping the button.
+const MENU_WIDTH = 176; // w-44
+const MENU_HEIGHT = 44; // single row
+const CONFIRM_HEIGHT = 108; // confirm copy + actions row
 
 export function ListActionsMenu({
   listId,
   listName,
+  cardCount = 0,
   onDeleteList,
 }: ListActionsMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({
-    top: 0,
-    left: 0,
-    position: 'right' as 'right' | 'left' | 'bottom',
-  });
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // Calculate optimal menu position based on available space
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const button = buttonRef.current;
-      const buttonRect = button.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      const menuWidth = 256; // w-64 = 16rem = 256px
-      const menuHeight = 120; // Approximate menu height
+  // Shared position math, used both synchronously on open (see the button's
+  // onClick below) and by the layout effect as a fallback.
+  const computeMenuPosition = (confirmView: boolean) => {
+    if (!buttonRef.current) return null;
+    const buttonRect = buttonRef.current.getBoundingClientRect();
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
 
-      const spaceOnRight = viewportWidth - buttonRect.right;
-      const spaceOnLeft = buttonRect.left;
-      const spaceBelow = viewportHeight - buttonRect.bottom;
+    let top = buttonRect.bottom + 4;
+    let left = buttonRect.left;
 
-      let position: 'right' | 'left' | 'bottom' = 'right';
-      let top = buttonRect.top;
-      let left = buttonRect.right + 4; // 4px spacing
-
-      // Try right first (preferred)
-      if (spaceOnRight >= menuWidth + 20) {
-        position = 'right';
-        left = buttonRect.right + 4;
-        top = buttonRect.top;
-      }
-      // Try left if not enough space on right
-      else if (spaceOnLeft >= menuWidth + 20) {
-        position = 'left';
-        left = buttonRect.left - menuWidth - 4;
-        top = buttonRect.top;
-      }
-      // Fall back to bottom if neither side has enough space
-      else {
-        position = 'bottom';
-        left = Math.max(8, buttonRect.right - menuWidth); // Ensure 8px from left edge
-        top = buttonRect.bottom + 4;
-
-        // If menu would go below viewport, position it above the button
-        if (top + menuHeight > viewportHeight) {
-          top = buttonRect.top - menuHeight - 4;
-        }
-      }
-
-      // Ensure menu doesn't go off screen
-      left = Math.max(8, Math.min(left, viewportWidth - menuWidth - 8));
-      top = Math.max(8, Math.min(top, viewportHeight - menuHeight - 8));
-
-      setMenuPosition({ top, left, position });
+    if (left + MENU_WIDTH > viewport.width) {
+      left = buttonRect.right - MENU_WIDTH;
     }
-  }, [isOpen]);
+
+    const menuHeight = confirmView ? CONFIRM_HEIGHT : MENU_HEIGHT;
+    if (top + menuHeight > viewport.height) {
+      top = buttonRect.top - menuHeight - 4;
+    }
+
+    top = Math.max(8, Math.min(top, viewport.height - menuHeight - 8));
+    left = Math.max(8, Math.min(left, viewport.width - MENU_WIDTH - 8));
+
+    return { top, left };
+  };
+
+  // Fallback reposition (e.g. viewport resize while open, or the
+  // confirm view changing the menu's height). The *initial* open is
+  // positioned synchronously in the button's onClick instead of relying on
+  // this effect — waiting for even a useLayoutEffect meant the menu's
+  // first painted frame could still be the stale {top:0, left:0} default
+  // (top-left corner), then it snapped to the real spot: a visible "flies
+  // in from the corner" glitch on first open.
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const position = computeMenuPosition(showDeleteConfirm);
+    if (position) setMenuPosition(position);
+  }, [isOpen, showDeleteConfirm]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -115,17 +106,26 @@ export function ListActionsMenu({
     }
   }, [isOpen, showDeleteConfirm]);
 
-  const handleDelete = async () => {
-    if (isDeleting || !onDeleteList) return;
+  const handleDelete = () => {
+    if (!onDeleteList) return;
 
-    setIsDeleting(true);
-    const success = await onDeleteList(listId);
-    setIsDeleting(false);
+    // onDeleteList removes the list from the board optimistically, so
+    // there's nothing to wait on here — close immediately rather than
+    // blocking this menu on the round-trip. Failure is surfaced via the
+    // board's toast notification, which also restores the list.
+    setIsOpen(false);
+    setShowDeleteConfirm(false);
+    onDeleteList(listId);
+  };
 
-    if (success) {
-      setIsOpen(false);
-      setShowDeleteConfirm(false);
+  const handleButtonClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isOpen) {
+      const position = computeMenuPosition(false);
+      if (position) setMenuPosition(position);
     }
+    setIsOpen(!isOpen);
   };
 
   const menuContent = (
@@ -139,96 +139,52 @@ export function ListActionsMenu({
         }}
       />
 
-      {/* Menu */}
+      {/* Menu — only one action exists (delete), so this stays a single
+          compact row rather than a full header+icon-square treatment. */}
       <div
         ref={menuRef}
-        className='fixed w-64 bg-card/95 backdrop-blur-lg border border-border/50 rounded-xl shadow-2xl z-[10001] py-3 overflow-hidden'
+        className='fixed w-44 bg-card/95 backdrop-blur-lg border border-border/50 rounded-lg shadow-xl z-[10001] overflow-hidden'
         style={{
           top: `${menuPosition.top}px`,
           left: `${menuPosition.left}px`,
         }}
       >
         {!showDeleteConfirm ? (
-          <>
-            {/* Header with gradient */}
-            <div className='flex items-center justify-between px-5 py-3 bg-gradient-to-r from-secondary/10 to-accent/10 border-b border-border/30'>
-              <span className='text-sm font-semibold text-foreground flex items-center gap-2'>
-                <div className='w-2 h-2 bg-secondary rounded-full'></div>
-                List actions
-              </span>
+          <div className='py-1'>
+            {onDeleteList && (
               <button
-                onClick={() => setIsOpen(false)}
-                className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-all duration-200'
-                title='Close menu'
+                onClick={() => setShowDeleteConfirm(true)}
+                className='w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors flex items-center gap-2'
               >
-                <X className='w-4 h-4' />
+                <Trash2 className='w-3.5 h-3.5' />
+                Delete list
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className='p-3'>
+            <p className='text-xs text-foreground mb-3'>
+              Delete "{listName}"
+              {cardCount > 0
+                ? ` and ${cardCount} card${cardCount === 1 ? '' : 's'}`
+                : ''}
+              ? This can't be undone.
+            </p>
+            <div className='flex gap-2 justify-end'>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className='px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className='px-2.5 py-1.5 bg-destructive hover:bg-destructive/90 text-destructive-foreground text-xs font-medium rounded-md transition-colors'
+              >
+                Delete
               </button>
             </div>
-
-            {/* Actions */}
-            <div className='py-2'>
-              {onDeleteList && (
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className='w-full px-5 py-3 text-left text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all duration-200 flex items-center gap-3 group'
-                >
-                  <div className='w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center group-hover:bg-red-500/20 transition-colors'>
-                    <Trash2 className='w-4 h-4 text-red-400 group-hover:text-red-300' />
-                  </div>
-                  <span className='font-medium'>Delete this list</span>
-                </button>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Delete Confirmation */}
-            <div className='px-5 py-4'>
-              <div className='flex items-center gap-3 mb-4'>
-                <div className='w-10 h-10 bg-red-500/15 rounded-full flex items-center justify-center'>
-                  <Trash2 className='w-5 h-5 text-red-400' />
-                </div>
-                <div>
-                  <h3 className='text-sm font-semibold text-foreground'>
-                    Delete "{listName}"?
-                  </h3>
-                  <p className='text-xs text-red-300/80'>
-                    This action cannot be undone
-                  </p>
-                </div>
-              </div>
-              <p className='text-xs text-muted-foreground mb-6'>
-                This action will permanently delete the list and all its cards.
-                This cannot be undone.
-              </p>
-              <div className='flex gap-3'>
-                <button
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  className='flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground text-sm font-semibold py-2.5 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm hover:shadow-md'
-                >
-                  {isDeleting ? (
-                    <>
-                      <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className='w-4 h-4' />
-                      Delete
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  disabled={isDeleting}
-                  className='flex-1 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-semibold py-2.5 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 shadow-sm hover:shadow-md'
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </>
+          </div>
         )}
       </div>
     </>
@@ -238,8 +194,8 @@ export function ListActionsMenu({
     <div className='relative z-20'>
       <button
         ref={buttonRef}
-        onClick={() => setIsOpen(!isOpen)}
-        className='p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors relative z-20'
+        onClick={handleButtonClick}
+        className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors relative z-20'
         aria-label='List actions'
         title='List actions'
       >

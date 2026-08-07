@@ -7,9 +7,6 @@ export const useBoardStore = (boardId: string) => {
   const {
     setBoardListsCache,
     getBoardListsCache,
-    updateCardLabelsInCache,
-    updateCardMembersInCache,
-    updateCardInCache,
     addCardToListInCache,
     removeCardFromCache,
     setBoardLabelsCache,
@@ -107,47 +104,36 @@ export const useBoardStore = (boardId: string) => {
     return getBoardListsCache(boardId) || lists;
   }, [getBoardListsCache, boardId, lists]);
 
-  // Update card labels in real-time
+  // Update card labels — goes through useLists' own setLists so `lists`
+  // (this hook instance's source of truth) stays correct. The sync effect
+  // above then mirrors the change into the shared cache automatically.
+  // Writing directly to the cache here (the old behavior) let edits get
+  // silently discarded the next time `lists` changed for any other reason,
+  // since the sync effect would overwrite the cache with the stale `lists`
+  // snapshot that never had this edit applied.
   const updateCardLabels = useCallback(
     (cardId: string, labels: any[]) => {
-      updateCardLabelsInCache(boardId, cardId, labels);
+      listsActions.updateCard(cardId, { card_labels: labels });
     },
-    [updateCardLabelsInCache, boardId]
+    [listsActions]
   );
 
-  // Update card members in real-time
+  // Update card members — same reasoning as updateCardLabels above.
   const updateCardMembers = useCallback(
     (cardId: string, members: any[]) => {
-      // Immediately update the cache
-      updateCardMembersInCache(boardId, cardId, members);
-
-      // Find and update the card in lists
-      const allLists = getCachedLists();
-      const updatedLists = allLists.map((list) => ({
-        ...list,
-        cards: list.cards.map((card: any) => {
-          if (card.id === cardId) {
-            return {
-              ...card,
-              card_members: members,
-            };
-          }
-          return card;
-        }),
-      }));
-
-      // Update lists in cache
-      setBoardListsCache(boardId, updatedLists);
+      listsActions.updateCard(cardId, { card_members: members });
     },
-    [updateCardMembersInCache, boardId, getCachedLists, setBoardListsCache]
+    [listsActions]
   );
 
-  // Update any card property in real-time
+  // Update any card property — same reasoning as updateCardLabels above.
+  // (This also fixes a bug where this cache-only version, spread later in
+  // the return object below, silently shadowed the correct listsActions.updateCard.)
   const updateCard = useCallback(
     (cardId: string, updates: any) => {
-      updateCardInCache(boardId, cardId, updates);
+      listsActions.updateCard(cardId, updates);
     },
-    [updateCardInCache, boardId]
+    [listsActions]
   );
 
   // Add card to list in real-time
