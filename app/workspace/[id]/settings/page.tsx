@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { DashboardHeader } from '../../../components/dashboard/header';
 import { createClient } from '@/utils/supabase/client';
@@ -20,13 +20,13 @@ import {
   ChevronDown,
   X,
   Loader2,
-  Palette,
   Check,
   CheckCircle2,
   FileText,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useWorkspaceSettings } from '@/hooks/useWorkspaceSettings';
+import { colorForKey } from '@/utils/idColor';
 
 // Guards against a save spinner hanging forever if the underlying request
 // genuinely stalls (dropped connection, dev-server recompile mid-request,
@@ -41,15 +41,6 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<T> {
     ),
   ]);
 }
-
-// Predefined workspace colors matching the create workspace modal
-const workspaceColors = [
-  { name: 'Blue', value: 'bg-blue-600' },
-  { name: 'Purple', value: 'bg-purple-600' },
-  { name: 'Green', value: 'bg-green-600' },
-  { name: 'Red', value: 'bg-red-600' },
-  { name: 'Yellow', value: 'bg-yellow-600' },
-];
 
 export default function WorkspaceSettingsPage() {
   const params = useParams();
@@ -98,26 +89,12 @@ export default function WorkspaceSettingsPage() {
 
   // Workspace edit form state
   const [editWorkspaceName, setEditWorkspaceName] = useState('');
-  const [editWorkspaceColor, setEditWorkspaceColor] = useState('');
-  const [selectedColor, setSelectedColor] = useState('');
-  const [customColor, setCustomColor] = useState('#3B82F6');
-  const [editField, setEditField] = useState<'name' | 'color' | null>(null);
-  const colorPickerRef = useRef<HTMLInputElement>(null);
+  const [editField, setEditField] = useState<'name' | null>(null);
 
   // Initialize edit form when workspace data is available
   useEffect(() => {
     if (workspace) {
       setEditWorkspaceName(workspace.name);
-      setEditWorkspaceColor(workspace.color);
-
-      const isCustomColor =
-        workspace.color?.startsWith('#') || workspace.color?.startsWith('rgb');
-      if (isCustomColor) {
-        setSelectedColor('custom');
-        setCustomColor(workspace.color);
-      } else {
-        setSelectedColor(workspace.color || 'bg-blue-600');
-      }
     }
   }, [workspace]);
 
@@ -132,7 +109,6 @@ export default function WorkspaceSettingsPage() {
         setShowWorkspaceEditModal(false);
         setEditField(null);
         setEditWorkspaceName(workspace?.name || '');
-        setEditWorkspaceColor(workspace?.color || '');
       } else if (showMembershipModal) {
         setShowMembershipModal(false);
       } else if (showCreationModal) {
@@ -179,7 +155,6 @@ export default function WorkspaceSettingsPage() {
           setShowWorkspaceEditModal(false);
           setEditField(null);
           setEditWorkspaceName(workspace?.name || '');
-          setEditWorkspaceColor(workspace?.color || '');
         } else if (showMembershipModal) {
           setShowMembershipModal(false);
         } else if (showCreationModal) {
@@ -247,22 +222,6 @@ export default function WorkspaceSettingsPage() {
     }, 4500);
   };
 
-  // Function to check if color is a hex code or tailwind class
-  const getColorDisplay = (color: string) => {
-    if (color?.startsWith('#') || color?.startsWith('rgb')) {
-      return {
-        isCustom: true,
-        style: { backgroundColor: color },
-        className: '',
-      };
-    }
-    return {
-      isCustom: false,
-      style: {},
-      className: color || 'bg-blue-600',
-    };
-  };
-
   // Function to update workspace settings
   const updateWorkspaceSetting = async (
     settingType: keyof WorkspaceSettings,
@@ -315,26 +274,17 @@ export default function WorkspaceSettingsPage() {
     }
   };
 
-  // Function to update workspace details (name and color)
+  // Function to update workspace details (currently just the name — color
+  // is no longer user-editable, see the read-only "Workspace color" row
+  // below, derived from the workspace's own id via utils/idColor.ts)
   const updateWorkspaceDetails = async () => {
     if (!canManageSettings) return;
-
-    // Validate based on edit field
-    if (editField === 'name' && !editWorkspaceName.trim()) return;
+    if (!editWorkspaceName.trim()) return;
 
     setIsUpdating(true);
     try {
       const supabase = createClient();
-
-      let updateData: any = {};
-
-      if (editField === 'name') {
-        updateData.name = editWorkspaceName.trim();
-      } else if (editField === 'color') {
-        const colorValue =
-          selectedColor === 'custom' ? customColor : selectedColor;
-        updateData.color = colorValue;
-      }
+      const updateData = { name: editWorkspaceName.trim() };
 
       const { error } = await withTimeout(
         supabase.from('workspaces').update(updateData).eq('id', workspaceId),
@@ -344,42 +294,19 @@ export default function WorkspaceSettingsPage() {
       if (error) throw error;
 
       // Updates both this hook's rendered state and the cache — see the
-      // comment on updateWorkspaceLocal in useWorkspaceSettings.ts. This is
-      // the fix for "board color changes but the settings page itself
-      // doesn't show it until a refresh" — the old call only ever wrote to
-      // the cache, never to the state actually being rendered here.
+      // comment on updateWorkspaceLocal in useWorkspaceSettings.ts.
       updateWorkspaceLocal(updateData);
 
       setShowWorkspaceEditModal(false);
       setEditField(null);
 
-      // Show success message based on what was updated
-      const updateType = editField === 'name' ? 'name' : 'color';
-      showSuccess(`Workspace ${updateType} updated successfully`);
+      showSuccess('Workspace name updated successfully');
     } catch (error) {
       console.error('Error updating workspace details:', error);
       showError('Failed to update workspace details');
     } finally {
       setIsUpdating(false);
     }
-  };
-
-  // Handle custom color selection
-  const handleCustomColorClick = () => {
-    if (colorPickerRef.current) {
-      colorPickerRef.current.click();
-    }
-  };
-
-  const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCustomColor(e.target.value);
-    setSelectedColor('custom');
-    setEditWorkspaceColor(e.target.value);
-  };
-
-  const handleColorSelection = (color: string) => {
-    setSelectedColor(color);
-    setEditWorkspaceColor(color);
   };
 
   // Function to update board creation restriction
@@ -700,59 +627,29 @@ export default function WorkspaceSettingsPage() {
                 )}
               </button>
 
-              {/* Workspace Color */}
-              <button
-                onClick={
-                  canManageSettings
-                    ? () => {
-                        setEditField('color');
-                        setEditWorkspaceColor(workspace?.color || '');
-                        const isCustomColor =
-                          workspace?.color?.startsWith('#') ||
-                          workspace?.color?.startsWith('rgb');
-                        if (isCustomColor) {
-                          setSelectedColor('custom');
-                          setCustomColor(workspace?.color || '#3B82F6');
-                        } else {
-                          setSelectedColor(workspace?.color || 'bg-blue-600');
-                        }
-                        setShowWorkspaceEditModal(true);
-                      }
-                    : undefined
-                }
-                className={`w-full flex items-center justify-between p-3 rounded-lg border border-border/50 transition-colors text-left ${
-                  canManageSettings
-                    ? 'hover:bg-muted/40 cursor-pointer'
-                    : 'cursor-default'
-                }`}
-                disabled={!canManageSettings}
-              >
+              {/* Workspace Color — read-only, derived from the workspace's
+                  own id (see utils/idColor.ts). Not a button: there's
+                  nothing to edit here anymore. */}
+              <div className='w-full flex items-center justify-between p-3 rounded-lg border border-border/50'>
                 <div className='flex items-center gap-3'>
                   <div
-                    className={`w-8 h-8 rounded-full flex-shrink-0 ${
-                      getColorDisplay(workspace?.color || '').isCustom
-                        ? ''
-                        : getColorDisplay(workspace?.color || '').className
-                    }`}
-                    style={
-                      getColorDisplay(workspace?.color || '').isCustom
-                        ? getColorDisplay(workspace?.color || '').style
-                        : {}
-                    }
+                    className='w-8 h-8 rounded-full flex-shrink-0'
+                    style={{
+                      backgroundColor: workspace
+                        ? colorForKey(workspace.id)
+                        : '#3B82F6',
+                    }}
                   />
                   <div>
                     <div className='font-medium text-foreground text-sm'>
-                      {workspace?.color}
+                      Assigned automatically
                     </div>
                     <div className='text-xs text-muted-foreground'>
                       Workspace color
                     </div>
                   </div>
                 </div>
-                {canManageSettings && (
-                  <ChevronRight className='w-4 h-4 text-muted-foreground flex-shrink-0' />
-                )}
-              </button>
+              </div>
             </div>
           </div>
 
@@ -940,16 +837,13 @@ export default function WorkspaceSettingsPage() {
           <div className='bg-card/90 backdrop-blur-xl rounded-xl shadow-2xl max-w-md w-full p-5 border border-border animate-in fade-in-50 zoom-in-95 duration-200'>
             <div className='flex justify-between items-center mb-4'>
               <h3 className='text-lg font-bold text-foreground'>
-                {editField === 'name'
-                  ? 'Edit workspace name'
-                  : 'Edit workspace color'}
+                Edit workspace name
               </h3>
               <button
                 onClick={() => {
                   setShowWorkspaceEditModal(false);
                   setEditField(null);
                   setEditWorkspaceName(workspace?.name || '');
-                  setEditWorkspaceColor(workspace?.color || '');
                 }}
                 className='text-muted-foreground hover:text-foreground transition-colors'
                 aria-label='Close modal'
@@ -981,81 +875,6 @@ export default function WorkspaceSettingsPage() {
                 </div>
               )}
 
-              {editField === 'color' && (
-                <div>
-                  <label className='block text-sm font-medium text-foreground mb-2'>
-                    Workspace color
-                  </label>
-                  <div className='flex flex-wrap gap-2'>
-                    {workspaceColors.map((color) => (
-                      <button
-                        key={color.value}
-                        type='button'
-                        onClick={() => handleColorSelection(color.value)}
-                        className={`w-8 h-8 rounded-full ${
-                          color.value
-                        } flex items-center justify-center transition-all ${
-                          selectedColor === color.value
-                            ? 'ring-2 ring-ring ring-offset-2 ring-offset-background'
-                            : 'hover:ring-1 hover:ring-ring hover:ring-offset-1 hover:ring-offset-background'
-                        }`}
-                        title={color.name}
-                        aria-label={`Select ${color.name} color`}
-                        disabled={isUpdating}
-                      >
-                        {selectedColor === color.value && (
-                          <Check className='w-3.5 h-3.5 text-white' />
-                        )}
-                      </button>
-                    ))}
-
-                    <button
-                      type='button'
-                      onClick={handleCustomColorClick}
-                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all border-2 border-dashed ${
-                        selectedColor === 'custom'
-                          ? 'ring-2 ring-ring ring-offset-2 ring-offset-background'
-                          : 'hover:border-primary border-border'
-                      }`}
-                      style={
-                        selectedColor === 'custom'
-                          ? { backgroundColor: customColor }
-                          : {}
-                      }
-                      title='Choose custom color'
-                      aria-label='Choose custom color'
-                      disabled={isUpdating}
-                    >
-                      {selectedColor !== 'custom' ? (
-                        <Palette className='w-4 h-4 text-muted-foreground' />
-                      ) : (
-                        <Check className='w-3.5 h-3.5 text-white' />
-                      )}
-                      <input
-                        ref={colorPickerRef}
-                        type='color'
-                        value={customColor}
-                        onChange={handleColorChange}
-                        className='sr-only'
-                        aria-label='Choose custom color'
-                      />
-                    </button>
-                  </div>
-
-                  {selectedColor === 'custom' && (
-                    <div className='mt-2 p-2 border border-border rounded-md bg-muted/30 flex items-center'>
-                      <div
-                        className='w-5 h-5 rounded mr-2 border border-border/50'
-                        style={{ backgroundColor: customColor }}
-                      ></div>
-                      <span className='text-sm font-medium'>{customColor}</span>
-                      <span className='ml-auto text-xs text-muted-foreground'>
-                        Custom color
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             <div className='flex justify-end gap-2 mt-6'>
@@ -1065,7 +884,6 @@ export default function WorkspaceSettingsPage() {
                   setShowWorkspaceEditModal(false);
                   setEditField(null);
                   setEditWorkspaceName(workspace?.name || '');
-                  setEditWorkspaceColor(workspace?.color || '');
                 }}
                 className='btn btn-ghost px-4 py-2'
                 disabled={isUpdating}

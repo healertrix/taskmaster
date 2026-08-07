@@ -1,7 +1,9 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
-// GET /api/search/boards - Search boards by name
+// GET /api/search/boards - Search boards by name, or by their shareable
+// number ("3" or "#3" — boards are numbered per workspace, see the
+// migration in supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql)
 export async function GET(request: NextRequest) {
   try {
     const supabase = createClient();
@@ -9,7 +11,11 @@ export async function GET(request: NextRequest) {
     const query = searchParams.get('q');
     const limit = parseInt(searchParams.get('limit') || '10');
 
-    if (!query || query.length < 2) {
+    const numberMatch = query?.match(/^#?(\d+)$/);
+    const boardNumber = numberMatch ? parseInt(numberMatch[1], 10) : null;
+
+    // A pure number is a complete search on its own even at 1 character.
+    if (!query || (query.length < 2 && boardNumber == null)) {
       return NextResponse.json(
         { error: 'Search query must be at least 2 characters' },
         { status: 400 }
@@ -28,13 +34,14 @@ export async function GET(request: NextRequest) {
 
     const userId = user.id;
 
-    // Search boards by name
-    const { data: boards, error: searchError } = await supabase
-      .from('boards')
-      .select(
-        `
+    // Search boards by name, or by number if the query looks like one
+    // (bare `number` column aliased to board_number — see the same
+    // supabase-js type-parser note in app/api/search/cards/route.ts).
+    let boardsQuery = supabase.from('boards').select(
+      `
         id,
         name,
+        board_number:number,
         color,
         updated_at,
         last_activity_at,
@@ -46,8 +53,14 @@ export async function GET(request: NextRequest) {
           id
         )
       `
-      )
-      .ilike('name', `%${query}%`)
+    );
+
+    boardsQuery =
+      boardNumber != null
+        ? boardsQuery.or(`name.ilike.%${query}%,number.eq.${boardNumber}`)
+        : boardsQuery.ilike('name', `%${query}%`);
+
+    const { data: boards, error: searchError } = await boardsQuery
       .eq('is_archived', false)
       .eq('is_closed', false)
       .order('last_activity_at', { ascending: false })
@@ -64,7 +77,7 @@ export async function GET(request: NextRequest) {
     // Filter boards by user access permissions
     const accessibleBoards = [];
 
-    for (const board of boards || []) {
+    for (const board of (boards || []) as any[]) {
       // Check if user has access to this board
       const { data: hasAccess } = await supabase.rpc('check_board_access', {
         board_id: board.id,
@@ -75,6 +88,7 @@ export async function GET(request: NextRequest) {
         accessibleBoards.push({
           id: board.id,
           name: board.name,
+          number: board.board_number,
           color: board.color,
           workspace: board.workspaces.name,
           workspaceId: board.workspaces.id,

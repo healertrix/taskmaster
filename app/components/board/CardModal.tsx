@@ -67,10 +67,14 @@ import {
 import { useMobile } from '@/hooks/useMobile';
 import { useAppStore, cacheUtils } from '@/lib/stores/useAppStore';
 import { MoveCardModal } from './MoveCardModal';
+import { colorForNumber } from '@/utils/idColor';
 
 interface Card {
   id: string;
   title: string;
+  // Shareable display number, scoped per board — see the migration in
+  // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql.
+  number?: number;
   description?: string;
   position: number;
   created_at: string;
@@ -173,6 +177,10 @@ interface CardModalProps {
   onMembersUpdated?: (memberId?: string, memberData?: any) => void;
   listName?: string;
   boardName?: string;
+  // The board's own display number — see the matching comment on
+  // ColumnContainerProps.boardNumber for why this is needed to make the
+  // card's own #N-M badge unambiguous.
+  boardNumber?: number;
   onMoveSuccess?: (newListId: string, newListName: string) => void;
   moveCard?: (
     cardId: string,
@@ -261,6 +269,7 @@ export function CardModal({
   onMembersUpdated,
   listName = 'List',
   boardName = 'Board',
+  boardNumber,
   onMoveSuccess,
   moveCard,
   lists,
@@ -2169,6 +2178,18 @@ export function CardModal({
                   >
                     {card.title}
                   </h2>
+                )}
+                {card.number != null && (
+                  <span
+                    className='hidden sm:inline-flex items-center gap-1 text-xs font-medium text-muted-foreground flex-shrink-0'
+                    title='Card id'
+                  >
+                    <span
+                      className='w-1.5 h-1.5 rounded-full flex-shrink-0'
+                      style={{ backgroundColor: colorForNumber(card.number) }}
+                    />
+                    #{boardNumber ?? '?'}-{card.number}
+                  </span>
                 )}
                 {hasActiveSaveOperations() && (
                   <div className='hidden sm:flex items-center gap-1 px-2 py-1 bg-amber-500/10 text-amber-400 text-xs rounded-full border border-amber-500/20 whitespace-nowrap'>

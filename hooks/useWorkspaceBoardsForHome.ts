@@ -5,6 +5,9 @@ import { useAuth } from '@/context/AuthContext';
 export interface WorkspaceBoardForHome {
   id: string;
   name: string;
+  // Shareable display number, scoped per workspace — see the migration in
+  // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql.
+  number?: number;
   color: string;
   starred?: boolean;
 }
@@ -34,7 +37,7 @@ export const useWorkspaceBoardsForHome = () => {
         // Fetch boards for all workspaces
         const { data: boardsData, error: boardsError } = await supabase
           .from('boards')
-          .select('id, name, color, workspace_id')
+          .select('id, name, number, color, workspace_id')
           .in('workspace_id', workspaceIds);
 
         if (boardsError) {

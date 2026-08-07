@@ -1,17 +1,14 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { X, Loader2, Plus, Palette, Info } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Loader2, Plus, Info } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 
-// Reduced list of predefined workspace colors - just 5 basic colors
-const workspaceColors = [
-  { name: 'Blue', value: 'bg-blue-600' },
-  { name: 'Purple', value: 'bg-purple-600' },
-  { name: 'Green', value: 'bg-green-600' },
-  { name: 'Red', value: 'bg-red-600' },
-  { name: 'Yellow', value: 'bg-yellow-600' },
-];
+// Workspace color is no longer user-picked here — it's derived from the
+// workspace's own id once it's created (see utils/idColor.ts). The API
+// still requires a `color` value for the legacy column, so we just send a
+// fixed placeholder; nothing reads it for display anymore.
+const PLACEHOLDER_WORKSPACE_COLOR = 'bg-blue-600';
 
 type CreateWorkspaceModalProps = {
   isOpen: boolean;
@@ -26,22 +23,14 @@ export function CreateWorkspaceModal({
 }: CreateWorkspaceModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  // Unset by default — color is an optional, minor detail, not a decision
-  // the form should force upfront. A random one is assigned on submit if
-  // the user never touches this.
-  const [selectedColor, setSelectedColor] = useState('');
-  const [customColor, setCustomColor] = useState('#3B82F6'); // Default custom color (blue)
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const colorPickerRef = useRef<HTMLInputElement>(null);
 
   // Reset form values when modal closes and reopens
   useEffect(() => {
     if (isOpen) {
       setName('');
       setDescription('');
-      setSelectedColor('');
-      setCustomColor('#3B82F6');
       setError(null);
     }
   }, [isOpen]);
@@ -95,22 +84,6 @@ export function CreateWorkspaceModal({
 
   if (!isOpen) return null;
 
-  const handleCustomColorClick = () => {
-    if (colorPickerRef.current) {
-      colorPickerRef.current.click();
-    }
-  };
-
-  const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCustomColor(e.target.value);
-    setSelectedColor('custom');
-  };
-
-  // For displaying custom color in the grid
-  const customColorStyle = {
-    backgroundColor: customColor,
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -134,22 +107,13 @@ export function CreateWorkspaceModal({
         throw new Error('You must be logged in to create a workspace');
       }
 
-      // Prepare the color value — random from the preset list if the user
-      // never picked one.
-      const colorValue =
-        selectedColor === 'custom'
-          ? customColor // Store the hex value directly for custom colors
-          : selectedColor ||
-            workspaceColors[Math.floor(Math.random() * workspaceColors.length)]
-              .value;
-
       // Insert the new workspace
       const { data: workspace, error: insertError } = await supabase
         .from('workspaces')
         .insert({
           name: name.trim(),
           description: description.trim() || null,
-          color: colorValue,
+          color: PLACEHOLDER_WORKSPACE_COLOR,
           owner_id: user.id,
           visibility: 'private', // Default to private for now
         })
@@ -278,70 +242,6 @@ export function CreateWorkspaceModal({
               disabled={isLoading}
               style={{ backgroundColor: 'var(--background)' }}
             />
-          </div>
-
-          {/* Color — a minor, optional detail, not a decision the form
-              should lead with. Left unset, a random color is assigned on
-              submit. */}
-          <div className='flex items-center gap-2 mb-4'>
-            <span className='text-xs text-muted-foreground flex-shrink-0'>
-              Color
-            </span>
-            <div className='flex flex-wrap gap-1.5'>
-              {workspaceColors.map((color) => (
-                <button
-                  key={color.value}
-                  type='button'
-                  onClick={() =>
-                    setSelectedColor(
-                      selectedColor === color.value ? '' : color.value
-                    )
-                  }
-                  className={`w-5 h-5 rounded-full ${
-                    color.value
-                  } flex items-center justify-center transition-all ${
-                    selectedColor === color.value
-                      ? 'ring-2 ring-ring ring-offset-1 ring-offset-background'
-                      : 'hover:ring-1 hover:ring-ring hover:ring-offset-1 hover:ring-offset-background'
-                  }`}
-                  title={color.name}
-                  aria-label={`Select ${color.name} color`}
-                  disabled={isLoading}
-                />
-              ))}
-
-              <button
-                type='button'
-                onClick={handleCustomColorClick}
-                className={`w-5 h-5 rounded-full flex items-center justify-center transition-all border border-dashed ${
-                  selectedColor === 'custom'
-                    ? 'ring-2 ring-ring ring-offset-1 ring-offset-background'
-                    : 'hover:border-primary border-border'
-                }`}
-                style={selectedColor === 'custom' ? customColorStyle : {}}
-                title='Custom color'
-                aria-label='Choose custom color'
-                disabled={isLoading}
-              >
-                {selectedColor !== 'custom' && (
-                  <Palette className='w-2.5 h-2.5 text-muted-foreground' />
-                )}
-                <input
-                  ref={colorPickerRef}
-                  type='color'
-                  value={customColor}
-                  onChange={handleColorChange}
-                  className='sr-only'
-                  aria-label='Choose custom color'
-                />
-              </button>
-            </div>
-
-            {!selectedColor && (
-              <span className='text-xs text-muted-foreground/70 ml-auto'>
-                Random if left blank
-              </span>
-            )}
           </div>
 
           {/* Form Actions */}

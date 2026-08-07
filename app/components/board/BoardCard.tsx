@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Star, Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Board } from '@/hooks/useBoardStars';
+import { colorForNumber, colorForKey } from '@/utils/idColor';
 import { useState } from 'react';
 
 interface BoardCardProps {
@@ -45,10 +46,24 @@ export function BoardCard({
         <div className='flex items-start justify-between gap-2'>
           <div className='flex items-center gap-2 min-w-0'>
             <span
-              className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${board.color}`}
+              className='w-2.5 h-2.5 rounded-full flex-shrink-0'
+              style={{
+                backgroundColor:
+                  board.number != null
+                    ? colorForNumber(board.number)
+                    : colorForKey(board.id),
+              }}
             />
             <h3 className='font-semibold text-foreground text-base line-clamp-2 leading-tight'>
               {board.name}
+              {board.number != null && (
+                <span
+                  className='ml-1.5 text-xs font-normal text-muted-foreground align-middle'
+                  title='Board number'
+                >
+                  #{board.number}
+                </span>
+              )}
             </h3>
           </div>
 

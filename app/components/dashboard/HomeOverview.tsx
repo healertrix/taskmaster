@@ -9,10 +9,16 @@ import {
   LayoutGrid,
   Loader2,
 } from 'lucide-react';
+import { colorForNumber } from '@/utils/idColor';
 
 interface MyTask {
   id: string;
   title: string;
+  // Shareable display number (scoped per board) and its board's own
+  // number — see the migration in
+  // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql.
+  number?: number;
+  board_number?: number;
   due_date: string | null;
   board_id: string;
   board_name: string;
@@ -170,8 +176,22 @@ export function HomeOverview({
                   href={`/board/${task.board_id}?card=${task.id}`}
                   className='flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-muted/30 transition-colors group'
                 >
+                  {task.number != null && (
+                    <span
+                      className='w-1.5 h-1.5 rounded-full flex-shrink-0'
+                      style={{ backgroundColor: colorForNumber(task.number) }}
+                    />
+                  )}
                   <span className='flex-1 text-sm text-foreground truncate min-w-0 group-hover:text-primary transition-colors'>
                     {task.title}
+                    {task.board_number != null && task.number != null && (
+                      <span
+                        className='ml-1.5 text-xs font-normal text-muted-foreground'
+                        title='Card id'
+                      >
+                        #{task.board_number}-{task.number}
+                      </span>
+                    )}
                   </span>
                   <span className='text-xs text-muted-foreground truncate max-w-[35%] flex-shrink-0'>
                     {task.board_name}

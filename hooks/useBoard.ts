@@ -6,6 +6,9 @@ import { useAuth } from '@/context/AuthContext';
 export interface BoardData {
   id: string;
   name: string;
+  // Shareable display number, scoped per workspace — see the migration in
+  // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql.
+  number?: number;
   description: string | null;
   color: string;
   workspace_id: string;
@@ -86,6 +89,7 @@ export const useBoard = (boardId: string) => {
           `
           id,
           name,
+          number,
           description,
           color,
           workspace_id,

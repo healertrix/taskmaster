@@ -138,6 +138,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Claim this board's display number — atomic, per-workspace counter
+    // (see supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql).
+    // Never reused after delete, same as Jira/ADO.
+    const { data: boardNumber, error: numberError } = await supabase.rpc(
+      'next_board_number',
+      { p_workspace_id: workspace_id }
+    );
+
+    if (numberError || boardNumber == null) {
+      console.error('Board number assignment error:', numberError);
+      return NextResponse.json(
+        { error: 'Failed to assign board number' },
+        { status: 500 }
+      );
+    }
+
     // Create the board
     const { data: board, error: boardError } = await supabase
       .from('boards')
@@ -148,6 +164,7 @@ export async function POST(request: NextRequest) {
         workspace_id,
         owner_id: user.id,
         visibility,
+        number: boardNumber,
       })
       .select()
       .single();

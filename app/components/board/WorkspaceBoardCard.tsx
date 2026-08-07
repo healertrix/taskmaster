@@ -3,52 +3,45 @@
 import Link from 'next/link';
 import { Star, Clock } from 'lucide-react';
 import { WorkspaceBoard } from '@/hooks/useWorkspaceBoards';
+import { colorForNumber, colorForKey } from '@/utils/idColor';
 import { useState, useCallback, useMemo, memo } from 'react';
 
 interface WorkspaceBoardCardProps {
   board: WorkspaceBoard;
   onToggleStar: (boardId: string) => Promise<void>;
   formatDate: (dateString: string) => string;
-  getColorDisplay: (color: string) => {
-    isCustom: boolean;
-    style: any;
-    className: string;
-  };
 }
 
-// Memoized color dot: the per-board identity marker next to the title
-const ColorDot = memo(
-  ({
-    color,
-    getColorDisplay,
-  }: {
-    color: string;
-    getColorDisplay: (color: string) => any;
-  }) => {
-    const colorDisplay = useMemo(
-      () => getColorDisplay(color),
-      [color, getColorDisplay]
-    );
-
-    return (
-      <span
-        className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-          colorDisplay.isCustom ? '' : colorDisplay.className
-        }`}
-        style={colorDisplay.isCustom ? colorDisplay.style : {}}
-      />
-    );
-  }
-);
+// Memoized color dot: the per-board identity marker next to the title —
+// derived from the board's own display number (see utils/idColor.ts), not
+// user-picked.
+const ColorDot = memo(({ id, number }: { id: string; number?: number }) => (
+  <span
+    className='w-2.5 h-2.5 rounded-full flex-shrink-0'
+    style={{
+      backgroundColor: number != null ? colorForNumber(number) : colorForKey(id),
+    }}
+  />
+));
 
 ColorDot.displayName = 'ColorDot';
 
 // Memoized board title component
-const BoardTitle = memo(({ name }: { name: string }) => (
-  <h3 className='font-semibold text-sm sm:text-base text-foreground line-clamp-2 pr-8'>
-    {name}
-  </h3>
-));
+const BoardTitle = memo(
+  ({ name, number }: { name: string; number?: number }) => (
+    <h3 className='font-semibold text-sm sm:text-base text-foreground line-clamp-2 pr-8'>
+      {name}
+      {number != null && (
+        <span
+          className='ml-1.5 text-xs font-normal text-muted-foreground align-middle'
+          title='Board number'
+        >
+          #{number}
+        </span>
+      )}
+    </h3>
+  )
+);
 
 BoardTitle.displayName = 'BoardTitle';
 
@@ -176,15 +169,8 @@ export const WorkspaceBoardCard = memo(function WorkspaceBoardCard({
   board,
   onToggleStar,
   formatDate,
-  getColorDisplay,
 }: WorkspaceBoardCardProps) {
   const [isToggling, setIsToggling] = useState(false);
-
-  // Memoized board color display
-  const boardColorDisplay = useMemo(
-    () => getColorDisplay(board.color),
-    [board.color, getColorDisplay]
-  );
 
   // Memoized card content
   const cardContent = useMemo(
@@ -192,9 +178,9 @@ export const WorkspaceBoardCard = memo(function WorkspaceBoardCard({
       <div className='relative z-10 flex flex-col justify-between h-full p-5'>
         <div className='flex items-start justify-between gap-2'>
           <div className='flex items-center gap-2 min-w-0'>
-            <ColorDot color={board.color} getColorDisplay={getColorDisplay} />
+            <ColorDot id={board.id} number={board.number} />
             <div className='min-w-0'>
-              <BoardTitle name={board.name} />
+              <BoardTitle name={board.name} number={board.number} />
               <BoardDescription description={board.description} />
             </div>
           </div>
@@ -218,11 +204,10 @@ export const WorkspaceBoardCard = memo(function WorkspaceBoardCard({
     [
       board.name,
       board.description,
-      board.color,
+      board.number,
       board.last_activity_at,
       board.id,
       board.starred,
-      getColorDisplay,
       formatDate,
       onToggleStar,
       isToggling,

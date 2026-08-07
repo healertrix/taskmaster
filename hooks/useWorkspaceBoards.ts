@@ -6,6 +6,9 @@ import { useAuth } from '@/context/AuthContext';
 export interface WorkspaceBoard {
   id: string;
   name: string;
+  // Shareable display number, scoped per workspace — see the migration in
+  // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql.
+  number?: number;
   description?: string;
   color: string;
   created_at: string;

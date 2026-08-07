@@ -15,11 +15,15 @@ import {
 import { TaskActionsMenu } from './TaskActionsMenu';
 import { getRelativeDateTime } from '@/utils/dateTime';
 import { useMobile } from '@/hooks/useMobile';
+import { colorForNumber } from '@/utils/idColor';
 
 // Define Task type matching page.tsx
 interface Task {
   id: string;
   title: string;
+  // Shareable display number, scoped per board — see the migration in
+  // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql.
+  number?: number;
   labels?: { color: string; text: string }[];
   assignees?: {
     initials: string;
@@ -37,6 +41,10 @@ interface Task {
 interface TaskCardProps {
   task: Task;
   columnId: string; // Add columnId prop to identify container
+  // The board's own display number — see the matching comment on
+  // ColumnContainerProps.boardNumber for why this is needed to make the
+  // card's own badge unambiguous.
+  boardNumber?: number;
   isBeingDragged?: boolean; // Whether this task is being dragged
   onDeleteTask?: (taskId: string) => Promise<boolean>;
   onMoveTask?: (taskId: string) => void;
@@ -52,6 +60,7 @@ interface TaskCardProps {
 export function TaskCard({
   task,
   columnId,
+  boardNumber,
   isBeingDragged = false,
   onDeleteTask,
   onMoveTask,
@@ -186,7 +195,20 @@ export function TaskCard({
 
       {/* Header with Actions */}
       <div className='flex justify-between items-start mb-2'>
-        <div className='flex-1' />
+        <div className='flex-1'>
+          {task.number != null && (
+            <span
+              className='inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground'
+              title='Card id'
+            >
+              <span
+                className='w-1.5 h-1.5 rounded-full flex-shrink-0'
+                style={{ backgroundColor: colorForNumber(task.number) }}
+              />
+              #{boardNumber ?? '?'}-{task.number}
+            </span>
+          )}
+        </div>
         {/* Three-dot menu - Only show if there are actions */}
         {hasActions && (
           <div onClick={(e) => e.stopPropagation()}>

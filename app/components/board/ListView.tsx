@@ -30,10 +30,14 @@ import { AddCardForm } from './AddCardForm';
 import { ListActionsMenu } from './ListActionsMenu';
 import { TaskActionsMenu } from './TaskActionsMenu';
 import { ListNameEditor } from './ListNameEditor';
+import { colorForNumber } from '@/utils/idColor';
 
 interface Task {
   id: string;
   title: string;
+  // Shareable display number, scoped per board — see the migration in
+  // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql.
+  number?: number;
   labels?: { color: string; text: string }[];
   assignees?: {
     initials: string;
@@ -51,11 +55,18 @@ interface Task {
 interface Column {
   id: string;
   title: string;
+  // Shareable display number, scoped per board — see Task.number above.
+  number?: number;
   cards: Task[];
 }
 
 interface ListViewProps {
   columns: Column[];
+  // The board's own display number — lists/cards are numbered per-board,
+  // so a bare local number alone can collide between a list and a card in
+  // the SAME board (list #1 and card #1 can coexist). Prefixing every
+  // badge with the board number gives it an unambiguous shareable id.
+  boardNumber?: number;
   onOpenCard: (cardId: string) => void;
   onAddCard: (columnId: string, cardTitle: string) => Promise<boolean>;
   onDeleteList?: (listId: string) => Promise<boolean>;
@@ -136,6 +147,7 @@ const sectionDroppableId = (columnId: string) => `column-${columnId}`;
 
 interface TaskRowProps {
   task: Task;
+  boardNumber?: number;
   isDone: boolean;
   isCelebrating: boolean;
   startDate: string | null;
@@ -152,6 +164,7 @@ interface TaskRowProps {
 
 function TaskRow({
   task,
+  boardNumber,
   isDone,
   isCelebrating,
   startDate,
@@ -279,21 +292,35 @@ function TaskRow({
             className='flex-1 min-w-0 text-sm bg-background border border-primary rounded px-1.5 py-0.5 text-foreground focus:outline-none'
           />
         ) : (
-          <span
-            onClick={(e) => {
-              if (!onUpdateCardTitle) return;
-              e.stopPropagation();
-              setTitleDraft(task.title);
-              setIsEditingTitle(true);
-            }}
-            className={`inline-block w-fit shrink text-sm truncate min-w-0 transition-colors ${
-              onUpdateCardTitle ? 'hover:bg-muted/40 rounded px-1 -mx-1' : ''
-            } ${
-              isDone ? 'text-muted-foreground line-through' : 'text-foreground'
-            }`}
-          >
-            {task.title}
-          </span>
+          <>
+            {task.number != null && (
+              <span
+                className='inline-flex items-center gap-1 flex-shrink-0 text-[11px] font-medium text-muted-foreground'
+                title='Card id'
+              >
+                <span
+                  className='w-1.5 h-1.5 rounded-full flex-shrink-0'
+                  style={{ backgroundColor: colorForNumber(task.number) }}
+                />
+                #{boardNumber ?? '?'}-{task.number}
+              </span>
+            )}
+            <span
+              onClick={(e) => {
+                if (!onUpdateCardTitle) return;
+                e.stopPropagation();
+                setTitleDraft(task.title);
+                setIsEditingTitle(true);
+              }}
+              className={`inline-block w-fit shrink text-sm truncate min-w-0 transition-colors ${
+                onUpdateCardTitle ? 'hover:bg-muted/40 rounded px-1 -mx-1' : ''
+              } ${
+                isDone ? 'text-muted-foreground line-through' : 'text-foreground'
+              }`}
+            >
+              {task.title}
+            </span>
+          </>
         )}
 
         {task.labels && task.labels.length > 0 && (
@@ -447,6 +474,7 @@ function SectionBody({ column, droppable, children }: SectionBodyProps) {
 
 export function ListView({
   columns,
+  boardNumber,
   onOpenCard,
   onAddCard,
   onDeleteList,
@@ -634,6 +662,19 @@ export function ListView({
                   </span>
                 )}
 
+                {column.number != null && (
+                  <span
+                    className='flex-shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground pr-1'
+                    title='List id'
+                  >
+                    <span
+                      className='w-1.5 h-1.5 rounded-full flex-shrink-0'
+                      style={{ backgroundColor: colorForNumber(column.number) }}
+                    />
+                    #{boardNumber ?? '?'}.{column.number}
+                  </span>
+                )}
+
                 <span className='flex-shrink-0 text-xs text-muted-foreground pr-1'>
                   {column.cards.length}
                 </span>
@@ -662,6 +703,7 @@ export function ListView({
                       <TaskRow
                         key={task.id}
                         task={task}
+                        boardNumber={boardNumber}
                         isDone={isDone}
                         isCelebrating={isCelebrating}
                         startDate={startDate}

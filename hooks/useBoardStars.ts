@@ -5,6 +5,9 @@ import { useAuth } from '@/context/AuthContext';
 export interface Board {
   id: string;
   name: string;
+  // Shareable display number, scoped per workspace — see the migration in
+  // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql.
+  number?: number;
   color: string;
   starred?: boolean;
   workspace_id?: string;
@@ -38,6 +41,7 @@ export const useBoardStars = () => {
           boards (
             id,
             name,
+            board_number:number,
             color,
             workspace_id,
             updated_at
@@ -52,11 +56,15 @@ export const useBoardStars = () => {
         return;
       }
 
+      // Aliased to board_number above and renamed back to `number` here —
+      // a bare `number` column name inside this relation select otherwise
+      // trips up supabase-js's compile-time select-string type parser
+      // (it collides with the `number` TS type keyword during inference).
       const boards =
-        data?.map((item) => ({
-          ...item.boards,
-          starred: true,
-        })) || [];
+        data?.map((item: any) => {
+          const { board_number, ...rest } = item.boards;
+          return { ...rest, number: board_number, starred: true };
+        }) || [];
 
       setStarredBoards(boards as Board[]);
     } catch (err) {
@@ -101,7 +109,7 @@ export const useBoardStars = () => {
       const boardPromises = recentBoardIds.map(async (boardId) => {
         const { data: boardData, error: boardError } = await supabase
           .from('boards')
-          .select('id, name, color, workspace_id, updated_at')
+          .select('id, name, number, color, workspace_id, updated_at')
           .eq('id', boardId)
           .maybeSingle();
 
@@ -203,7 +211,7 @@ export const useBoardStars = () => {
           // Get board details to add to starred boards
           const { data: boardData, error: boardError } = await supabase
             .from('boards')
-            .select('id, name, color, workspace_id, updated_at')
+            .select('id, name, number, color, workspace_id, updated_at')
             .eq('id', boardId)
             .maybeSingle();
 

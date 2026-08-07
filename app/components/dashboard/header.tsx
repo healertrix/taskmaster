@@ -24,11 +24,17 @@ import { usePathname } from 'next/navigation';
 import { UserProfileMenu } from './UserProfileMenu';
 import { CreateWorkspaceModal } from '../workspace/CreateWorkspaceModal';
 import { CreateBoardModal } from '../board/CreateBoardModal';
+import { colorForNumber, colorForKey, colorForIndex } from '@/utils/idColor';
 
 // Types for search results
 interface SearchCard {
   id: string;
   title: string;
+  // Shareable display number (scoped per board) and its board's own
+  // number — see the migration in
+  // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql.
+  number?: number;
+  boardNumber?: number;
   description?: string;
   board: string;
   boardId: string;
@@ -42,6 +48,8 @@ interface SearchCard {
 interface SearchBoard {
   id: string;
   name: string;
+  // Shareable display number, scoped per workspace — see SearchCard.number.
+  number?: number;
   color: string;
   workspace: string;
   workspaceId: string;
@@ -127,9 +135,12 @@ export function DashboardHeader() {
     };
   }, []);
 
-  // Debounced search function
+  // Debounced search function. A pure number ("3", "3-15") is a complete
+  // shareable-id search on its own even at 1 character — see the matching
+  // relaxed check in app/api/search/route.ts.
   const performSearch = async (query: string) => {
-    if (!query || query.length < 2) {
+    const isNumberQuery = /^#?\d+(-\d+)?$/.test(query);
+    if (!query || (query.length < 2 && !isNumberQuery)) {
       setSearchResults({ cards: [], boards: [], workspaces: [] });
       setSearchError(null);
       return;
@@ -420,14 +431,28 @@ export function DashboardHeader() {
                                     >
                                       <div className='flex items-start'>
                                         <div
-                                          className='w-5 h-5 mr-2 mt-0.5 rounded'
+                                          className='w-5 h-5 mr-2 mt-0.5 rounded flex-shrink-0'
                                           style={{
-                                            backgroundColor: card.boardColor,
+                                            backgroundColor:
+                                              card.number != null
+                                                ? colorForNumber(card.number)
+                                                : card.boardColor,
                                           }}
                                         ></div>
                                         <div className='flex-1'>
                                           <p className='text-sm text-foreground font-medium'>
                                             {card.title}
+                                            {card.boardNumber != null &&
+                                              card.number != null && (
+                                                <span
+                                                  className='ml-1.5 text-xs font-normal text-muted-foreground'
+                                                  title={`Card id — ${card.workspace}`}
+                                                >
+                                                  #{card.boardNumber}-
+                                                  {card.number} ·{' '}
+                                                  {card.workspace}
+                                                </span>
+                                              )}
                                           </p>
                                           <p className='text-xs text-muted-foreground'>
                                             {card.board} • {card.list}
@@ -470,14 +495,25 @@ export function DashboardHeader() {
                                     >
                                       <div className='flex items-center'>
                                         <div
-                                          className='w-5 h-5 mr-2 rounded'
+                                          className='w-5 h-5 mr-2 rounded flex-shrink-0'
                                           style={{
-                                            backgroundColor: board.color,
+                                            backgroundColor:
+                                              board.number != null
+                                                ? colorForNumber(board.number)
+                                                : board.color,
                                           }}
                                         ></div>
                                         <div className='flex-1'>
                                           <p className='text-sm text-foreground font-medium flex items-center'>
                                             {board.name}
+                                            {board.number != null && (
+                                              <span
+                                                className='ml-1.5 text-xs font-normal text-muted-foreground'
+                                                title={`Board number — ${board.workspace}`}
+                                              >
+                                                #{board.number} · {board.workspace}
+                                              </span>
+                                            )}
                                             {board.starred && (
                                               <Star className='w-3.5 h-3.5 ml-1 text-yellow-400 fill-current' />
                                             )}
@@ -508,7 +544,7 @@ export function DashboardHeader() {
                                 </h3>
                                 <div className='space-y-0.5'>
                                   {filteredResults.workspaces.map(
-                                    (workspace) => (
+                                    (workspace, workspaceIndex) => (
                                       <Link
                                         key={workspace.id}
                                         href={`/boards/${workspace.id}`}
@@ -519,9 +555,11 @@ export function DashboardHeader() {
                                       >
                                         <div className='flex items-center'>
                                           <div
-                                            className='w-5 h-5 mr-2 rounded flex items-center justify-center text-white text-xs font-bold'
+                                            className='w-5 h-5 mr-2 rounded flex items-center justify-center text-white text-xs font-bold flex-shrink-0'
                                             style={{
-                                              backgroundColor: workspace.color,
+                                              backgroundColor: colorForIndex(
+                                                workspaceIndex
+                                              ),
                                             }}
                                           >
                                             {workspace.letter}
@@ -635,9 +673,8 @@ export function DashboardHeader() {
                             Create board
                           </h4>
                           <p className='text-xs text-muted-foreground leading-relaxed'>
-                            A board is made up of cards ordered on lists. Use it
-                            to manage projects, track information, or organize
-                            anything.
+                            Lists and cards for tracking work. Plan a
+                            project, run a sprint, or keep any list moving.
                           </p>
                         </div>
                       </button>
@@ -664,8 +701,9 @@ export function DashboardHeader() {
                             Create workspace
                           </h4>
                           <p className='text-xs text-muted-foreground leading-relaxed'>
-                            A workspace is a group of boards and people. Use it
-                            to organize your company, side project, or family.
+                            A shared home for your boards and teammates.
+                            Create one per company, project, or group you
+                            work with.
                           </p>
                         </div>
                       </button>
@@ -887,14 +925,27 @@ export function DashboardHeader() {
                                 >
                                   <div className='flex items-start gap-3'>
                                     <div
-                                      className='w-4 h-4 mt-1 rounded'
+                                      className='w-4 h-4 mt-1 rounded flex-shrink-0'
                                       style={{
-                                        backgroundColor: card.boardColor,
+                                        backgroundColor:
+                                          card.number != null
+                                            ? colorForNumber(card.number)
+                                            : card.boardColor,
                                       }}
                                     />
                                     <div className='flex-1 min-w-0'>
                                       <p className='font-medium text-foreground truncate'>
                                         {card.title}
+                                        {card.boardNumber != null &&
+                                          card.number != null && (
+                                            <span
+                                              className='ml-1.5 text-xs font-normal text-muted-foreground'
+                                              title={`Card id — ${card.workspace}`}
+                                            >
+                                              #{card.boardNumber}-
+                                              {card.number} · {card.workspace}
+                                            </span>
+                                          )}
                                       </p>
                                       <p className='text-sm text-muted-foreground'>
                                         {card.board} • {card.list}
@@ -929,13 +980,26 @@ export function DashboardHeader() {
                                 >
                                   <div className='flex items-center gap-3'>
                                     <div
-                                      className='w-4 h-4 rounded'
-                                      style={{ backgroundColor: board.color }}
+                                      className='w-4 h-4 rounded flex-shrink-0'
+                                      style={{
+                                        backgroundColor:
+                                          board.number != null
+                                            ? colorForNumber(board.number)
+                                            : board.color,
+                                      }}
                                     />
                                     <div className='flex-1 min-w-0'>
                                       <div className='flex items-center gap-2'>
                                         <p className='font-medium text-foreground truncate'>
                                           {board.name}
+                                          {board.number != null && (
+                                            <span
+                                              className='ml-1.5 text-xs font-normal text-muted-foreground'
+                                              title={`Board number — ${board.workspace}`}
+                                            >
+                                              #{board.number} · {board.workspace}
+                                            </span>
+                                          )}
                                         </p>
                                         {board.starred && (
                                           <Star className='w-4 h-4 text-yellow-400 fill-current flex-shrink-0' />
@@ -961,7 +1025,8 @@ export function DashboardHeader() {
                               Workspaces
                             </h3>
                             <div className='space-y-2'>
-                              {filteredResults.workspaces.map((workspace) => (
+                              {filteredResults.workspaces.map(
+                                (workspace, workspaceIndex) => (
                                 <Link
                                   key={workspace.id}
                                   href={`/boards/${workspace.id}`}
@@ -970,9 +1035,11 @@ export function DashboardHeader() {
                                 >
                                   <div className='flex items-center gap-3'>
                                     <div
-                                      className='w-4 h-4 rounded flex items-center justify-center text-white text-xs font-bold'
+                                      className='w-4 h-4 rounded flex items-center justify-center text-white text-xs font-bold flex-shrink-0'
                                       style={{
-                                        backgroundColor: workspace.color,
+                                        backgroundColor: colorForIndex(
+                                          workspaceIndex
+                                        ),
                                       }}
                                     >
                                       {workspace.letter}

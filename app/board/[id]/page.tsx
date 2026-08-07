@@ -36,6 +36,7 @@ import {
   BoardSkeleton,
   BoardListViewSkeleton,
 } from '../../components/ui/skeletons';
+import { colorForNumber, colorForKey } from '@/utils/idColor';
 import {
   Star,
   User,
@@ -66,13 +67,15 @@ import {
   Trash2,
   LayoutGrid,
   List,
-  Palette,
 } from 'lucide-react';
 
 // Define card/task type
 interface Task {
   id: string;
   title: string;
+  // Shareable display number, scoped per board — see the migration in
+  // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql.
+  number?: number;
   labels?: { color: string; text: string }[];
   assignees?: {
     initials: string;
@@ -92,48 +95,10 @@ interface Task {
 interface Column {
   id: string;
   title: string;
+  // Shareable display number, scoped per board — see Task.number above.
+  number?: number;
   cards: Task[];
 }
-
-// Board colors can be stored either as a Tailwind class (the preset swatch
-// palette, e.g. 'bg-blue-600') or a raw hex string (the custom color
-// picker) — see CreateBoardModal. Anything rendering board.color directly
-// as a className breaks for the hex case, so route through this instead.
-const getBoardColorStyle = (color: string) => {
-  if (color?.startsWith('#')) {
-    return { className: '', style: { backgroundColor: color } };
-  }
-  return { className: color || 'bg-blue-600', style: undefined };
-};
-
-// Map color database values to CSS classes
-const getColorClass = (color: string) => {
-  const colorMap: { [key: string]: string } = {
-    'bg-red-600': 'bg-red-600',
-    'bg-blue-600': 'bg-blue-600',
-    'bg-green-600': 'bg-green-600',
-    'bg-purple-600': 'bg-purple-600',
-    'bg-yellow-600': 'bg-yellow-600',
-    'bg-pink-600': 'bg-pink-600',
-    'bg-indigo-600': 'bg-indigo-600',
-    'bg-orange-600': 'bg-orange-600',
-  };
-
-  return colorMap[color] || 'bg-blue-600';
-};
-
-// Same palette as CreateBoardModal's boardColors — kept in sync manually
-// since that list isn't exported.
-const BOARD_COLOR_OPTIONS = [
-  { name: 'Blue', value: 'bg-blue-600' },
-  { name: 'Purple', value: 'bg-purple-600' },
-  { name: 'Green', value: 'bg-green-600' },
-  { name: 'Red', value: 'bg-red-600' },
-  { name: 'Yellow', value: 'bg-yellow-600' },
-  { name: 'Orange', value: 'bg-orange-600' },
-  { name: 'Pink', value: 'bg-pink-600' },
-  { name: 'Indigo', value: 'bg-indigo-600' },
-];
 
 // Board name editor component
 const BoardNameEditor = ({
@@ -439,25 +404,13 @@ const DescriptionModal = ({
   );
 };
 
-// List identity is a small colored dot, not a full-panel wash — one of a
-// fixed rotation, assigned deterministically from the list id so it stays
-// stable across reloads.
-const LIST_DOT_COLORS = [
-  'bg-indigo-400',
-  'bg-teal-400',
-  'bg-rose-400',
-  'bg-amber-400',
-  'bg-slate-400',
-];
-
-const getColumnStyle = (id: string) => {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) | 0;
-  }
-  const index = Math.abs(hash) % LIST_DOT_COLORS.length;
-  return LIST_DOT_COLORS[index];
-};
+// List identity is a small colored dot, not a full-panel wash — derived
+// from the list's own display number (see utils/idColor.ts) rather than a
+// user pick, so it's stable across reloads and needs no color-picker UI.
+// Falls back to hashing the list's UUID for any row that somehow doesn't
+// have a number yet.
+const getColumnStyle = (id: string, number?: number) =>
+  number != null ? colorForNumber(number) : colorForKey(id);
 
 // Shown when the board fetch fails. If it failed specifically because the
 // board no longer exists (most often: it was just deleted, and this is a
@@ -508,8 +461,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
-  const [showColorPicker, setShowColorPicker] = useState(false);
-
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
@@ -566,7 +517,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     toggleStar,
     updateBoardName,
     updateBoardDescription,
-    updateBoardColor,
   } = useBoard(params.id);
 
   const { removeBoardFromCache } = useAppStore();
@@ -593,19 +543,26 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   // Local UI state for columns (needed for optimistic updates)
   const [columns, setColumns] = useState<Column[]>([]);
 
-  // In-board search — filters cards by title across every list, in both
-  // board and list view. Lists themselves always stay visible (so you can
-  // still see which list a match is in / add to an empty one) — only the
-  // cards inside get filtered.
+  // In-board search — filters cards by title OR by card number ("#12" or
+  // plain "12" both find card number 12) across every list, in both board
+  // and list view. Lists themselves always stay visible (so you can still
+  // see which list a match is in / add to an empty one) — only the cards
+  // inside get filtered.
   const [boardSearchQuery, setBoardSearchQuery] = useState('');
+  const trimmedBoardSearch = boardSearchQuery.trim();
+  const searchedCardNumber = /^#?\d+$/.test(trimmedBoardSearch)
+    ? parseInt(trimmedBoardSearch.replace('#', ''), 10)
+    : null;
   const filteredColumns =
-    boardSearchQuery.trim().length > 0
+    trimmedBoardSearch.length > 0
       ? columns.map((col) => ({
           ...col,
-          cards: col.cards.filter((card) =>
-            card.title
-              .toLowerCase()
-              .includes(boardSearchQuery.trim().toLowerCase())
+          cards: col.cards.filter(
+            (card) =>
+              card.title
+                .toLowerCase()
+                .includes(trimmedBoardSearch.toLowerCase()) ||
+              (searchedCardNumber != null && card.number === searchedCardNumber)
           ),
         }))
       : columns;
@@ -629,9 +586,11 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     const converted = lists.map((list) => ({
       id: list.id,
       title: list.name,
+      number: list.number,
       cards: list.cards.map((card) => ({
         id: card.id,
         title: card.title,
+        number: card.number,
         labels: card.card_labels?.map((label) => ({
           color: label.labels.color,
           text: label.labels.name,
@@ -1156,6 +1115,43 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     [lists]
   );
 
+  // Removes a member from the quick-edit assignee popover — same DELETE
+  // endpoint CardModal's own remove button uses. Applied optimistically
+  // (the card is already loaded in `lists`, unlike the add flow above which
+  // has nothing local to optimistically update against) and reconciled with
+  // the server afterwards via handleQuickEditMembersUpdated; rolled back on
+  // failure.
+  const handleQuickEditMemberRemoved = useCallback(
+    async (cardId: string, profileId: string) => {
+      const card = findCardById(cardId);
+      const previousMembers = (card as any)?.card_members || [];
+
+      updateCardMembers(
+        cardId,
+        previousMembers.filter((m: any) => m.profiles.id !== profileId)
+      );
+
+      try {
+        const response = await fetch(
+          `/api/cards/${cardId}/members/${profileId}`,
+          { method: 'DELETE' }
+        );
+
+        if (response.ok) {
+          await handleQuickEditMembersUpdated(cardId);
+        } else {
+          updateCardMembers(cardId, previousMembers);
+          showError('Failed to remove member');
+        }
+      } catch (error) {
+        console.error('Error removing member:', error);
+        updateCardMembers(cardId, previousMembers);
+        showError('Failed to remove member');
+      }
+    },
+    [findCardById, updateCardMembers, handleQuickEditMembersUpdated, showError]
+  );
+
   // Enhanced move success handler that doesn't close the card modal
   const handleCardMoveSuccess = useCallback(
     (newListId: string, newListName: string) => {
@@ -1522,9 +1518,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     }
   };
 
-  // Get workspace color class
-  const workspaceColorClass = getColorClass(board.workspace.color);
-
   // Format the last access time
   const formatLastAccess = (dateString: string) => {
     const date = new Date(dateString);
@@ -1557,28 +1550,38 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 <ArrowLeft className='w-4 h-4' />
               </button>
               <div className='min-w-0 flex-1 flex items-center gap-2'>
-                {/* Board's own color — the one place on this page that
-                    actually reflects it, so changing it in Board settings
-                    has visible, immediate confirmation instead of only
-                    showing up later on the workspace boards grid. */}
+                {/* Board's own color — derived from its display number
+                    (see utils/idColor.ts), not user-picked. */}
                 <span
-                  className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                    getBoardColorStyle(board.color).className
-                  }`}
-                  style={getBoardColorStyle(board.color).style}
+                  className='w-2.5 h-2.5 rounded-full flex-shrink-0'
+                  style={{
+                    backgroundColor:
+                      board.number != null
+                        ? colorForNumber(board.number)
+                        : colorForKey(board.id),
+                  }}
                   title='Board color'
                 />
                 <BoardNameEditor
                   boardName={board.name}
                   onSave={updateBoardName}
                 />
+                {board.number != null && (
+                  <span
+                    className='text-xs text-muted-foreground flex-shrink-0'
+                    title='Board number'
+                  >
+                    #{board.number}
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Workspace breadcrumb - subtle on mobile */}
             <div className='flex items-center gap-2 ml-7'>
               <div
-                className={`w-4 h-4 ${workspaceColorClass} rounded text-white flex items-center justify-center text-xs font-bold flex-shrink-0`}
+                className='w-4 h-4 rounded text-white flex items-center justify-center text-xs font-bold flex-shrink-0'
+                style={{ backgroundColor: colorForKey(board.workspace.id) }}
               >
                 {board.workspace.name.charAt(0).toUpperCase()}
               </div>
@@ -1606,7 +1609,8 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               {/* Workspace indicator */}
               <div className='flex items-center gap-2 min-w-0'>
                 <div
-                  className={`w-8 h-8 ${workspaceColorClass} rounded-lg text-white flex items-center justify-center text-sm font-bold shadow-md flex-shrink-0`}
+                  className='w-8 h-8 rounded-lg text-white flex items-center justify-center text-sm font-bold shadow-md flex-shrink-0'
+                  style={{ backgroundColor: colorForKey(board.workspace.id) }}
                 >
                   {board.workspace.name.charAt(0).toUpperCase()}
                 </div>
@@ -1626,16 +1630,27 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 {/* Board's own color — see the matching mobile comment
                     above for why this exists. */}
                 <span
-                  className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                    getBoardColorStyle(board.color).className
-                  }`}
-                  style={getBoardColorStyle(board.color).style}
+                  className='w-2.5 h-2.5 rounded-full flex-shrink-0'
+                  style={{
+                    backgroundColor:
+                      board.number != null
+                        ? colorForNumber(board.number)
+                        : colorForKey(board.id),
+                  }}
                   title='Board color'
                 />
                 <BoardNameEditor
                   boardName={board.name}
                   onSave={updateBoardName}
                 />
+                {board.number != null && (
+                  <span
+                    className='text-xs text-muted-foreground flex-shrink-0'
+                    title='Board number'
+                  >
+                    #{board.number}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -1649,7 +1664,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                 type='text'
                 value={boardSearchQuery}
                 onChange={(e) => setBoardSearchQuery(e.target.value)}
-                placeholder='Search this board...'
+                placeholder='Search by title or #number...'
                 className='w-full pl-8 pr-3 py-1.5 text-sm bg-muted/40 border border-border/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all'
               />
             </div>
@@ -1743,46 +1758,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               {/* Settings Dropdown Menu */}
               {showSettingsDropdown && (
                 <div className='absolute top-full right-0 mt-2 w-64 bg-card/95 backdrop-blur-xl border border-border rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150'>
-                  {/* Board Color Option */}
-                  <div className='p-2 border-b border-border'>
-                    <button
-                      onClick={() => setShowColorPicker(!showColorPicker)}
-                      className='w-full flex items-center gap-3 px-3 py-2 text-left text-foreground hover:bg-muted/50 rounded-lg transition-colors'
-                    >
-                      <Palette className='w-4 h-4 text-muted-foreground' />
-                      <div className='font-medium'>Board color</div>
-                    </button>
-                    {showColorPicker && (
-                      <div className='flex flex-wrap gap-1.5 px-3 pt-1 pb-2'>
-                        {BOARD_COLOR_OPTIONS.map((color) => (
-                          <button
-                            key={color.value}
-                            onClick={async () => {
-                              const success = await updateBoardColor(
-                                color.value
-                              );
-                              if (success) {
-                                showSuccess('Board color updated');
-                                setShowColorPicker(false);
-                                setShowSettingsDropdown(false);
-                              } else {
-                                showError('Failed to update board color');
-                              }
-                            }}
-                            title={color.name}
-                            aria-label={`Set board color to ${color.name}`}
-                            className={`w-6 h-6 rounded-full ${
-                              color.value
-                            } transition-all ${
-                              board.color === color.value
-                                ? 'ring-2 ring-ring ring-offset-1 ring-offset-background'
-                                : 'hover:ring-1 hover:ring-ring hover:ring-offset-1 hover:ring-offset-background'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  {/* Board color is no longer user-editable — it's derived
+                      from the board's own display number (see
+                      utils/idColor.ts), same everywhere it's shown. */}
 
                   {/* Delete Board Option */}
                   <div className='p-2 border-b border-border'>
@@ -1815,6 +1793,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       {boardView === 'list' ? (
         <ListView
           columns={filteredColumns}
+          boardNumber={board.number}
           onOpenCard={handleOpenCard}
           onAddCard={handleAddCard}
           onDeleteList={handleDeleteList}
@@ -1855,6 +1834,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   column={column}
                   tasks={column.cards}
                   getColumnStyle={getColumnStyle}
+                  boardNumber={board.number}
                   dragOverInfo={dragOverInfo}
                   activeTaskId={activeTask?.id}
                   onUpdateListName={updateListName}
@@ -2069,6 +2049,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               onDeleteCard={handleDeleteTask}
               onLabelsUpdated={handleLabelsUpdated}
               onMembersUpdated={handleMembersUpdated}
+              boardNumber={board.number}
               listName={listName}
               boardName={board?.name || 'Board'}
               onMoveSuccess={handleCardMoveSuccess}
@@ -2115,6 +2096,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               currentMembers={(card as any).card_members || []}
               onMemberAdded={() =>
                 handleQuickEditMembersUpdated(quickEditAssigneeCardId)
+              }
+              onRemoveMember={(profileId) =>
+                handleQuickEditMemberRemoved(quickEditAssigneeCardId, profileId)
               }
               allowMultipleSelections
             />

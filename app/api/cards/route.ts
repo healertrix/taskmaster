@@ -69,6 +69,21 @@ export async function POST(request: NextRequest) {
       cardPosition = (positionData?.position || 0) + 1;
     }
 
+    // Claim this card's display number — atomic, per-board counter (see
+    // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql).
+    const { data: cardNumber, error: numberError } = await supabase.rpc(
+      'next_card_number',
+      { p_board_id: board_id }
+    );
+
+    if (numberError || cardNumber == null) {
+      console.error('Card number assignment error:', numberError);
+      return NextResponse.json(
+        { error: 'Failed to assign card number' },
+        { status: 500 }
+      );
+    }
+
     // Create the card
     const { data: cardData, error: cardError } = await supabase
       .from('cards')
@@ -79,6 +94,7 @@ export async function POST(request: NextRequest) {
         board_id,
         position: cardPosition,
         created_by: user.id,
+        number: cardNumber,
       })
       .select('*')
       .single();

@@ -7,6 +7,7 @@ import { CreateBoardModal } from '@/app/components/board/CreateBoardModal';
 import { WorkspaceBoardCard } from '@/app/components/board/WorkspaceBoardCard';
 import { useWorkspaceBoards } from '@/hooks/useWorkspaceBoards';
 import { WorkspaceBoardsListSkeleton } from '@/app/components/ui/skeletons';
+import { colorForNumber, colorForKey } from '@/utils/idColor';
 import { createClient } from '@/utils/supabase/client';
 import {
   Plus,
@@ -368,7 +369,6 @@ export default function WorkspaceBoardsPage() {
     toggleBoardStar,
     refetch,
     lastFetchTime,
-    getColorDisplay,
     formatDate,
     removeBoardFromCache,
     addBoardToCache,
@@ -663,11 +663,17 @@ export default function WorkspaceBoardsPage() {
     );
   }
 
-  const colorDisplay = getColorDisplay(workspace.color);
-
-  const filteredBoards = boardSearchQuery.trim()
-    ? boards.filter((b) =>
-        b.name.toLowerCase().includes(boardSearchQuery.trim().toLowerCase())
+  // Search matches by name OR by board number — "#3" or plain "3" both
+  // find board number 3, so a shared id doubles as a search shortcut.
+  const trimmedSearch = boardSearchQuery.trim();
+  const searchedNumber = /^#?\d+$/.test(trimmedSearch)
+    ? parseInt(trimmedSearch.replace('#', ''), 10)
+    : null;
+  const filteredBoards = trimmedSearch
+    ? boards.filter(
+        (b) =>
+          b.name.toLowerCase().includes(trimmedSearch.toLowerCase()) ||
+          (searchedNumber != null && b.number === searchedNumber)
       )
     : boards;
 
@@ -706,10 +712,8 @@ export default function WorkspaceBoardsPage() {
             {/* Workspace info - subtle on mobile */}
             <div className='flex items-center gap-2 ml-7'>
               <div
-                className={`w-4 h-4 ${
-                  colorDisplay.isCustom ? '' : colorDisplay.className
-                } rounded text-white flex items-center justify-center text-xs font-bold flex-shrink-0`}
-                style={colorDisplay.style}
+                className='w-4 h-4 rounded text-white flex items-center justify-center text-xs font-bold flex-shrink-0'
+                style={{ backgroundColor: colorForKey(workspace.id) }}
               >
                 {workspace.name.charAt(0).toUpperCase()}
               </div>
@@ -731,10 +735,8 @@ export default function WorkspaceBoardsPage() {
 
             <div className='flex items-center gap-3 min-w-0 flex-1'>
               <div
-                className={`w-10 h-10 ${
-                  colorDisplay.isCustom ? '' : colorDisplay.className
-                } rounded-lg text-white flex items-center justify-center text-lg font-bold shadow-md flex-shrink-0`}
-                style={colorDisplay.style}
+                className='w-10 h-10 rounded-lg text-white flex items-center justify-center text-lg font-bold shadow-md flex-shrink-0'
+                style={{ backgroundColor: colorForKey(workspace.id) }}
               >
                 {workspace.name.charAt(0).toUpperCase()}
               </div>
@@ -795,7 +797,7 @@ export default function WorkspaceBoardsPage() {
               type='text'
               value={boardSearchQuery}
               onChange={(e) => setBoardSearchQuery(e.target.value)}
-              placeholder='Search boards...'
+              placeholder='Search boards by name or #number...'
               className='w-full pl-9 pr-3 py-2 text-sm bg-muted/40 border border-border/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all'
             />
           </div>
@@ -854,14 +856,12 @@ export default function WorkspaceBoardsPage() {
                 board={board}
                 onToggleStar={toggleBoardStar}
                 formatDate={formatDate}
-                getColorDisplay={getColorDisplay}
               />
             ))}
           </div>
         ) : (
           <div className='bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl overflow-hidden divide-y divide-border/40'>
             {filteredBoards.map((board) => {
-              const boardColorDisplay = getColorDisplay(board.color);
               return (
                 <Link
                   key={board.id}
@@ -869,20 +869,25 @@ export default function WorkspaceBoardsPage() {
                   className='flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors group'
                 >
                   <span
-                    className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                      boardColorDisplay.isCustom
-                        ? ''
-                        : boardColorDisplay.className
-                    }`}
-                    style={
-                      boardColorDisplay.isCustom
-                        ? boardColorDisplay.style
-                        : undefined
-                    }
+                    className='w-2.5 h-2.5 rounded-full flex-shrink-0'
+                    style={{
+                      backgroundColor:
+                        board.number != null
+                          ? colorForNumber(board.number)
+                          : colorForKey(board.id),
+                    }}
                   />
                   <div className='min-w-0 flex-1'>
                     <p className='text-sm font-medium text-foreground truncate'>
                       {board.name}
+                      {board.number != null && (
+                        <span
+                          className='ml-1.5 text-xs font-normal text-muted-foreground'
+                          title='Board number'
+                        >
+                          #{board.number}
+                        </span>
+                      )}
                     </p>
                     {board.description && (
                       <p className='text-xs text-muted-foreground truncate'>

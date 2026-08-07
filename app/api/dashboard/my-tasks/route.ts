@@ -27,12 +27,13 @@ export async function GET() {
         cards!inner (
           id,
           title,
+          card_number:number,
           due_date,
           list_id,
           lists!inner (
             id,
             board_id,
-            boards!inner ( id, name )
+            boards!inner ( id, name, board_number:number )
           )
         )
       `
@@ -104,6 +105,8 @@ export async function GET() {
       const shaped = {
         id: card.id,
         title: card.title,
+        number: card.card_number,
+        board_number: card.lists.boards?.board_number,
         due_date: card.due_date,
         board_id: boardId,
         board_name: boardName,

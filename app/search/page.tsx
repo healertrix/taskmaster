@@ -22,11 +22,17 @@ import {
 } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { colorForNumber, colorForKey, colorForIndex } from '@/utils/idColor';
 
 // Search result types
 interface SearchCard {
   id: string;
   title: string;
+  // Shareable display number (scoped per board) and its board's own
+  // number — see the migration in
+  // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql.
+  number?: number;
+  boardNumber?: number;
   description?: string;
   board: string;
   boardId: string;
@@ -40,6 +46,8 @@ interface SearchCard {
 interface SearchBoard {
   id: string;
   name: string;
+  // Shareable display number, scoped per workspace — see SearchCard.number.
+  number?: number;
   color: string;
   workspace: string;
   workspaceId: string;
@@ -726,11 +734,26 @@ export default function SearchPage() {
                           <div className='flex items-start'>
                             <div
                               className='mt-1 w-5 h-5 rounded flex-shrink-0'
-                              style={{ backgroundColor: card.boardColor }}
+                              style={{
+                                backgroundColor:
+                                  card.number != null
+                                    ? colorForNumber(card.number)
+                                    : card.boardColor,
+                              }}
                             ></div>
                             <div className='ml-3 flex-1'>
                               <h3 className='font-medium text-foreground hover:text-primary'>
                                 {card.title}
+                                {card.boardNumber != null &&
+                                  card.number != null && (
+                                    <span
+                                      className='ml-1.5 text-xs font-normal text-muted-foreground'
+                                      title={`Card id — ${card.workspace}`}
+                                    >
+                                      #{card.boardNumber}-{card.number} ·{' '}
+                                      {card.workspace}
+                                    </span>
+                                  )}
                               </h3>
                               <p className='text-sm text-muted-foreground mt-1'>
                                 {card.board} • {card.list}
@@ -818,7 +841,12 @@ export default function SearchPage() {
                           <div className='flex items-center'>
                             <div
                               className='w-10 h-10 rounded-md flex-shrink-0 flex items-center justify-center'
-                              style={{ backgroundColor: board.color }}
+                              style={{
+                                backgroundColor:
+                                  board.number != null
+                                    ? colorForNumber(board.number)
+                                    : board.color,
+                              }}
                             >
                               <LayoutList className='w-5 h-5 text-white' />
                             </div>
@@ -826,6 +854,14 @@ export default function SearchPage() {
                               <div className='flex items-center'>
                                 <h3 className='font-medium text-foreground hover:text-primary'>
                                   {board.name}
+                                  {board.number != null && (
+                                    <span
+                                      className='ml-1.5 text-xs font-normal text-muted-foreground'
+                                      title={`Board number — ${board.workspace}`}
+                                    >
+                                      #{board.number} · {board.workspace}
+                                    </span>
+                                  )}
                                 </h3>
                                 {board.starred && (
                                   <Star className='w-4 h-4 ml-2 text-yellow-400 fill-current' />
@@ -904,7 +940,7 @@ export default function SearchPage() {
 
                   {filteredWorkspaces.length > 0 ? (
                     <div className='divide-y divide-border'>
-                      {filteredWorkspaces.map((workspace) => (
+                      {filteredWorkspaces.map((workspace, workspaceIndex) => (
                         <Link
                           key={workspace.id}
                           href={`/boards/${workspace.id}`}
@@ -913,7 +949,9 @@ export default function SearchPage() {
                           <div className='flex items-start'>
                             <div
                               className='flex-shrink-0 w-10 h-10 rounded-md flex items-center justify-center text-white font-semibold'
-                              style={{ backgroundColor: workspace.color }}
+                              style={{
+                                backgroundColor: colorForIndex(workspaceIndex),
+                              }}
                             >
                               {workspace.letter}
                             </div>

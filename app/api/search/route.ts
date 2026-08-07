@@ -9,7 +9,9 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type'); // 'cards', 'boards', 'workspaces', or 'all'
     const limit = parseInt(searchParams.get('limit') || '5');
 
-    if (!query || query.length < 2) {
+    // A pure number ("3", "3-15") is a complete search on its own even at
+    // 1 character — it's a shareable board/card id, not a fragment.
+    if (!query || (query.length < 2 && !/^#?\d+(-\d+)?$/.test(query))) {
       return NextResponse.json(
         { error: 'Search query must be at least 2 characters' },
         { status: 400 }

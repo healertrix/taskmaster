@@ -14,6 +14,9 @@ import { AddCardForm } from './AddCardForm';
 interface Task {
   id: string;
   title: string;
+  // Shareable display number, scoped per board — see the migration in
+  // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql.
+  number?: number;
   labels?: { color: string; text: string }[];
   assignees?: { initials: string; color: string }[];
   attachments?: number;
@@ -23,6 +26,8 @@ interface Task {
 interface Column {
   id: string;
   title: string;
+  // Shareable display number, scoped per board — see Task.number above.
+  number?: number;
   cards: Task[];
 }
 
@@ -37,7 +42,13 @@ interface DragOverInfo {
 interface ColumnContainerProps {
   column: Column;
   tasks: Task[];
-  getColumnStyle: (columnId: string) => string;
+  getColumnStyle: (columnId: string, number?: number) => string;
+  // The board's own display number — lists/cards are numbered per-board
+  // (see utils/idColor.ts), so their bare number alone isn't unique across
+  // boards or even, confusingly, across a list vs. a card in the SAME
+  // board (list #1 and card #1 can coexist). Prefixing with the board
+  // number gives every badge a globally unambiguous shareable id.
+  boardNumber?: number;
   dragOverInfo: DragOverInfo;
   activeTaskId?: string;
   onUpdateListName?: (listId: string, newName: string) => Promise<boolean>;
@@ -56,6 +67,7 @@ export function ColumnContainer({
   column,
   tasks,
   getColumnStyle,
+  boardNumber,
   dragOverInfo,
   activeTaskId,
   onUpdateListName,
@@ -123,9 +135,8 @@ export function ColumnContainer({
       <div className='p-4 rounded-t-2xl kanban-column-header flex justify-between items-center relative z-10'>
         <div className='flex items-center gap-2 flex-1 min-w-0'>
           <span
-            className={`w-2 h-2 rounded-full flex-shrink-0 ${getColumnStyle(
-              column.id
-            )}`}
+            className='w-2 h-2 rounded-full flex-shrink-0'
+            style={{ backgroundColor: getColumnStyle(column.id, column.number) }}
           />
           {onUpdateListName ? (
             <ListNameEditor
@@ -135,6 +146,14 @@ export function ColumnContainer({
           ) : (
             <span className='text-sm font-semibold text-foreground'>
               {column.title}
+            </span>
+          )}
+          {column.number != null && (
+            <span
+              className='text-xs text-muted-foreground flex-shrink-0'
+              title='List id'
+            >
+              #{boardNumber ?? '?'}.{column.number}
             </span>
           )}
           <span className='text-xs text-muted-foreground bg-muted rounded-full px-1.5 py-0.5 flex-shrink-0'>
@@ -185,6 +204,7 @@ export function ColumnContainer({
                   <TaskCard
                     task={task}
                     columnId={column.id}
+                    boardNumber={boardNumber}
                     isBeingDragged={task.id === activeTaskId}
                     onDeleteTask={onDeleteTask}
                     onMoveTask={onMoveTask}

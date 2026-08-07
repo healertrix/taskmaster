@@ -10,7 +10,6 @@ import {
 import {
   X,
   Loader2,
-  Palette,
   Info,
   Shield,
   Crown,
@@ -24,18 +23,13 @@ import {
   useWorkspacesWithPermissions,
   type WorkspaceWithPermissions,
 } from '@/hooks/useWorkspacesWithPermissions';
+import { colorForKey } from '@/utils/idColor';
 
-// Board colors matching workspace modal pattern
-const boardColors = [
-  { name: 'Blue', value: 'bg-blue-600' },
-  { name: 'Purple', value: 'bg-purple-600' },
-  { name: 'Green', value: 'bg-green-600' },
-  { name: 'Red', value: 'bg-red-600' },
-  { name: 'Yellow', value: 'bg-yellow-600' },
-  { name: 'Orange', value: 'bg-orange-600' },
-  { name: 'Pink', value: 'bg-pink-600' },
-  { name: 'Indigo', value: 'bg-indigo-600' },
-];
+// Board color is no longer user-picked here — it's derived from the
+// board's own display number once it's created (see utils/idColor.ts).
+// The API still requires a `color` value for the legacy column, so we
+// just send a fixed placeholder; nothing reads it for display anymore.
+const PLACEHOLDER_BOARD_COLOR = 'bg-blue-600';
 
 type CreateBoardModalProps = {
   isOpen: boolean;
@@ -58,18 +52,12 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
   ) {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
-    // Unset by default — color is an optional, minor detail, not a
-    // decision the form should force upfront. A random one is assigned on
-    // submit if the user never touches this.
-    const [selectedColor, setSelectedColor] = useState('');
-    const [customColor, setCustomColor] = useState('#3B82F6');
     const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(
       workspaceId || ''
     );
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const colorPickerRef = useRef<HTMLInputElement>(null);
     const router = useRouter();
 
     // Use the new hook to get workspaces with permissions
@@ -103,8 +91,6 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
         // Form reset on modal open
         setName('');
         setDescription('');
-        setSelectedColor('');
-        setCustomColor('#3B82F6');
 
         // Set default workspace
         if (workspaceId) {
@@ -175,21 +161,6 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
 
     if (!isOpen) return null;
 
-    const handleCustomColorClick = () => {
-      if (colorPickerRef.current) {
-        colorPickerRef.current.click();
-      }
-    };
-
-    const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      setCustomColor(e.target.value);
-      setSelectedColor('custom');
-    };
-
-    const customColorStyle = {
-      backgroundColor: customColor,
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
 
@@ -207,13 +178,6 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
       setError(null);
 
       try {
-        const colorValue =
-          selectedColor === 'custom'
-            ? customColor
-            : selectedColor ||
-              boardColors[Math.floor(Math.random() * boardColors.length)]
-                .value;
-
         const response = await fetch('/api/boards', {
           method: 'POST',
           headers: {
@@ -222,7 +186,7 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
           body: JSON.stringify({
             name: name.trim(),
             description: description.trim() || null,
-            color: colorValue,
+            color: PLACEHOLDER_BOARD_COLOR,
             workspace_id: selectedWorkspaceId,
             visibility: 'workspace', // Default for workspace creation
           }),
@@ -268,16 +232,6 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
       if (workspace.isOwner) return 'Owner';
       if (workspace.userRole === 'admin') return 'Admin';
       return 'Member';
-    };
-
-    const getColorDisplay = (color: string) => {
-      // Handle both hex colors and Tailwind classes
-      if (color.startsWith('#')) {
-        return { backgroundColor: color };
-      } else if (color.startsWith('bg-')) {
-        return { className: color };
-      }
-      return { backgroundColor: '#3B82F6' }; // fallback
     };
 
     return (
@@ -401,9 +355,12 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
               <div className='p-3 bg-muted/30 rounded-md border border-border/50'>
                 <div className='flex items-center gap-2'>
                   <div
-                    className={`w-4 h-4 rounded-full ${
-                      workspaceColor || 'bg-blue-600'
-                    }`}
+                    className='w-4 h-4 rounded-full flex-shrink-0'
+                    style={{
+                      backgroundColor: workspaceId
+                        ? colorForKey(workspaceId)
+                        : '#3B82F6',
+                    }}
                   />
                   <span className='text-sm font-medium text-foreground'>
                     Creating in: {workspaceName}
@@ -411,70 +368,6 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
                 </div>
               </div>
             )}
-
-            {/* Color — a minor, optional detail, not a decision the form
-                should lead with. Left unset, a random color is assigned on
-                submit. */}
-            <div className='flex items-center gap-2'>
-              <span className='text-xs text-muted-foreground flex-shrink-0'>
-                Color
-              </span>
-              <div className='flex flex-wrap gap-1.5'>
-                {boardColors.map((color) => (
-                  <button
-                    key={color.value}
-                    type='button'
-                    onClick={() =>
-                      setSelectedColor(
-                        selectedColor === color.value ? '' : color.value
-                      )
-                    }
-                    className={`w-5 h-5 rounded-full ${
-                      color.value
-                    } flex items-center justify-center transition-all ${
-                      selectedColor === color.value
-                        ? 'ring-2 ring-ring ring-offset-1 ring-offset-background'
-                        : 'hover:ring-1 hover:ring-ring hover:ring-offset-1 hover:ring-offset-background'
-                    }`}
-                    title={color.name}
-                    aria-label={`Select ${color.name} color`}
-                    disabled={isLoading}
-                  />
-                ))}
-
-                <button
-                  type='button'
-                  onClick={handleCustomColorClick}
-                  className={`w-5 h-5 rounded-full flex items-center justify-center transition-all border border-dashed ${
-                    selectedColor === 'custom'
-                      ? 'ring-2 ring-ring ring-offset-1 ring-offset-background'
-                      : 'hover:border-primary border-border'
-                  }`}
-                  style={selectedColor === 'custom' ? customColorStyle : {}}
-                  title='Custom color'
-                  aria-label='Choose custom color'
-                  disabled={isLoading}
-                >
-                  {selectedColor !== 'custom' && (
-                    <Palette className='w-2.5 h-2.5 text-muted-foreground' />
-                  )}
-                  <input
-                    ref={colorPickerRef}
-                    type='color'
-                    value={customColor}
-                    onChange={handleColorChange}
-                    className='sr-only'
-                    aria-label='Choose custom color'
-                  />
-                </button>
-              </div>
-
-              {!selectedColor && (
-                <span className='text-xs text-muted-foreground/70 ml-auto'>
-                  Random if left blank
-                </span>
-              )}
-            </div>
 
             {/* Form Actions */}
             <div className='flex justify-between items-center pt-2'>

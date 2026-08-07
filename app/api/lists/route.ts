@@ -64,6 +64,21 @@ export async function POST(request: NextRequest) {
       listPosition = lastList ? lastList.position + 1 : 1;
     }
 
+    // Claim this list's display number — atomic, per-board counter (see
+    // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql).
+    const { data: listNumber, error: numberError } = await supabase.rpc(
+      'next_list_number',
+      { p_board_id: board_id }
+    );
+
+    if (numberError || listNumber == null) {
+      console.error('List number assignment error:', numberError);
+      return NextResponse.json(
+        { error: 'Failed to assign list number' },
+        { status: 500 }
+      );
+    }
+
     // Create the list
     const { data: list, error: listError } = await supabase
       .from('lists')
@@ -71,6 +86,7 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         board_id,
         position: listPosition,
+        number: listNumber,
       })
       .select()
       .single();
@@ -166,12 +182,14 @@ export async function GET(request: NextRequest) {
         `
         id,
         name,
+        number,
         position,
         created_at,
         updated_at,
         cards (
           id,
           title,
+          number,
           description,
           position,
           created_at,

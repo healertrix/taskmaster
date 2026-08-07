@@ -29,6 +29,7 @@ import { useWorkspaceBoardsForHome } from '@/hooks/useWorkspaceBoardsForHome';
 import { canUserCreateBoards } from '@/utils/permissions';
 import { HomeOverview } from './components/dashboard/HomeOverview';
 import { useAuth } from '@/context/AuthContext';
+import { colorForKey, colorForIndex } from '@/utils/idColor';
 
 const initialWorkspaces: any[] = [];
 
@@ -447,7 +448,7 @@ export default function HomePage() {
                   Workspaces
                 </h3>
                 <div className='mt-3 space-y-1.5'>
-                  {userWorkspaces.map((workspace) => (
+                  {userWorkspaces.map((workspace, workspaceIndex) => (
                     <div key={workspace.id} className='space-y-1'>
                       <button
                         className='nav-item flex items-center justify-between w-full text-sm'
@@ -455,12 +456,10 @@ export default function HomePage() {
                       >
                         <div className='flex items-center gap-2.5'>
                           <div
-                            className={`w-7 h-7 ${
-                              getColorDisplay(workspace.color).isCustom
-                                ? ''
-                                : getColorDisplay(workspace.color).className
-                            } rounded-lg flex items-center justify-center text-sm font-bold text-white shadow-md`}
-                            style={getColorDisplay(workspace.color).style}
+                            className='w-7 h-7 rounded-lg flex items-center justify-center text-sm font-bold text-white shadow-md'
+                            style={{
+                              backgroundColor: colorForIndex(workspaceIndex),
+                            }}
                           >
                             {workspace.initial}
                           </div>
@@ -621,7 +620,7 @@ export default function HomePage() {
 
             {/* Workspaces Section */}
             {(() => {
-              return userWorkspaces.map((workspace) => (
+              return userWorkspaces.map((workspace, workspaceIndex) => (
                 <section
                   key={workspace.id}
                   id={`workspace-${workspace.id}`}
@@ -634,12 +633,10 @@ export default function HomePage() {
                       className='flex items-center gap-2.5 text-xl font-semibold text-foreground hover:text-primary transition-colors group'
                     >
                       <div
-                        className={`w-6 h-6 ${
-                          getColorDisplay(workspace.color).isCustom
-                            ? ''
-                            : getColorDisplay(workspace.color).className
-                        } rounded-lg text-white flex items-center justify-center text-xs font-bold shadow-md group-hover:scale-105 transition-transform`}
-                        style={getColorDisplay(workspace.color).style}
+                        className='w-6 h-6 rounded-lg text-white flex items-center justify-center text-xs font-bold shadow-md group-hover:scale-105 transition-transform'
+                        style={{
+                          backgroundColor: colorForIndex(workspaceIndex),
+                        }}
                       >
                         {workspace.initial}
                       </div>
@@ -708,6 +705,7 @@ export default function HomePage() {
                           boardForCard = {
                             id: board.id,
                             name: board.name,
+                            number: board.number,
                             color: board.color,
                             starred: starredBoard ? true : false,
                           };

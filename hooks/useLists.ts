@@ -5,6 +5,11 @@ import { useAppStore, cacheUtils } from '@/lib/stores/useAppStore';
 export interface List {
   id: string;
   name: string;
+  // Shareable display number, scoped per board (see
+  // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql).
+  // Optional only because rows fetched through older/partial selects may
+  // omit it — every list created after that migration always has one.
+  number?: number;
   position: number;
   created_at: string;
   updated_at: string;
@@ -14,6 +19,8 @@ export interface List {
 export interface Card {
   id: string;
   title: string;
+  // Shareable display number, scoped per board — see List.number above.
+  number?: number;
   description?: string;
   position: number;
   created_at: string;

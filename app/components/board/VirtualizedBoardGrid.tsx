@@ -8,11 +8,6 @@ interface VirtualizedBoardGridProps {
   boards: WorkspaceBoard[];
   onToggleStar: (boardId: string) => Promise<void>;
   formatDate: (dateString: string) => string;
-  getColorDisplay: (color: string) => {
-    isCustom: boolean;
-    style: any;
-    className: string;
-  };
   canCreateBoards?: boolean;
   onCreateBoard?: () => void;
 }
@@ -37,7 +32,6 @@ export function VirtualizedBoardGrid({
   boards,
   onToggleStar,
   formatDate,
-  getColorDisplay,
   canCreateBoards = false,
   onCreateBoard,
 }: VirtualizedBoardGridProps) {
@@ -70,10 +64,9 @@ export function VirtualizedBoardGrid({
         board={board}
         onToggleStar={onToggleStar}
         formatDate={formatDate}
-        getColorDisplay={getColorDisplay}
       />
     ));
-  }, [boards, onToggleStar, formatDate, getColorDisplay]);
+  }, [boards, onToggleStar, formatDate]);
 
   // Memoized create board button
   const createBoardButton = useMemo(() => {
