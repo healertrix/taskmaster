@@ -77,6 +77,7 @@ export const useWorkspaceBoardsForHome = () => {
           acc[board.workspace_id].push({
             id: board.id,
             name: board.name,
+            number: board.number,
             color: board.color,
             starred: starredBoardIds.has(board.id),
           });
