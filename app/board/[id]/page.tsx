@@ -22,13 +22,20 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { DashboardHeader } from '../../components/dashboard/header';
 import { ColumnContainer } from '../../components/board/ColumnContainer';
+import { ListView } from '../../components/board/ListView';
 import { TaskCard } from '../../components/board/TaskCard';
 import { useBoard } from '@/hooks/useBoard';
 import { useBoardStore } from '@/hooks/useBoardStore';
+import { useAppStore } from '@/lib/stores/useAppStore';
 import { AddListForm } from '../../components/board/AddListForm';
 import { CardModal } from '../../components/board/CardModal';
+import { DateTimeRangePicker } from '@/components/ui/DateTimeRangePicker';
+import { CardMemberPicker } from '../../components/board/CardMemberPicker';
 import { MoveCardModal } from '../../components/board/MoveCardModal';
-import { BoardSkeleton } from '../../components/ui/skeletons';
+import {
+  BoardSkeleton,
+  BoardListViewSkeleton,
+} from '../../components/ui/skeletons';
 import {
   Star,
   User,
@@ -58,6 +65,8 @@ import {
   AlertCircle,
   Trash2,
   LayoutGrid,
+  List,
+  Palette,
 } from 'lucide-react';
 
 // Define card/task type
@@ -86,153 +95,16 @@ interface Column {
   cards: Task[];
 }
 
-// Map old colors to new space theme colors
-const labelColors = {
-  'bg-red-500': 'bg-primary text-white',
-  'bg-purple-500': 'bg-purple-500 text-white',
-  'bg-green-500': 'bg-secondary text-white',
-  'bg-blue-500': 'bg-accent text-white',
-  'bg-gray-500': 'bg-slate-500 text-white',
+// Board colors can be stored either as a Tailwind class (the preset swatch
+// palette, e.g. 'bg-blue-600') or a raw hex string (the custom color
+// picker) — see CreateBoardModal. Anything rendering board.color directly
+// as a className breaks for the hex case, so route through this instead.
+const getBoardColorStyle = (color: string) => {
+  if (color?.startsWith('#')) {
+    return { className: '', style: { backgroundColor: color } };
+  }
+  return { className: color || 'bg-blue-600', style: undefined };
 };
-
-// Sample data for columns and cards (will be replaced with real data eventually)
-const initialColumns: Column[] = [
-  {
-    id: 'review-pending',
-    title: 'Review - Pending',
-    cards: [
-      {
-        id: 'card1',
-        title: '2nd Review @Clq',
-        labels: [{ color: 'bg-red-500', text: 'Priority' }],
-        assignees: [
-          { initials: 'AN', color: 'bg-orange-500' },
-          { initials: 'KV', color: 'bg-purple-500' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'android-pending',
-    title: 'Android - Pending',
-    cards: [
-      {
-        id: 'card3',
-        title: 'Home Activity',
-        labels: [{ color: 'bg-purple-500', text: 'Android' }],
-      },
-      {
-        id: 'card4',
-        title: 'Profile Activity',
-        labels: [{ color: 'bg-purple-500', text: 'Android' }],
-      },
-      {
-        id: 'card5',
-        title: 'Theft Report Activity',
-        labels: [{ color: 'bg-purple-500', text: 'Android' }],
-      },
-      {
-        id: 'card6',
-        title: 'Over Charging Report Activity',
-        labels: [{ color: 'bg-purple-500', text: 'Android' }],
-      },
-      {
-        id: 'card7',
-        title: 'Duping Report Activity',
-        labels: [{ color: 'bg-purple-500', text: 'Android' }],
-      },
-      {
-        id: 'card8',
-        title: 'Spot Details Activity',
-        labels: [{ color: 'bg-purple-500', text: 'Android' }],
-      },
-      {
-        id: 'card9',
-        title: 'Places to go Activity',
-        labels: [{ color: 'bg-purple-500', text: 'Android' }],
-      },
-    ],
-  },
-  {
-    id: 'web-pending',
-    title: 'Web - Pending',
-    cards: [
-      {
-        id: 'card10',
-        title: 'Nation Home Page',
-        labels: [{ color: 'bg-green-500', text: 'Web' }],
-      },
-      {
-        id: 'card11',
-        title: 'State Home Page',
-        labels: [{ color: 'bg-green-500', text: 'Web' }],
-      },
-      {
-        id: 'card12',
-        title: 'Analysis Page',
-        labels: [{ color: 'bg-green-500', text: 'Web' }],
-      },
-      {
-        id: 'card13',
-        title: 'Requests Handling Page',
-        labels: [{ color: 'bg-green-500', text: 'Web' }],
-      },
-      {
-        id: 'card14',
-        title: 'Police Home Page',
-        labels: [{ color: 'bg-green-500', text: 'Web' }],
-      },
-    ],
-  },
-  {
-    id: 'backend-pending',
-    title: 'Backend - Pending',
-    cards: [
-      {
-        id: 'card15',
-        title: 'Authorization',
-        labels: [{ color: 'bg-blue-500', text: 'Backend' }],
-      },
-      {
-        id: 'card16',
-        title: 'Hotel View and Tourist Spot',
-        labels: [{ color: 'bg-blue-500', text: 'Backend' }],
-        assignees: [{ initials: 'AN', color: 'bg-orange-500' }],
-      },
-      {
-        id: 'card17',
-        title:
-          'Tourists List, Police Control Room, Police, State Supervisor List',
-        labels: [{ color: 'bg-blue-500', text: 'Backend' }],
-        assignees: [{ initials: 'KV', color: 'bg-purple-500' }],
-      },
-    ],
-  },
-  {
-    id: 'references',
-    title: 'References',
-    cards: [
-      {
-        id: 'card18',
-        title: 'GitHub References',
-        labels: [{ color: 'bg-gray-500', text: 'Documentation' }],
-        attachments: 3,
-        comments: 3,
-      },
-      {
-        id: 'card19',
-        title: 'Excali Design',
-        labels: [{ color: 'bg-green-500', text: 'Design' }],
-        attachments: 1,
-      },
-      {
-        id: 'card20',
-        title: 'Support Page',
-        labels: [{ color: 'bg-red-500', text: 'Priority' }],
-      },
-    ],
-  },
-];
 
 // Map color database values to CSS classes
 const getColorClass = (color: string) => {
@@ -249,6 +121,19 @@ const getColorClass = (color: string) => {
 
   return colorMap[color] || 'bg-blue-600';
 };
+
+// Same palette as CreateBoardModal's boardColors — kept in sync manually
+// since that list isn't exported.
+const BOARD_COLOR_OPTIONS = [
+  { name: 'Blue', value: 'bg-blue-600' },
+  { name: 'Purple', value: 'bg-purple-600' },
+  { name: 'Green', value: 'bg-green-600' },
+  { name: 'Red', value: 'bg-red-600' },
+  { name: 'Yellow', value: 'bg-yellow-600' },
+  { name: 'Orange', value: 'bg-orange-600' },
+  { name: 'Pink', value: 'bg-pink-600' },
+  { name: 'Indigo', value: 'bg-indigo-600' },
+];
 
 // Board name editor component
 const BoardNameEditor = ({
@@ -315,7 +200,7 @@ const BoardNameEditor = ({
       onClick={() => setIsEditing(true)}
       className='text-lg sm:text-2xl font-bold hover:bg-muted/50 px-2 py-1 rounded transition-colors flex items-center gap-2 w-full text-left min-w-0'
     >
-      <span className='truncate flex-1'>{boardName}</span>
+      <span className='truncate flex-1 heading-enter'>{boardName}</span>
       <Edit3 className='w-3 h-3 sm:w-4 sm:h-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0' />
     </button>
   );
@@ -424,7 +309,7 @@ const DescriptionModal = ({
       className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'
       onClick={handleBackdropClick}
     >
-      <div className='bg-card rounded-xl shadow-2xl border border-border max-w-2xl w-full max-h-[80vh] overflow-hidden'>
+      <div className='bg-card/90 backdrop-blur-xl rounded-xl shadow-2xl border border-border max-w-2xl w-full max-h-[80vh] overflow-hidden'>
         {/* Header */}
         <div className='flex items-center justify-between p-6 border-b border-border'>
           <div className='flex items-center gap-3'>
@@ -554,25 +439,76 @@ const DescriptionModal = ({
   );
 };
 
+// List identity is a small colored dot, not a full-panel wash — one of a
+// fixed rotation, assigned deterministically from the list id so it stays
+// stable across reloads.
+const LIST_DOT_COLORS = [
+  'bg-indigo-400',
+  'bg-teal-400',
+  'bg-rose-400',
+  'bg-amber-400',
+  'bg-slate-400',
+];
+
 const getColumnStyle = (id: string) => {
-  const styles = {
-    'review-pending': 'bg-orange-500/10 border-orange-500/30 text-orange-400',
-    'android-pending': 'bg-purple-500/10 border-purple-500/30 text-purple-400',
-    'web-pending': 'bg-green-500/10 border-green-500/30 text-green-400',
-    'backend-pending': 'bg-blue-500/10 border-blue-500/30 text-blue-400',
-    references: 'bg-slate-500/10 border-slate-500/30 text-slate-400',
-  };
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  }
+  const index = Math.abs(hash) % LIST_DOT_COLORS.length;
+  return LIST_DOT_COLORS[index];
+};
+
+// Shown when the board fetch fails. If it failed specifically because the
+// board no longer exists (most often: it was just deleted, and this is a
+// stale tile/link that hadn't been refreshed yet), this auto-redirects
+// back after a moment instead of dead-ending on a scary error page the
+// user has to manually click out of. A genuine fetch error (network,
+// permissions, etc.) still just shows the message with a manual way back.
+function BoardGoneOrError({
+  boardGone,
+  message,
+  onGoBack,
+}: {
+  boardGone: boolean;
+  message: string;
+  onGoBack: () => void;
+}) {
+  useEffect(() => {
+    if (!boardGone) return;
+    const timeout = setTimeout(onGoBack, 1800);
+    return () => clearTimeout(timeout);
+  }, [boardGone, onGoBack]);
 
   return (
-    styles[id as keyof typeof styles] ||
-    'bg-slate-500/10 border-slate-500/30 text-slate-400'
+    <div className='min-h-screen flex flex-col items-center justify-center'>
+      <div className='text-center'>
+        <h1 className='text-2xl font-bold text-foreground mb-2'>
+          {boardGone ? 'Board not found' : 'Error loading board'}
+        </h1>
+        <p className='text-muted-foreground mb-4'>
+          {boardGone ? "This board doesn't exist anymore." : message}
+        </p>
+        {boardGone ? (
+          <p className='text-sm text-muted-foreground'>Taking you back…</p>
+        ) : (
+          <button
+            onClick={onGoBack}
+            className='px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors'
+          >
+            Go Back
+          </button>
+        )}
+      </div>
+    </div>
   );
-};
+}
 
 export default function BoardPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
@@ -590,6 +526,18 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [isCardModalOpen, setIsCardModalOpen] = useState(false);
   const [isUpdatingLabels, setIsUpdatingLabels] = useState(false);
+
+  // Quick-edit popovers — dates/assignee editable directly from a card's
+  // row/tile (list view or board view) without opening the full CardModal.
+  // Lifted up here rather than living inside TaskRow/TaskCard themselves
+  // because DateTimeRangePicker/CardMemberPicker both need board/workspace
+  // context those components don't otherwise carry.
+  const [quickEditDatesCardId, setQuickEditDatesCardId] = useState<
+    string | null
+  >(null);
+  const [quickEditAssigneeCardId, setQuickEditAssigneeCardId] = useState<
+    string | null
+  >(null);
 
   // Move card modal states
   const [showMoveCardModal, setShowMoveCardModal] = useState(false);
@@ -618,7 +566,10 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     toggleStar,
     updateBoardName,
     updateBoardDescription,
+    updateBoardColor,
   } = useBoard(params.id);
+
+  const { removeBoardFromCache } = useAppStore();
 
   // Use the board store hook for real-time data management
   const {
@@ -636,10 +587,42 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     deleteList,
     updateCardLabels,
     updateCardMembers,
+    refetch,
   } = useBoardStore(params.id);
 
   // Local UI state for columns (needed for optimistic updates)
   const [columns, setColumns] = useState<Column[]>([]);
+
+  // In-board search — filters cards by title across every list, in both
+  // board and list view. Lists themselves always stay visible (so you can
+  // still see which list a match is in / add to an empty one) — only the
+  // cards inside get filtered.
+  const [boardSearchQuery, setBoardSearchQuery] = useState('');
+  const filteredColumns =
+    boardSearchQuery.trim().length > 0
+      ? columns.map((col) => ({
+          ...col,
+          cards: col.cards.filter((card) =>
+            card.title
+              .toLowerCase()
+              .includes(boardSearchQuery.trim().toLowerCase())
+          ),
+        }))
+      : columns;
+
+  // Board/List view toggle, remembered per board in localStorage. Lazy
+  // initializer so the very first client render already reads the saved
+  // value instead of flashing "board" first — guarded for SSR since
+  // localStorage doesn't exist there.
+  const [boardView, setBoardView] = useState<'board' | 'list'>(() => {
+    if (typeof window === 'undefined') return 'board';
+    const saved = window.localStorage.getItem(`taskmaster:board-view:${params.id}`);
+    return saved === 'list' ? 'list' : 'board';
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(`taskmaster:board-view:${params.id}`, boardView);
+  }, [boardView, params.id]);
 
   // Keep columns in sync with the latest lists from the hook
   useEffect(() => {
@@ -666,6 +649,8 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         due_date: card.due_date,
         due_status: card.due_status,
         updated_at: card.updated_at,
+        attachments: card.attachments,
+        comments: card.comments,
       })),
     }));
     setColumns(converted);
@@ -812,9 +797,20 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       setDeletionStats(data.deletionStats);
       showSuccess('Board deleted successfully');
 
-      // Go back to previous page after a short delay
+      // Clear this board out of the workspace board-list cache — without
+      // this, the /boards/[workspaceId] page (and its own client-side
+      // cache, which isn't cleared just by navigating) kept showing the
+      // deleted board's tile until a hard refresh, and clicking it hit the
+      // now-gone row and threw "Cannot coerce the result to a single JSON
+      // object" instead of the tile simply not being there anymore.
+      removeBoardFromCache(board.workspace.id, params.id);
+
+      // Go to the workspace's board list — deterministic, unlike
+      // router.back(), which goes wherever browser history happens to
+      // point (an external referrer, a bookmark, nothing at all) rather
+      // than somewhere that still makes sense once this board is gone.
       setTimeout(() => {
-        router.back();
+        router.push(`/boards/${board.workspace.id}`);
       }, 2000);
     } catch (error) {
       console.error('Error deleting board:', error);
@@ -898,20 +894,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     [lists, deleteList, showSuccess, showError]
   );
 
-  // Task action handlers
-  const handleEditTask = (taskId: string) => {
-    showSuccess('Task editing will be implemented soon');
-  };
-
-  const handleCopyTask = (taskId: string) => {
-    showSuccess('Task copying will be implemented soon');
-  };
-
-  const handleArchiveTask = async (taskId: string): Promise<boolean> => {
-    showSuccess('Task archived successfully');
-    return true;
-  };
-
   const handleDeleteTask = useCallback(
     async (taskId: string): Promise<boolean> => {
       // Find the task to get its title for the notification
@@ -934,18 +916,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     },
     [lists, deleteCard, showSuccess, showError]
   );
-
-  const handleManageLabels = (taskId: string) => {
-    showSuccess('Label management will be implemented soon');
-  };
-
-  const handleManageAssignees = (taskId: string) => {
-    showSuccess('Assignee management will be implemented soon');
-  };
-
-  const handleManageDueDate = (taskId: string) => {
-    showSuccess('Due date management will be implemented soon');
-  };
 
   // Move card handler
   const handleMoveTask = (taskId: string) => {
@@ -1010,6 +980,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
   const handleUpdateCard = useCallback(
     async (cardId: string, updates: any): Promise<boolean> => {
+      // Declared outside the try block so the catch block below can use it
+      // to revert the optimistic update if the save fails.
+      let previousValues: Record<string, any> | null = null;
       try {
         // If only updating timestamp (from activity refresh), just update local state
         if (Object.keys(updates).length === 1 && updates.updated_at) {
@@ -1038,6 +1011,22 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           return true;
         }
 
+        // Find the card's current values so we can revert if the save
+        // fails, and apply the edit optimistically so the UI (and
+        // CardModal, which reads the card from this same `lists` state)
+        // reflects it immediately instead of waiting on the round-trip.
+        for (const list of lists) {
+          const existing = list.cards.find((c: any) => c.id === cardId);
+          if (existing) {
+            previousValues = {};
+            Object.keys(updates).forEach((key) => {
+              previousValues![key] = (existing as any)[key];
+            });
+            break;
+          }
+        }
+        updateCard(cardId, updates);
+
         // For actual field updates, make API call
         const response = await fetch(`/api/cards/${cardId}`, {
           method: 'PUT',
@@ -1053,9 +1042,8 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           throw new Error(data.error || 'Failed to update card');
         }
 
-        // Update handled by useLists hook cache
-
-        // Update the card in lists state for CardModal
+        // Reconcile with the server's canonical values (e.g. computed
+        // due_status) now that the save has actually completed.
         updateCard(cardId, {
           title: data.card.title,
           description: data.card.description,
@@ -1069,13 +1057,17 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         return true;
       } catch (error) {
         console.error('Error updating card:', error);
+        // Revert the optimistic update
+        if (previousValues) {
+          updateCard(cardId, previousValues);
+        }
         showError(
           error instanceof Error ? error.message : 'Failed to update card'
         );
         return false;
       }
     },
-    [updateCard, showSuccess, showError]
+    [updateCard, showSuccess, showError, lists]
   );
 
   // Handle labels updated - update store for instant UI sync
@@ -1128,6 +1120,40 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       }
     },
     [selectedCardId, updateCardMembers, handleUpdateCard]
+  );
+
+  // Same as handleMembersUpdated above, but for the quick-edit assignee
+  // popover, which can be editing a *different* card than whichever one
+  // (if any) is open in the full CardModal — so it can't rely on
+  // selectedCardId the way that handler does.
+  const handleQuickEditMembersUpdated = useCallback(
+    async (cardId: string) => {
+      try {
+        const response = await fetch(`/api/cards/${cardId}/members`);
+        const data = await response.json();
+
+        if (response.ok) {
+          updateCardMembers(cardId, data.members || []);
+          handleUpdateCard(cardId, { updated_at: new Date().toISOString() });
+        }
+      } catch (error) {
+        console.error('Error fetching updated members:', error);
+      }
+    },
+    [updateCardMembers, handleUpdateCard]
+  );
+
+  // Finds a card (and its current data) across all lists, for the
+  // quick-edit popovers to read starting values from.
+  const findCardById = useCallback(
+    (cardId: string) => {
+      for (const list of lists) {
+        const card = list.cards.find((c: any) => c.id === cardId);
+        if (card) return card;
+      }
+      return null;
+    },
+    [lists]
   );
 
   // Enhanced move success handler that doesn't close the card modal
@@ -1197,28 +1223,24 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     [createCard, showSuccess, showError]
   );
 
-  // Show loading skeleton if board or lists are still loading
+  // Show loading skeleton if board or lists are still loading — shaped to
+  // match the remembered view (boardView is read from localStorage before
+  // first paint, see its lazy initializer above) so the skeleton doesn't
+  // flip layout once the real content lands.
   if (loading || listsLoading || !board || !lists) {
-    return <BoardSkeleton />;
+    return boardView === 'list' ? <BoardListViewSkeleton /> : <BoardSkeleton />;
   }
 
   // Handle error states
   if (error) {
+    const boardGone = error.includes('no longer exists');
+
     return (
-      <div className='min-h-screen dot-pattern-dark flex flex-col items-center justify-center'>
-        <div className='text-center'>
-          <h1 className='text-2xl font-bold text-destructive mb-2'>
-            Error loading board
-          </h1>
-          <p className='text-muted-foreground mb-4'>{error}</p>
-          <button
-            onClick={() => router.back()}
-            className='px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors'
-          >
-            Go Back
-          </button>
-        </div>
-      </div>
+      <BoardGoneOrError
+        boardGone={boardGone}
+        message={error}
+        onGoBack={() => router.back()}
+      />
     );
   }
 
@@ -1386,11 +1408,22 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
     let targetListId: string;
     let newPosition: number;
+    // Index into the target list's cards *excluding* the dragged card —
+    // matches what the server's target-list query returns (it excludes the
+    // card being moved too), so the two stay in the same coordinate space.
+    // `newPosition` above is only for the local optimistic reorder, which
+    // has its own same-list adjustment (see moveCard in useLists.ts) and
+    // must not be reused here or the two adjustments would compound.
+    let serverIndex: number;
 
     if (isOverAColumn) {
       targetListId = overId;
       const targetColumn = columns.find((col) => col.id === targetListId);
       newPosition = targetColumn ? targetColumn.cards.length : 0;
+      const otherCards = targetColumn
+        ? targetColumn.cards.filter((card) => card.id !== activeId)
+        : [];
+      serverIndex = otherCards.length;
     } else {
       const overTaskInfo = findTaskById(overId);
       if (!overTaskInfo) {
@@ -1410,6 +1443,15 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         (card) => card.id === overId
       );
       newPosition = insertIndex;
+
+      const otherCards = targetColumn.cards.filter(
+        (card) => card.id !== activeId
+      );
+      const overIndexAmongOthers = otherCards.findIndex(
+        (card) => card.id === overId
+      );
+      serverIndex =
+        overIndexAmongOthers === -1 ? otherCards.length : overIndexAmongOthers;
     }
 
     moveCard(activeId, sourceListId, targetListId, newPosition);
@@ -1427,7 +1469,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         },
         body: JSON.stringify({
           list_id: targetListId,
-          position: newPosition,
+          position: serverIndex,
         }),
       });
 
@@ -1436,13 +1478,49 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         throw new Error(data.error || 'Failed to move card');
       }
 
-      showSuccess('Card moved successfully');
+      // No success toast here — the card visibly relocating is already
+      // the feedback; a toast on top of every drag reads as noisy.
     } catch (error) {
       console.error('Error moving card:', error);
       showError('Failed to move card');
       refetch();
     }
   }
+
+  // List view's drag-and-drop: same optimistic-update-then-persist pattern
+  // as handleDragEnd above, just driven by ListView's own DnD instead of
+  // the kanban board's. Plain function, not useCallback — declared after
+  // the loading-gate early return below, same reasoning as handleDragEnd.
+  const handleMoveCardInListView = async (
+    cardId: string,
+    sourceListId: string,
+    targetListId: string,
+    newIndex: number
+  ) => {
+    moveCard(cardId, sourceListId, targetListId, newIndex);
+
+    try {
+      const response = await fetch(`/api/cards/${cardId}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          list_id: targetListId,
+          position: newIndex,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to move card');
+      }
+
+      // No success toast — same reasoning as handleDragEnd above.
+    } catch (error) {
+      console.error('Error moving card:', error);
+      showError('Failed to move card');
+      refetch();
+    }
+  };
 
   // Get workspace color class
   const workspaceColorClass = getColorClass(board.workspace.color);
@@ -1478,7 +1556,18 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               >
                 <ArrowLeft className='w-4 h-4' />
               </button>
-              <div className='min-w-0 flex-1'>
+              <div className='min-w-0 flex-1 flex items-center gap-2'>
+                {/* Board's own color — the one place on this page that
+                    actually reflects it, so changing it in Board settings
+                    has visible, immediate confirmation instead of only
+                    showing up later on the workspace boards grid. */}
+                <span
+                  className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                    getBoardColorStyle(board.color).className
+                  }`}
+                  style={getBoardColorStyle(board.color).style}
+                  title='Board color'
+                />
                 <BoardNameEditor
                   boardName={board.name}
                   onSave={updateBoardName}
@@ -1533,7 +1622,16 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               <span className='text-muted-foreground'>/</span>
 
               {/* Board name - editable */}
-              <div className='min-w-0 flex-1'>
+              <div className='min-w-0 flex-1 flex items-center gap-2'>
+                {/* Board's own color — see the matching mobile comment
+                    above for why this exists. */}
+                <span
+                  className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                    getBoardColorStyle(board.color).className
+                  }`}
+                  style={getBoardColorStyle(board.color).style}
+                  title='Board color'
+                />
                 <BoardNameEditor
                   boardName={board.name}
                   onSave={updateBoardName}
@@ -1544,6 +1642,44 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
           {/* Actions - always on the right */}
           <div className='flex items-center justify-end gap-2 sm:gap-4 flex-shrink-0'>
+            {/* In-board search — filters cards by title in both views */}
+            <div className='relative hidden sm:block w-40 lg:w-56'>
+              <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground' />
+              <input
+                type='text'
+                value={boardSearchQuery}
+                onChange={(e) => setBoardSearchQuery(e.target.value)}
+                placeholder='Search this board...'
+                className='w-full pl-8 pr-3 py-1.5 text-sm bg-muted/40 border border-border/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all'
+              />
+            </div>
+
+            {/* Board / List view toggle */}
+            <div className='flex items-center gap-0.5 p-0.5 bg-muted/40 border border-border/50 rounded-lg'>
+              <button
+                onClick={() => setBoardView('board')}
+                title='Board view'
+                className={`p-1.5 rounded-md transition-colors ${
+                  boardView === 'board'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <LayoutGrid className='w-4 h-4' />
+              </button>
+              <button
+                onClick={() => setBoardView('list')}
+                title='List view'
+                className={`p-1.5 rounded-md transition-colors ${
+                  boardView === 'list'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <List className='w-4 h-4' />
+              </button>
+            </div>
+
             {/* Info button */}
             <button
               onClick={() => setIsDescriptionModalOpen(true)}
@@ -1553,15 +1689,23 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               <Info className='w-4 h-4 sm:w-5 sm:h-5' />
             </button>
 
-            {/* Last access time */}
+            {/* board.updated_at is when the board itself (name/description/
+                color) was last edited — not when anyone last viewed it.
+                There's no real view-tracking timestamp anywhere (see
+                trackBoardAccess in utils/boardAccess.ts — it only reorders
+                a recent-boards id list, no timestamp involved), so this
+                used to claim "Last accessed" on data that had nothing to
+                do with access, e.g. showing "401d ago" on a board being
+                actively viewed right now just because it hadn't been
+                renamed/re-described since. */}
             <div className='hidden md:flex items-center gap-2 text-sm text-muted-foreground'>
               <Clock className='w-4 h-4' />
-              <span>Last accessed {formatLastAccess(board.updated_at)}</span>
+              <span>Last updated {formatLastAccess(board.updated_at)}</span>
             </div>
 
             {/* Labels updating indicator */}
             {isUpdatingLabels && (
-              <div className='flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400'>
+              <div className='flex items-center gap-2 text-sm text-accent'>
                 <Loader2 className='w-4 h-4 animate-spin' />
                 <span>Updating labels...</span>
               </div>
@@ -1598,7 +1742,48 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
               {/* Settings Dropdown Menu */}
               {showSettingsDropdown && (
-                <div className='absolute top-full right-0 mt-2 w-64 bg-card border border-border rounded-lg shadow-xl z-50 overflow-hidden'>
+                <div className='absolute top-full right-0 mt-2 w-64 bg-card/95 backdrop-blur-xl border border-border rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150'>
+                  {/* Board Color Option */}
+                  <div className='p-2 border-b border-border'>
+                    <button
+                      onClick={() => setShowColorPicker(!showColorPicker)}
+                      className='w-full flex items-center gap-3 px-3 py-2 text-left text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+                    >
+                      <Palette className='w-4 h-4 text-muted-foreground' />
+                      <div className='font-medium'>Board color</div>
+                    </button>
+                    {showColorPicker && (
+                      <div className='flex flex-wrap gap-1.5 px-3 pt-1 pb-2'>
+                        {BOARD_COLOR_OPTIONS.map((color) => (
+                          <button
+                            key={color.value}
+                            onClick={async () => {
+                              const success = await updateBoardColor(
+                                color.value
+                              );
+                              if (success) {
+                                showSuccess('Board color updated');
+                                setShowColorPicker(false);
+                                setShowSettingsDropdown(false);
+                              } else {
+                                showError('Failed to update board color');
+                              }
+                            }}
+                            title={color.name}
+                            aria-label={`Set board color to ${color.name}`}
+                            className={`w-6 h-6 rounded-full ${
+                              color.value
+                            } transition-all ${
+                              board.color === color.value
+                                ? 'ring-2 ring-ring ring-offset-1 ring-offset-background'
+                                : 'hover:ring-1 hover:ring-ring hover:ring-offset-1 hover:ring-offset-background'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Delete Board Option */}
                   <div className='p-2 border-b border-border'>
                     <button
@@ -1608,7 +1793,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                         setShowBoardDeletionModal(true);
                         setShowSettingsDropdown(false);
                       }}
-                      className='w-full flex items-center gap-3 px-3 py-2 text-left text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors'
+                      className='w-full flex items-center gap-3 px-3 py-2 text-left text-destructive hover:bg-destructive/10 rounded-lg transition-colors'
                     >
                       <Trash2 className='w-4 h-4' />
                       <div>
@@ -1627,37 +1812,63 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       </div>
 
       {/* Kanban Board - Full width without padding */}
+      {boardView === 'list' ? (
+        <ListView
+          columns={filteredColumns}
+          onOpenCard={handleOpenCard}
+          onAddCard={handleAddCard}
+          onDeleteList={handleDeleteList}
+          onUpdateListName={updateListName}
+          onMoveTask={handleMoveTask}
+          onDeleteTask={handleDeleteTask}
+          // Same reasoning as the grid view's sensors guard above — disable
+          // reordering while a search filter is narrowing what's shown, so
+          // a drop index computed against the filtered list can't land a
+          // card in the wrong spot in the real (unfiltered) one.
+          onMoveCard={
+            boardSearchQuery.trim() ? undefined : handleMoveCardInListView
+          }
+          onUpdateCardTitle={(cardId, title) =>
+            handleUpdateCard(cardId, { title })
+          }
+          onEditDates={setQuickEditDatesCardId}
+          onEditAssignee={setQuickEditAssigneeCardId}
+        />
+      ) : (
       <div className='flex-1 overflow-x-auto'>
         <DndContext
-          sensors={sensors}
+          // Dragging is disabled (no sensor to trigger it) while a search
+          // filter is active — filteredColumns' card indices don't line up
+          // with the real (unfiltered) list positions that handleDragEnd
+          // computes against, so reordering while filtered could silently
+          // drop a card in the wrong slot. Clear the search to reorder.
+          sensors={boardSearchQuery.trim() ? [] : sensors}
           collisionDetection={collisionDetectionStrategy}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
           <div className='flex gap-6 h-full min-w-max px-4'>
-            {columns.map((column) => (
+            {filteredColumns.map((column) => (
               <div key={column.id} className='flex-shrink-0'>
                 <ColumnContainer
                   column={column}
                   tasks={column.cards}
                   getColumnStyle={getColumnStyle}
-                  labelColors={labelColors}
                   dragOverInfo={dragOverInfo}
                   activeTaskId={activeTask?.id}
                   onUpdateListName={updateListName}
                   onArchiveList={handleArchiveList}
                   onDeleteList={handleDeleteList}
                   onAddCard={handleAddCard}
-                  onEditTask={handleEditTask}
-                  onCopyTask={handleCopyTask}
-                  onArchiveTask={handleArchiveTask}
                   onDeleteTask={handleDeleteTask}
-                  onManageLabels={handleManageLabels}
-                  onManageAssignees={handleManageAssignees}
-                  onManageDueDate={handleManageDueDate}
                   onMoveTask={handleMoveTask}
                   onOpenCard={handleOpenCard}
+                  onUpdateCardTitle={(cardId, title) =>
+                    handleUpdateCard(cardId, { title })
+                  }
+                  onEditDates={setQuickEditDatesCardId}
+                  onEditAssignee={setQuickEditAssigneeCardId}
                 />
               </div>
             ))}
@@ -1674,17 +1885,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               <div className='transform scale-105 rotate-1 shadow-2xl'>
                 <TaskCard
                   task={activeTask}
-                  labelColors={labelColors}
                   columnId={activeColumnId || ''}
-                  isDragTarget={false}
                   isBeingDragged={false}
-                  onEditTask={handleEditTask}
-                  onCopyTask={handleCopyTask}
-                  onArchiveTask={handleArchiveTask}
                   onDeleteTask={handleDeleteTask}
-                  onManageLabels={handleManageLabels}
-                  onManageAssignees={handleManageAssignees}
-                  onManageDueDate={handleManageDueDate}
                   onMoveTask={handleMoveTask}
                   onOpenCard={handleOpenCard}
                 />
@@ -1693,6 +1896,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           </DragOverlay>
         </DndContext>
       </div>
+      )}
 
       {/* Description Modal */}
       <DescriptionModal
@@ -1706,10 +1910,10 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       {/* Board Deletion Confirmation Modal */}
       {showBoardDeletionModal && board && (
         <div className='fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6'>
-          <div className='bg-card rounded-lg shadow-xl max-w-lg w-full p-6 border border-red-200 dark:border-red-800'>
+          <div className='bg-card/90 backdrop-blur-xl rounded-lg shadow-xl max-w-lg w-full p-6 border border-destructive/30'>
             <div className='flex items-center gap-3 mb-6'>
-              <div className='w-12 h-12 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center'>
-                <Trash2 className='w-6 h-6 text-red-600 dark:text-red-400' />
+              <div className='w-12 h-12 rounded-full bg-destructive/15 flex items-center justify-center'>
+                <Trash2 className='w-6 h-6 text-destructive' />
               </div>
               <div>
                 <h3 className='text-xl font-bold text-foreground'>
@@ -1723,12 +1927,12 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
             <div className='space-y-6'>
               {/* Consequences */}
-              <div className='p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg'>
-                <h4 className='font-semibold text-red-800 dark:text-red-200 mb-3 flex items-center gap-2'>
+              <div className='p-4 bg-destructive/10 border border-destructive/30 rounded-lg'>
+                <h4 className='font-semibold text-destructive mb-3 flex items-center gap-2'>
                   <AlertCircle className='w-4 h-4' />
                   What will be deleted:
                 </h4>
-                <ul className='text-sm text-red-700 dark:text-red-300 space-y-2'>
+                <ul className='text-sm text-destructive/90 space-y-2'>
                   <li className='flex items-center gap-2'>
                     <Trash2 className='w-3 h-3' />
                     The board "{board.name}" and all its settings
@@ -1752,7 +1956,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               <div>
                 <label className='block text-sm font-medium text-foreground mb-2'>
                   Type the board name{' '}
-                  <span className='font-bold text-red-600'>"{board.name}"</span>{' '}
+                  <span className='font-bold text-destructive'>"{board.name}"</span>{' '}
                   to confirm:
                 </label>
                 <input
@@ -1760,7 +1964,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   value={deletionConfirmName}
                   onChange={(e) => setDeletionConfirmName(e.target.value)}
                   placeholder={board.name}
-                  className='w-full p-3 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent'
+                  className='w-full p-3 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-destructive focus:border-transparent'
                   disabled={isDeletingBoard}
                   autoFocus
                 />
@@ -1784,7 +1988,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   disabled={
                     isDeletingBoard || deletionConfirmName !== board.name
                   }
-                  className='flex-1 px-4 py-2.5 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-600/50 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center gap-2'
+                  className='flex-1 px-4 py-2.5 text-sm font-medium bg-destructive hover:bg-destructive/90 disabled:bg-destructive/50 disabled:cursor-not-allowed text-destructive-foreground rounded-lg transition-colors flex items-center justify-center gap-2'
                 >
                   {isDeletingBoard ? (
                     <>
@@ -1802,14 +2006,14 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
               {/* Progress indicator */}
               {isDeletingBoard && (
-                <div className='p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg'>
-                  <div className='flex items-center gap-2 text-yellow-800 dark:text-yellow-200'>
+                <div className='p-3 bg-accent/10 border border-accent/30 rounded-lg'>
+                  <div className='flex items-center gap-2 text-accent'>
                     <Loader2 className='w-4 h-4 animate-spin' />
                     <span className='text-sm font-medium'>
                       Deleting board and all related data...
                     </span>
                   </div>
-                  <p className='text-xs text-yellow-700 dark:text-yellow-300 mt-1'>
+                  <p className='text-xs text-accent/80 mt-1'>
                     This may take a few moments. Please do not close this
                     window.
                   </p>
@@ -1818,11 +2022,11 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
               {/* Deletion stats (if available) */}
               {deletionStats && (
-                <div className='p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg'>
-                  <h5 className='font-medium text-green-800 dark:text-green-200 mb-2'>
+                <div className='p-3 bg-success/10 border border-success/30 rounded-lg'>
+                  <h5 className='font-medium text-success mb-2'>
                     Deletion completed:
                   </h5>
-                  <div className='grid grid-cols-2 gap-2 text-xs text-green-700 dark:text-green-300'>
+                  <div className='grid grid-cols-2 gap-2 text-xs text-success/90'>
                     <div>Board: {deletionStats.board}</div>
                     <div>Members: {deletionStats.members}</div>
                     <div>Lists: {deletionStats.lists}</div>
@@ -1863,7 +2067,6 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               onClose={handleCloseCard}
               onUpdateCard={handleUpdateCard}
               onDeleteCard={handleDeleteTask}
-              onArchiveCard={handleArchiveTask}
               onLabelsUpdated={handleLabelsUpdated}
               onMembersUpdated={handleMembersUpdated}
               listName={listName}
@@ -1873,6 +2076,49 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               lists={lists}
             />
           ) : null;
+        })()}
+
+      {/* Quick-edit dates popover — editing a card's dates directly from
+          its row/tile, without opening the full CardModal. */}
+      {quickEditDatesCardId &&
+        (() => {
+          const card = findCardById(quickEditDatesCardId);
+          if (!card) return null;
+          return (
+            <DateTimeRangePicker
+              startDate={card.start_date || undefined}
+              endDate={card.due_date || undefined}
+              onSaveDateTime={(dates) => {
+                handleUpdateCard(quickEditDatesCardId, {
+                  start_date: dates.startDate || null,
+                  due_date: dates.endDate || null,
+                });
+                setQuickEditDatesCardId(null);
+              }}
+              onClose={() => setQuickEditDatesCardId(null)}
+            />
+          );
+        })()}
+
+      {/* Quick-edit assignee popover — same idea, for card members. */}
+      {quickEditAssigneeCardId &&
+        (() => {
+          const card = findCardById(quickEditAssigneeCardId);
+          if (!card) return null;
+          return (
+            <CardMemberPicker
+              isOpen
+              onClose={() => setQuickEditAssigneeCardId(null)}
+              workspaceId={board?.workspace.id || ''}
+              boardId={params.id}
+              cardId={quickEditAssigneeCardId}
+              currentMembers={(card as any).card_members || []}
+              onMemberAdded={() =>
+                handleQuickEditMembersUpdated(quickEditAssigneeCardId)
+              }
+              allowMultipleSelections
+            />
+          );
         })()}
 
       {/* Move Card Modal */}
@@ -1900,13 +2146,13 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               : 'animate-in slide-in-from-bottom-2 fade-in opacity-100 scale-100'
           }`}
         >
-          <div className='bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 shadow-2xl max-w-sm backdrop-blur-sm'>
+          <div className='bg-card/90 backdrop-blur-xl border border-success/30 rounded-lg p-4 shadow-xl shadow-black/40 max-w-sm'>
             <div className='flex items-center gap-3'>
               <div className='flex-shrink-0'>
-                <CheckCircle2 className='w-5 h-5 text-green-600 dark:text-green-400' />
+                <CheckCircle2 className='w-5 h-5 text-success' />
               </div>
               <div className='flex-1'>
-                <p className='text-sm font-medium text-green-800 dark:text-green-200'>
+                <p className='text-sm font-medium text-foreground'>
                   {successMessage}
                 </p>
               </div>
@@ -1918,7 +2164,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                     setIsSuccessToastFading(false);
                   }, 300);
                 }}
-                className='flex-shrink-0 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 transition-colors'
+                className='flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors'
                 aria-label='Close success notification'
               >
                 <X className='w-4 h-4' />
@@ -1937,13 +2183,13 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               : 'animate-in slide-in-from-bottom-2 fade-in opacity-100 scale-100'
           }`}
         >
-          <div className='bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 shadow-2xl max-w-sm backdrop-blur-sm'>
+          <div className='bg-card/90 backdrop-blur-xl border border-destructive/30 rounded-lg p-4 shadow-xl shadow-black/40 max-w-sm'>
             <div className='flex items-center gap-3'>
               <div className='flex-shrink-0'>
-                <AlertCircle className='w-5 h-5 text-red-600 dark:text-red-400' />
+                <AlertCircle className='w-5 h-5 text-destructive' />
               </div>
               <div className='flex-1'>
-                <p className='text-sm font-medium text-red-800 dark:text-red-200'>
+                <p className='text-sm font-medium text-foreground'>
                   {errorMessage}
                 </p>
               </div>
@@ -1955,7 +2201,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                     setIsErrorToastFading(false);
                   }, 300);
                 }}
-                className='flex-shrink-0 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 transition-colors'
+                className='flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors'
                 aria-label='Close error notification'
               >
                 <X className='w-4 h-4' />

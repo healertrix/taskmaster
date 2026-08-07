@@ -6,6 +6,7 @@ import { DashboardHeader } from '@/app/components/dashboard/header';
 import { CreateBoardModal } from '@/app/components/board/CreateBoardModal';
 import { WorkspaceBoardCard } from '@/app/components/board/WorkspaceBoardCard';
 import { useWorkspaceBoards } from '@/hooks/useWorkspaceBoards';
+import { WorkspaceBoardsListSkeleton } from '@/app/components/ui/skeletons';
 import { createClient } from '@/utils/supabase/client';
 import {
   Plus,
@@ -13,6 +14,9 @@ import {
   Users,
   ArrowLeft,
   Grid3x3,
+  LayoutGrid,
+  List,
+  Search,
   Loader2,
   CheckCircle2,
   AlertCircle,
@@ -20,6 +24,8 @@ import {
   Edit3,
   Info,
   Save,
+  Star,
+  Clock,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useWorkspace } from '@/hooks/useWorkspace';
@@ -315,6 +321,30 @@ export default function WorkspaceBoardsPage() {
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
 
+  // Grid/list toggle + in-page board search — persisted per-workspace so
+  // switching workspaces doesn't carry a stale filter over, but coming back
+  // to the same one remembers your last view. Lazy initializer so the very
+  // first render (including the loading skeleton, see PageLoadingSkeleton
+  // below) already reflects the saved view instead of always starting as
+  // 'grid' and flipping after a mount-time effect — guarded for SSR since
+  // localStorage doesn't exist there.
+  const [boardsView, setBoardsView] = useState<'grid' | 'list'>(() => {
+    if (typeof window === 'undefined') return 'grid';
+    const saved = window.localStorage.getItem(
+      `workspace-boards-view-${workspaceId}`
+    );
+    return saved === 'list' ? 'list' : 'grid';
+  });
+  const [boardSearchQuery, setBoardSearchQuery] = useState('');
+
+  const handleSetBoardsView = useCallback(
+    (view: 'grid' | 'list') => {
+      setBoardsView(view);
+      localStorage.setItem(`workspace-boards-view-${workspaceId}`, view);
+    },
+    [workspaceId]
+  );
+
   // Permission states
   const [userRole, setUserRole] = useState<string>('');
   const [isWorkspaceOwner, setIsWorkspaceOwner] = useState(false);
@@ -443,34 +473,41 @@ export default function WorkspaceBoardsPage() {
           </div>
         </div>
 
-        {/* Boards Grid Skeleton */}
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'>
-          {/* Create Board Card Skeleton */}
-          <div className='h-40 rounded-xl border-2 border-dashed border-border/50 bg-card/30 flex flex-col items-center justify-center'>
-            <div className='w-12 h-12 bg-muted/50 rounded-full animate-pulse mb-3' />
-            <div className='h-4 w-24 bg-muted/50 rounded animate-pulse mb-1' />
-            <div className='h-3 w-32 bg-muted/50 rounded animate-pulse' />
-          </div>
-
-          {/* Board Card Skeletons */}
-          {[...Array(4)].map((_, i) => (
-            <div
-              key={i}
-              className='h-40 rounded-xl bg-card border border-border/50 p-5'
-            >
-              <div className='h-2 bg-muted/50 rounded mb-4 animate-pulse' />
-              <div className='space-y-2 mb-4'>
-                <div className='h-5 bg-muted/50 rounded animate-pulse' />
-                <div className='h-4 bg-muted/50 rounded w-3/4 animate-pulse' />
-                <div className='h-4 bg-muted/50 rounded w-1/2 animate-pulse' />
-              </div>
-              <div className='flex items-center justify-between mt-auto'>
-                <div className='h-3 w-16 bg-muted/50 rounded animate-pulse' />
-                <div className='w-4 h-4 bg-muted/50 rounded animate-pulse' />
-              </div>
+        {/* Boards Skeleton — shaped to match the remembered grid/list view
+            (boardsView is read from localStorage before first paint, see
+            its lazy initializer above) so it doesn't flip layout once the
+            real content lands. */}
+        {boardsView === 'list' ? (
+          <WorkspaceBoardsListSkeleton />
+        ) : (
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'>
+            {/* Create Board Card Skeleton */}
+            <div className='h-40 rounded-xl border-2 border-dashed border-border/50 bg-card/30 flex flex-col items-center justify-center'>
+              <div className='w-12 h-12 bg-muted/50 rounded-full animate-pulse mb-3' />
+              <div className='h-4 w-24 bg-muted/50 rounded animate-pulse mb-1' />
+              <div className='h-3 w-32 bg-muted/50 rounded animate-pulse' />
             </div>
-          ))}
-        </div>
+
+            {/* Board Card Skeletons */}
+            {[...Array(4)].map((_, i) => (
+              <div
+                key={i}
+                className='h-40 rounded-xl bg-card border border-border/50 p-5'
+              >
+                <div className='h-2 bg-muted/50 rounded mb-4 animate-pulse' />
+                <div className='space-y-2 mb-4'>
+                  <div className='h-5 bg-muted/50 rounded animate-pulse' />
+                  <div className='h-4 bg-muted/50 rounded w-3/4 animate-pulse' />
+                  <div className='h-4 bg-muted/50 rounded w-1/2 animate-pulse' />
+                </div>
+                <div className='flex items-center justify-between mt-auto'>
+                  <div className='h-3 w-16 bg-muted/50 rounded animate-pulse' />
+                  <div className='w-4 h-4 bg-muted/50 rounded animate-pulse' />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );
@@ -628,6 +665,12 @@ export default function WorkspaceBoardsPage() {
 
   const colorDisplay = getColorDisplay(workspace.color);
 
+  const filteredBoards = boardSearchQuery.trim()
+    ? boards.filter((b) =>
+        b.name.toLowerCase().includes(boardSearchQuery.trim().toLowerCase())
+      )
+    : boards;
+
   return (
     <div className='min-h-screen dot-pattern-dark'>
       <DashboardHeader />
@@ -744,35 +787,143 @@ export default function WorkspaceBoardsPage() {
           </div>
         </div>
 
-        {/* Boards Grid */}
-        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6'>
-          {/* Create New Board - Only show if user has permission */}
-          {canCreateBoards && (
-            <button
-              onClick={handleCreateBoard}
-              className='h-32 sm:h-40 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
-            >
-              <div className='w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/10 flex items-center justify-center mb-2 sm:mb-3 group-hover:bg-primary/20 transition-colors'>
-                <Plus className='w-5 h-5 sm:w-6 sm:h-6 text-primary' />
-              </div>
-              <span className='font-semibold text-sm'>Create New Board</span>
-              <span className='text-xs text-muted-foreground mt-1 px-2 text-center'>
-                Add a board to this workspace
-              </span>
-            </button>
-          )}
-
-          {/* Board Cards */}
-          {boards.map((board) => (
-            <WorkspaceBoardCard
-              key={board.id}
-              board={board}
-              onToggleStar={toggleBoardStar}
-              formatDate={formatDate}
-              getColorDisplay={getColorDisplay}
+        {/* Toolbar: search boards in this workspace + grid/list toggle */}
+        <div className='flex items-center gap-2 mb-4 sm:mb-6'>
+          <div className='relative flex-1 max-w-sm'>
+            <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground' />
+            <input
+              type='text'
+              value={boardSearchQuery}
+              onChange={(e) => setBoardSearchQuery(e.target.value)}
+              placeholder='Search boards...'
+              className='w-full pl-9 pr-3 py-2 text-sm bg-muted/40 border border-border/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all'
             />
-          ))}
+          </div>
+
+          <div className='flex items-center gap-0.5 p-0.5 bg-muted/40 border border-border/50 rounded-lg flex-shrink-0'>
+            <button
+              onClick={() => handleSetBoardsView('grid')}
+              title='Grid view'
+              className={`p-1.5 rounded-md transition-colors ${
+                boardsView === 'grid'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <LayoutGrid className='w-4 h-4' />
+            </button>
+            <button
+              onClick={() => handleSetBoardsView('list')}
+              title='List view'
+              className={`p-1.5 rounded-md transition-colors ${
+                boardsView === 'list'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <List className='w-4 h-4' />
+            </button>
+          </div>
         </div>
+
+        {/* Boards Grid */}
+        {boardsView === 'grid' ? (
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6'>
+            {/* Create New Board - Only show if user has permission, and
+                only when not filtering (a search result set isn't the
+                place to also offer creating something new). */}
+            {canCreateBoards && !boardSearchQuery.trim() && (
+              <button
+                onClick={handleCreateBoard}
+                className='h-32 sm:h-40 rounded-xl border-2 border-dashed border-border/50 hover:border-primary bg-card/30 hover:bg-card/50 flex flex-col items-center justify-center text-muted-foreground hover:text-primary transition-all group card-hover'
+              >
+                <div className='w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/10 flex items-center justify-center mb-2 sm:mb-3 group-hover:bg-primary/20 transition-colors'>
+                  <Plus className='w-5 h-5 sm:w-6 sm:h-6 text-primary' />
+                </div>
+                <span className='font-semibold text-sm'>Create New Board</span>
+                <span className='text-xs text-muted-foreground mt-1 px-2 text-center'>
+                  Add a board to this workspace
+                </span>
+              </button>
+            )}
+
+            {/* Board Cards */}
+            {filteredBoards.map((board) => (
+              <WorkspaceBoardCard
+                key={board.id}
+                board={board}
+                onToggleStar={toggleBoardStar}
+                formatDate={formatDate}
+                getColorDisplay={getColorDisplay}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className='bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl overflow-hidden divide-y divide-border/40'>
+            {filteredBoards.map((board) => {
+              const boardColorDisplay = getColorDisplay(board.color);
+              return (
+                <Link
+                  key={board.id}
+                  href={`/board/${board.id}`}
+                  className='flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors group'
+                >
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                      boardColorDisplay.isCustom
+                        ? ''
+                        : boardColorDisplay.className
+                    }`}
+                    style={
+                      boardColorDisplay.isCustom
+                        ? boardColorDisplay.style
+                        : undefined
+                    }
+                  />
+                  <div className='min-w-0 flex-1'>
+                    <p className='text-sm font-medium text-foreground truncate'>
+                      {board.name}
+                    </p>
+                    {board.description && (
+                      <p className='text-xs text-muted-foreground truncate'>
+                        {board.description}
+                      </p>
+                    )}
+                  </div>
+                  <div className='hidden sm:flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0'>
+                    <Clock className='w-3 h-3' />
+                    {formatDate(board.last_activity_at)}
+                  </div>
+                  <button
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      await toggleBoardStar(board.id);
+                    }}
+                    className={`p-1.5 rounded-full transition-colors flex-shrink-0 ${
+                      board.starred
+                        ? 'text-yellow-400 hover:text-yellow-500'
+                        : 'text-muted-foreground/50 opacity-0 group-hover:opacity-100 hover:text-yellow-400'
+                    } hover:bg-yellow-400/10`}
+                    aria-label={board.starred ? 'Unstar board' : 'Star board'}
+                    title={board.starred ? 'Unstar board' : 'Star board'}
+                  >
+                    <Star
+                      className='w-4 h-4'
+                      fill={board.starred ? 'currentColor' : 'none'}
+                    />
+                  </button>
+                </Link>
+              );
+            })}
+
+            {filteredBoards.length === 0 && (
+              <div className='px-4 py-8 text-center text-sm text-muted-foreground'>
+                No boards match &ldquo;{boardSearchQuery}&rdquo;
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Empty state */}
         {boards.length === 0 && (
@@ -791,7 +942,7 @@ export default function WorkspaceBoardsPage() {
             {canCreateBoards && (
               <button
                 onClick={handleCreateBoard}
-                className='btn bg-primary text-white hover:bg-primary/90 px-4 py-2 flex items-center gap-2'
+                className='btn btn-primary px-4 py-2 flex items-center gap-2'
               >
                 <Plus className='w-4 h-4' />
                 Create Board

@@ -121,6 +121,116 @@ export const BoardSkeleton = () => (
   </div>
 );
 
+// List View skeleton — mirrors ListView.tsx's own row layout (leading
+// checkbox slot | name | dates | assignees) so a user who's remembered into
+// List View sees a shape that matches what's about to load in, instead of
+// the kanban-shaped BoardSkeleton flashing first.
+export const BoardListViewSkeleton = () => (
+  <div className='dot-pattern-dark flex flex-col h-auto'>
+    {/* Header skeleton — same shape as BoardSkeleton's */}
+    <div className='container mx-auto max-w-full px-4 pt-24 pb-4'>
+      <div className='flex items-center justify-between mb-6 animate-pulse'>
+        <div className='flex items-center gap-4'>
+          <div className='w-9 h-9 bg-muted/50 rounded-lg' />
+          <div className='flex items-center gap-3'>
+            <div className='w-8 h-8 bg-muted/50 rounded-lg' />
+            <div className='space-y-2'>
+              <div className='h-6 w-40 bg-muted/50 rounded' />
+              <div className='h-3 w-28 bg-muted/50 rounded' />
+            </div>
+          </div>
+        </div>
+        <div className='flex items-center gap-3'>
+          <div className='w-8 h-8 bg-muted/50 rounded-lg' />
+          <div className='flex items-center gap-2'>
+            <div className='w-4 h-4 bg-muted/50 rounded' />
+            <div className='w-20 h-3 bg-muted/50 rounded' />
+          </div>
+          <div className='w-8 h-8 bg-muted/50 rounded-lg' />
+          <div className='w-8 h-8 bg-muted/50 rounded-lg' />
+        </div>
+      </div>
+    </div>
+
+    {/* List content skeleton */}
+    <div className='flex-1 px-4 sm:px-6 py-4'>
+      <div className='max-w-6xl mx-auto space-y-3 pb-8 animate-pulse'>
+        {/* Column header row placeholder */}
+        <div className='hidden lg:grid grid-cols-[3rem_1fr_7rem_5rem_1.75rem] bg-card/95 border border-border/50 rounded-xl'>
+          <div />
+          <div className='pl-4 pr-3 py-2'>
+            <div className='h-3 w-10 bg-muted/50 rounded' />
+          </div>
+          <div className='px-2 py-2 border-l border-border/30' />
+          <div className='px-2 py-2 border-l border-border/30' />
+          <div />
+        </div>
+
+        {Array.from({ length: 3 }).map((_, sectionIndex) => (
+          <div
+            key={sectionIndex}
+            className='bg-card/60 border border-border/50 rounded-xl overflow-hidden'
+          >
+            {/* Section header */}
+            <div className='flex items-center gap-2 pl-2 pr-3 py-3'>
+              <div className='w-4 h-4 bg-muted/50 rounded' />
+              <div className='h-4 w-32 bg-muted/50 rounded' />
+            </div>
+
+            {/* Rows */}
+            <div className='border-t border-border/40'>
+              {Array.from({ length: 2 }).map((_, rowIndex) => (
+                <div
+                  key={rowIndex}
+                  className='grid grid-cols-[3rem_1fr_7rem_5rem_1.75rem] items-center border-b border-border/30 last:border-b-0 py-2.5'
+                >
+                  <div className='pl-2'>
+                    <div className='w-5 h-5 rounded-full bg-muted/50' />
+                  </div>
+                  <div className='pl-4 pr-3'>
+                    <div className='h-4 bg-muted/50 rounded w-2/3' />
+                  </div>
+                  <div className='hidden md:flex justify-center'>
+                    <div className='h-3 w-10 bg-muted/50 rounded' />
+                  </div>
+                  <div className='flex justify-center'>
+                    <div className='w-6 h-6 rounded-full bg-muted/50' />
+                  </div>
+                  <div />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+// Workspace boards page — List view skeleton, mirrors the list-row markup
+// used there (color dot + name/description + last-activity + star) so the
+// loading state matches a remembered "list" preference instead of always
+// flashing the grid-card skeleton.
+export const WorkspaceBoardsListSkeleton = () => (
+  <div className='bg-card/70 border border-border/50 rounded-2xl overflow-hidden divide-y divide-border/40 animate-pulse'>
+    {Array.from({ length: 5 }).map((_, index) => (
+      <div
+        key={index}
+        className='flex items-center gap-3 px-4 py-3'
+        style={{ animationDelay: `${index * 50}ms` }}
+      >
+        <div className='w-2.5 h-2.5 rounded-full bg-muted/50 flex-shrink-0' />
+        <div className='min-w-0 flex-1 space-y-2'>
+          <div className='h-4 bg-muted/50 rounded w-1/3' />
+          <div className='h-3 bg-muted/50 rounded w-1/2' />
+        </div>
+        <div className='hidden sm:block h-3 w-16 bg-muted/50 rounded flex-shrink-0' />
+        <div className='w-4 h-4 bg-muted/50 rounded-full flex-shrink-0' />
+      </div>
+    ))}
+  </div>
+);
+
 // Compact card skeleton for dense layouts
 export const CompactCardSkeleton = ({ delay = 0 }: { delay?: number }) => (
   <div
