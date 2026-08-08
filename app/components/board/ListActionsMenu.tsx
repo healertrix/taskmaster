@@ -2,19 +2,26 @@
 
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreHorizontal, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Trash2, CheckCircle2 } from 'lucide-react';
 
 interface ListActionsMenuProps {
   listId: string;
   listName: string;
   cardCount?: number;
   onDeleteList?: (listId: string) => Promise<boolean>;
+  // Whether this list currently counts toward "completed" in My Tasks
+  // (see the migration in
+  // supabase/supabase/migrations/20260808150000_add_list_is_done.sql).
+  // More than one list per board can be marked — e.g. both "Done" and
+  // "Archive".
+  isDoneList?: boolean;
+  onToggleDoneList?: (listId: string, isDone: boolean) => Promise<boolean>;
 }
 
 // Approximate on-screen sizes, kept in sync with the menu markup below —
 // used to keep the menu on-screen and avoid overlapping the button.
 const MENU_WIDTH = 176; // w-44
-const MENU_HEIGHT = 44; // single row
+const MENU_HEIGHT = 84; // two rows (done toggle + delete)
 const CONFIRM_HEIGHT = 108; // confirm copy + actions row
 
 export function ListActionsMenu({
@@ -22,6 +29,8 @@ export function ListActionsMenu({
   listName,
   cardCount = 0,
   onDeleteList,
+  isDoneList = false,
+  onToggleDoneList,
 }: ListActionsMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -106,6 +115,12 @@ export function ListActionsMenu({
     }
   }, [isOpen, showDeleteConfirm]);
 
+  const handleToggleDone = () => {
+    if (!onToggleDoneList) return;
+    setIsOpen(false);
+    onToggleDoneList(listId, !isDoneList);
+  };
+
   const handleDelete = () => {
     if (!onDeleteList) return;
 
@@ -151,6 +166,19 @@ export function ListActionsMenu({
       >
         {!showDeleteConfirm ? (
           <div className='py-1'>
+            {onToggleDoneList && (
+              <button
+                onClick={handleToggleDone}
+                className='w-full px-3 py-2 text-left text-sm text-foreground hover:bg-muted/50 transition-colors flex items-center gap-2'
+              >
+                <CheckCircle2
+                  className={`w-3.5 h-3.5 ${
+                    isDoneList ? 'text-success' : 'text-muted-foreground'
+                  }`}
+                />
+                {isDoneList ? 'Unmark as done list' : 'Mark as done list'}
+              </button>
+            )}
             {onDeleteList && (
               <button
                 onClick={() => setShowDeleteConfirm(true)}

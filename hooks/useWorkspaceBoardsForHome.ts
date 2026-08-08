@@ -10,6 +10,10 @@ export interface WorkspaceBoardForHome {
   number?: number;
   color: string;
   starred?: boolean;
+  // "Last time anything happened on this board" — see the comment on
+  // Board.last_activity_at in hooks/useBoardStars.ts for why this isn't
+  // just `updated_at`.
+  last_activity_at?: string;
 }
 
 export const useWorkspaceBoardsForHome = () => {
@@ -37,7 +41,7 @@ export const useWorkspaceBoardsForHome = () => {
         // Fetch boards for all workspaces
         const { data: boardsData, error: boardsError } = await supabase
           .from('boards')
-          .select('id, name, number, color, workspace_id')
+          .select('id, name, number, color, workspace_id, last_activity_at')
           .in('workspace_id', workspaceIds);
 
         if (boardsError) {
@@ -80,6 +84,7 @@ export const useWorkspaceBoardsForHome = () => {
             number: board.number,
             color: board.color,
             starred: starredBoardIds.has(board.id),
+            last_activity_at: board.last_activity_at,
           });
           return acc;
         }, {} as { [workspaceId: string]: WorkspaceBoardForHome[] });

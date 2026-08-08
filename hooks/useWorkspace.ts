@@ -10,6 +10,11 @@ export interface WorkspaceData {
   visibility: 'private' | 'public';
   created_at: string;
   updated_at: string;
+  // Shareable, permanent display number scoped per owner — see the
+  // migration in
+  // supabase/supabase/migrations/20260812100000_add_workspace_number.sql.
+  // Feeds colorForNumber() for guaranteed-spread workspace colors.
+  number?: number;
 }
 
 export const useWorkspace = (workspaceId: string) => {

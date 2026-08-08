@@ -4,7 +4,7 @@ import React, { useRef } from 'react';
 import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus } from 'lucide-react';
+import { Plus, CheckCircle2 } from 'lucide-react';
 import { TaskCard } from './TaskCard';
 import { ListNameEditor } from './ListNameEditor';
 import { ListActionsMenu } from './ListActionsMenu';
@@ -28,6 +28,9 @@ interface Column {
   title: string;
   // Shareable display number, scoped per board — see Task.number above.
   number?: number;
+  // Whether this list counts toward "completed" in My Tasks — see
+  // supabase/supabase/migrations/20260808150000_add_list_is_done.sql.
+  is_done_list?: boolean;
   cards: Task[];
 }
 
@@ -54,6 +57,7 @@ interface ColumnContainerProps {
   onUpdateListName?: (listId: string, newName: string) => Promise<boolean>;
   onArchiveList?: (listId: string) => Promise<boolean>;
   onDeleteList?: (listId: string) => Promise<boolean>;
+  onToggleDoneList?: (listId: string, isDone: boolean) => Promise<boolean>;
   onAddCard?: (columnId: string, cardTitle: string) => Promise<boolean>;
   onDeleteTask?: (taskId: string) => Promise<boolean>;
   onMoveTask?: (taskId: string) => void;
@@ -73,6 +77,7 @@ export function ColumnContainer({
   onUpdateListName,
   onArchiveList,
   onDeleteList,
+  onToggleDoneList,
   onAddCard,
   onDeleteTask,
   onMoveTask,
@@ -156,6 +161,11 @@ export function ColumnContainer({
               #{boardNumber ?? '?'}.{column.number}
             </span>
           )}
+          {column.is_done_list && (
+            <span title='Cards here count as completed'>
+              <CheckCircle2 className='w-3.5 h-3.5 text-success flex-shrink-0' />
+            </span>
+          )}
           <span className='text-xs text-muted-foreground bg-muted rounded-full px-1.5 py-0.5 flex-shrink-0'>
             {tasks.length}
           </span>
@@ -164,8 +174,9 @@ export function ColumnContainer({
           listId={column.id}
           listName={column.title}
           cardCount={tasks.length}
-          onArchiveList={onArchiveList || (() => Promise.resolve(false))}
           onDeleteList={onDeleteList || (() => Promise.resolve(false))}
+          isDoneList={column.is_done_list}
+          onToggleDoneList={onToggleDoneList}
         />
       </div>
       {/* Make the content area scrollable */}

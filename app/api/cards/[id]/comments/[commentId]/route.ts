@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { notifyMentionedProfiles } from '@/utils/notifications';
 
 // PUT /api/cards/[id]/comments/[commentId] - Update a comment
 export async function PUT(
@@ -21,7 +22,21 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { content } = body;
+    const { content, mentions } = body;
+
+    // Same defensive sanitization as the create route — see the comment
+    // there.
+    const sanitizedMentions = Array.isArray(mentions)
+      ? mentions
+          .filter(
+            (m: any) => m && typeof m.id === 'string' && m.id.trim()
+          )
+          .map((m: any) => ({
+            id: m.id,
+            full_name:
+              typeof m.full_name === 'string' ? m.full_name : null,
+          }))
+      : [];
 
     if (!content?.trim()) {
       return NextResponse.json(
@@ -97,11 +112,23 @@ export async function PUT(
       );
     }
 
+    // Read the pre-edit mentions so we only notify people newly tagged in
+    // this edit, not everyone tagged in the comment all over again.
+    const { data: previousComment } = await supabase
+      .from('comments')
+      .select('mentions')
+      .eq('id', commentId)
+      .single();
+    const previousMentionIds = new Set(
+      ((previousComment?.mentions as any[]) || []).map((m) => m.id)
+    );
+
     // Update the comment (RLS policies will ensure user can only update their own comments)
     const { data: comment, error: commentError } = await supabase
       .from('comments')
       .update({
         content: content.trim(),
+        mentions: sanitizedMentions,
         is_edited: true,
         updated_at: new Date().toISOString(),
       })
@@ -111,6 +138,7 @@ export async function PUT(
         `
         id,
         content,
+        mentions,
         created_at,
         updated_at,
         is_edited,
@@ -176,6 +204,30 @@ export async function PUT(
         activityError
       );
       // Don't fail the comment update if activity tracking fails
+    }
+
+    // Only notify people newly tagged in this edit — not everyone tagged
+    // in the comment all over again.
+    try {
+      const newlyMentionedIds = sanitizedMentions
+        .map((m) => m.id)
+        .filter((id) => !previousMentionIds.has(id));
+
+      if (newlyMentionedIds.length > 0) {
+        await notifyMentionedProfiles(supabase, {
+          actorId: user.id,
+          cardId,
+          boardId: card.board_id,
+          commentId,
+          cardTitle: card.title || 'Untitled Card',
+          mentionedProfileIds: newlyMentionedIds,
+        });
+      }
+    } catch (notificationError) {
+      console.error(
+        'Failed to create mention notifications for comment edit:',
+        notificationError
+      );
     }
 
     return NextResponse.json({ comment });

@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { notifyCardMembers } from '@/utils/notifications';
 
 // Helper function to generate timeline summary
 function generateTimelineSummary(dateChanges: any): string {
@@ -412,6 +413,8 @@ export async function PUT(
 
       // Create single timeline activity if any dates changed
       if (hasDateChanges) {
+        const summary = generateTimelineSummary(dateChanges);
+
         await supabase.from('activities').insert({
           profile_id: user.id,
           board_id: card.board_id,
@@ -419,9 +422,24 @@ export async function PUT(
           action_type: 'timeline_updated',
           action_data: {
             changes: dateChanges,
-            summary: generateTimelineSummary(dateChanges),
+            summary,
           },
         });
+
+        try {
+          await notifyCardMembers(supabase, {
+            type: 'due_date_changed',
+            actorId: user.id,
+            cardId,
+            boardId: card.board_id,
+            content: summary,
+          });
+        } catch (notificationError) {
+          console.error(
+            'Failed to create due-date-change notifications:',
+            notificationError
+          );
+        }
       }
     } catch (activityError) {
       // Don't fail the main operation if activity logging fails

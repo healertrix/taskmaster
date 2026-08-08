@@ -30,6 +30,7 @@ import { useAppStore } from '@/lib/stores/useAppStore';
 import { AddListForm } from '../../components/board/AddListForm';
 import { CardModal } from '../../components/board/CardModal';
 import { DateTimeRangePicker } from '@/components/ui/DateTimeRangePicker';
+import { EntityInfoModal } from '@/components/ui/EntityInfoModal';
 import { CardMemberPicker } from '../../components/board/CardMemberPicker';
 import { MoveCardModal } from '../../components/board/MoveCardModal';
 import {
@@ -61,7 +62,6 @@ import {
   Edit3,
   Loader2,
   Info,
-  Save,
   CheckCircle2,
   AlertCircle,
   Trash2,
@@ -97,6 +97,9 @@ interface Column {
   title: string;
   // Shareable display number, scoped per board — see Task.number above.
   number?: number;
+  // Whether this list counts toward "completed" in My Tasks — see
+  // supabase/supabase/migrations/20260808150000_add_list_is_done.sql.
+  is_done_list?: boolean;
   cards: Task[];
 }
 
@@ -168,239 +171,6 @@ const BoardNameEditor = ({
       <span className='truncate flex-1 heading-enter'>{boardName}</span>
       <Edit3 className='w-3 h-3 sm:w-4 sm:h-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0' />
     </button>
-  );
-};
-
-// Description Editor Modal Component
-const DescriptionModal = ({
-  isOpen,
-  onClose,
-  boardName,
-  description,
-  onSave,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  boardName: string;
-  description: string;
-  onSave: (description: string) => Promise<boolean>;
-}) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editDescription, setEditDescription] = useState(description);
-  const [isSaving, setIsSaving] = useState(false);
-
-  // Reset state when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setEditDescription(description);
-      setIsEditing(false);
-    }
-  }, [isOpen, description]);
-
-  const handleSave = async () => {
-    if (editDescription.trim() === description) {
-      setIsEditing(false);
-      return;
-    }
-
-    setIsSaving(true);
-    const success = await onSave(editDescription);
-    setIsSaving(false);
-
-    if (success) {
-      setIsEditing(false);
-    } else {
-      setEditDescription(description); // Revert on failure
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && e.ctrlKey) {
-      handleSave();
-    } else if (e.key === 'Escape') {
-      setEditDescription(description);
-      setIsEditing(false);
-    }
-  };
-
-  // Handle ESC key and back button/gesture
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleEscapeAction = () => {
-      if (isEditing) {
-        setEditDescription(description);
-        setIsEditing(false);
-      } else {
-        onClose();
-      }
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleEscapeAction();
-      }
-    };
-
-    const handlePopState = (e: PopStateEvent) => {
-      e.preventDefault();
-      handleEscapeAction();
-      // Push a new state to maintain history
-      window.history.pushState(null, '', window.location.href);
-    };
-
-    // Add state to history when opening modal
-    window.history.pushState(null, '', window.location.href);
-    document.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [isOpen, isEditing, description, onClose]);
-
-  if (!isOpen) return null;
-
-  // Handle click outside to close
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
-  return (
-    <div
-      className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'
-      onClick={handleBackdropClick}
-    >
-      <div className='bg-card/90 backdrop-blur-xl rounded-xl shadow-2xl border border-border max-w-2xl w-full max-h-[80vh] overflow-hidden'>
-        {/* Header */}
-        <div className='flex items-center justify-between p-6 border-b border-border'>
-          <div className='flex items-center gap-3'>
-            <div className='w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center'>
-              <Info className='w-5 h-5 text-primary' />
-            </div>
-            <div>
-              <h2 className='text-xl font-semibold'>Board Information</h2>
-              <p className='text-sm text-muted-foreground'>{boardName}</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className='p-2 hover:bg-muted/50 rounded-lg transition-colors'
-            title='Close'
-          >
-            <X className='w-5 h-5' />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className='p-6'>
-          <div className='space-y-4'>
-            <div className='flex items-center justify-between'>
-              <label className='text-sm font-medium text-foreground'>
-                Description
-              </label>
-              {!isEditing && (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className='text-sm text-primary hover:text-primary/80 flex items-center gap-1 transition-colors'
-                >
-                  <Edit3 className='w-3 h-3' />
-                  Edit
-                </button>
-              )}
-            </div>
-
-            {isEditing ? (
-              <div className='space-y-3'>
-                <textarea
-                  value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className='w-full h-32 p-3 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none text-sm'
-                  placeholder='Add a description for this board...'
-                  disabled={isSaving}
-                  autoFocus
-                />
-                <div className='flex items-center justify-between'>
-                  <p className='text-xs text-muted-foreground'>
-                    Ctrl + Enter to save, Escape to cancel
-                  </p>
-                  <div className='flex items-center gap-2'>
-                    <button
-                      onClick={() => {
-                        setEditDescription(description);
-                        setIsEditing(false);
-                      }}
-                      className='px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors'
-                      disabled={isSaving}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSave}
-                      disabled={isSaving}
-                      className='px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50'
-                    >
-                      {isSaving ? (
-                        <>
-                          <Loader2 className='w-3 h-3 animate-spin' />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save className='w-3 h-3' />
-                          Save
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div
-                className='min-h-[128px] p-3 bg-muted/20 border border-border/50 rounded-lg cursor-pointer hover:bg-muted/30 transition-colors group'
-                onClick={() => setIsEditing(true)}
-                title='Click to edit description'
-              >
-                {description && description.trim() ? (
-                  <div className='relative'>
-                    <p className='text-sm text-foreground whitespace-pre-wrap leading-relaxed'>
-                      {description}
-                    </p>
-                    <div className='absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity'>
-                      <Edit3 className='w-3 h-3 text-muted-foreground' />
-                    </div>
-                  </div>
-                ) : (
-                  <div className='flex items-center justify-center h-full'>
-                    <div className='text-center'>
-                      <p className='text-sm text-muted-foreground mb-2'>
-                        No description added yet
-                      </p>
-                      <p className='text-xs text-muted-foreground flex items-center gap-1 justify-center'>
-                        <Edit3 className='w-3 h-3' />
-                        Click here to add one
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className='px-6 py-4 bg-muted/20 border-t border-border'>
-          <div className='flex items-center justify-between text-xs text-muted-foreground'>
-            <span>Click outside or press Esc to close</span>
-            <span>Ctrl + Enter to save when editing</span>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 };
 
@@ -535,6 +305,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     moveCard,
     archiveList,
     deleteList,
+    toggleListDone,
     updateCardLabels,
     updateCardMembers,
     refetch,
@@ -587,6 +358,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       id: list.id,
       title: list.name,
       number: list.number,
+      is_done_list: list.is_done_list,
       cards: list.cards.map((card) => ({
         id: card.id,
         title: card.title,
@@ -1704,18 +1476,17 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               <Info className='w-4 h-4 sm:w-5 sm:h-5' />
             </button>
 
-            {/* board.updated_at is when the board itself (name/description/
-                color) was last edited — not when anyone last viewed it.
-                There's no real view-tracking timestamp anywhere (see
-                trackBoardAccess in utils/boardAccess.ts — it only reorders
-                a recent-boards id list, no timestamp involved), so this
-                used to claim "Last accessed" on data that had nothing to
-                do with access, e.g. showing "401d ago" on a board being
-                actively viewed right now just because it hadn't been
-                renamed/re-described since. */}
+            {/* last_activity_at reflects any activity on the board (cards,
+                lists, comments — see bump_board_last_activity trigger),
+                not just edits to the board's own name/description/color
+                (that's updated_at). Falls back to updated_at for boards
+                that predate the trigger. */}
             <div className='hidden md:flex items-center gap-2 text-sm text-muted-foreground'>
               <Clock className='w-4 h-4' />
-              <span>Last updated {formatLastAccess(board.updated_at)}</span>
+              <span>
+                Last updated{' '}
+                {formatLastAccess(board.last_activity_at || board.updated_at)}
+              </span>
             </div>
 
             {/* Labels updating indicator */}
@@ -1798,6 +1569,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           onAddCard={handleAddCard}
           onDeleteList={handleDeleteList}
           onUpdateListName={updateListName}
+          onToggleDoneList={toggleListDone}
           onMoveTask={handleMoveTask}
           onDeleteTask={handleDeleteTask}
           // Same reasoning as the grid view's sensors guard above — disable
@@ -1840,6 +1612,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                   onUpdateListName={updateListName}
                   onArchiveList={handleArchiveList}
                   onDeleteList={handleDeleteList}
+                  onToggleDoneList={toggleListDone}
                   onAddCard={handleAddCard}
                   onDeleteTask={handleDeleteTask}
                   onMoveTask={handleMoveTask}
@@ -1879,12 +1652,17 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       )}
 
       {/* Description Modal */}
-      <DescriptionModal
+      <EntityInfoModal
         isOpen={isDescriptionModalOpen}
         onClose={() => setIsDescriptionModalOpen(false)}
-        boardName={board.name}
+        entityType='board'
+        name={board.name}
+        colorSeed={board.id}
+        number={board.number}
         description={board.description || ''}
         onSave={updateBoardDescription}
+        createdAt={board.created_at}
+        updatedAt={board.last_activity_at}
       />
 
       {/* Board Deletion Confirmation Modal */}

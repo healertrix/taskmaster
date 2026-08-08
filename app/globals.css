@@ -169,13 +169,23 @@
   /* bg-input (Surface, 10% lightness) sat almost flush against the header's
      own bg-background/90 (7% lightness) — a 3% lightness gap wasn't enough
      contrast to read as a distinct field, so it looked "invisible"/
-     transparent even though it was technically opaque. bg-muted (15%,
-     already the lightest neutral surface token short of using foreground/
-     primary, which would read as white) plus a visibly lighter idle border
-     (border-muted-foreground/40 instead of the hairline border-border,
-     20% lightness) so the field's edges read clearly even before focus. */
+     transparent even though it was technically opaque. bg-muted (15%) was
+     the next attempt, but the header itself is translucent+blurred
+     (bg-background/90 backdrop-blur-lg) — with whatever's scrolled
+     underneath showing/blurring through, even bg-muted still read as too
+     transparent. This uses its own solid, dedicated surface color (22%
+     lightness — deliberately brighter than every other muted/card/input
+     token in the app) instead of reusing a shared token, specifically so
+     bumping it doesn't also lighten every other "muted" surface — plus a
+     visible shadow so the field pops off the blurred header as a solid,
+     opaque object rather than blending into it. */
   .superhero-header-search {
-    @apply bg-muted border-muted-foreground/40 focus:bg-muted focus:border-primary;
+    background-color: hsl(240 7% 22%);
+    box-shadow: 0 1px 3px hsl(240 8% 4% / 0.4);
+    @apply border-muted-foreground/50 focus:border-primary;
+  }
+  .superhero-header-search:focus {
+    background-color: hsl(240 7% 24%);
   }
 
   /* Kanban column - frosted glass, hairline border, no gradient wash */

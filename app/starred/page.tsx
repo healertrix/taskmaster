@@ -221,8 +221,8 @@ function StarredBoardsPage() {
           comparison = a.name.localeCompare(b.name);
           break;
         case 'recent':
-          const aDate = new Date(a.updated_at || '').getTime();
-          const bDate = new Date(b.updated_at || '').getTime();
+          const aDate = new Date(a.last_activity_at || '').getTime();
+          const bDate = new Date(b.last_activity_at || '').getTime();
           comparison = bDate - aDate; // Most recent first by default
           break;
         case 'workspace':

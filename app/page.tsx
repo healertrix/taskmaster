@@ -29,7 +29,7 @@ import { useWorkspaceBoardsForHome } from '@/hooks/useWorkspaceBoardsForHome';
 import { canUserCreateBoards } from '@/utils/permissions';
 import { HomeOverview } from './components/dashboard/HomeOverview';
 import { useAuth } from '@/context/AuthContext';
-import { colorForKey, colorForIndex } from '@/utils/idColor';
+import { colorForEntity } from '@/utils/idColor';
 
 const initialWorkspaces: any[] = [];
 
@@ -45,7 +45,7 @@ export default function HomePage() {
   const [boardModalContext, setBoardModalContext] = useState<{
     workspaceId?: string;
     workspaceName?: string;
-    workspaceColor?: string;
+    workspaceNumber?: number;
   } | null>(null);
   const [userWorkspaces, setUserWorkspaces] = useState(initialWorkspaces);
   const [workspaceSettings, setWorkspaceSettings] = useState<
@@ -94,7 +94,8 @@ export default function HomePage() {
               id,
               name,
               color,
-              owner_id
+              owner_id,
+              workspace_number:number
             )
           `
           )
@@ -114,7 +115,7 @@ export default function HomePage() {
           const { data: directWorkspaceData, error: directWorkspaceError } =
             await supabase
               .from('workspaces')
-              .select('id, name, color, owner_id, visibility')
+              .select('id, name, color, owner_id, visibility, number')
               .in('id', workspaceIds);
 
           if (directWorkspaceError) {
@@ -135,6 +136,7 @@ export default function HomePage() {
               name: wm.workspaces.name,
               initial: wm.workspaces.name.charAt(0).toUpperCase(),
               color: wm.workspaces.color,
+              number: wm.workspaces.workspace_number,
               role: wm.role || 'member',
               boards: [],
               members: [],
@@ -159,6 +161,7 @@ export default function HomePage() {
                 name: workspace.name,
                 initial: workspace.name.charAt(0).toUpperCase(),
                 color: workspace.color,
+                number: workspace.number,
                 owner_id: workspace.owner_id, // Include owner_id for ownership checks
                 role,
                 boards: [],
@@ -383,7 +386,7 @@ export default function HomePage() {
     setBoardModalContext({
       workspaceId: workspace.id,
       workspaceName: workspace.name,
-      workspaceColor: workspace.color,
+      workspaceNumber: workspace.number,
     });
     setIsCreateBoardModalOpen(true);
   };
@@ -458,7 +461,10 @@ export default function HomePage() {
                           <div
                             className='w-7 h-7 rounded-lg flex items-center justify-center text-sm font-bold text-white shadow-md'
                             style={{
-                              backgroundColor: colorForIndex(workspaceIndex),
+                              backgroundColor: colorForEntity(
+                                workspace.id,
+                                workspace.number
+                              ),
                             }}
                           >
                             {workspace.initial}
@@ -565,6 +571,7 @@ export default function HomePage() {
                           key={board.id}
                           board={board}
                           onToggleStar={toggleBoardStar}
+                          showWorkspace
                         />
                       ))
                   )}
@@ -612,6 +619,7 @@ export default function HomePage() {
                       key={board.id}
                       board={board}
                       onToggleStar={toggleBoardStar}
+                      showWorkspace
                     />
                   ))
                 )}
@@ -635,7 +643,10 @@ export default function HomePage() {
                       <div
                         className='w-6 h-6 rounded-lg text-white flex items-center justify-center text-xs font-bold shadow-md group-hover:scale-105 transition-transform'
                         style={{
-                          backgroundColor: colorForIndex(workspaceIndex),
+                          backgroundColor: colorForEntity(
+                            workspace.id,
+                            workspace.number
+                          ),
                         }}
                       >
                         {workspace.initial}
@@ -676,15 +687,15 @@ export default function HomePage() {
                     {(() => {
                       const allBoards =
                         workspaceBoards[workspace.id] || workspace.boards;
-                      // If more than 6 boards, sort by latest (updated_at) and take first 5
-                      // Otherwise, show all boards
+                      // If more than 6 boards, sort by latest activity and
+                      // take first 5. Otherwise, show all boards.
                       const boardsToShow =
                         allBoards.length > 6
                           ? [...allBoards]
                               .sort(
                                 (a, b) =>
-                                  new Date(b.updated_at || '').getTime() -
-                                  new Date(a.updated_at || '').getTime()
+                                  new Date(b.last_activity_at || '').getTime() -
+                                  new Date(a.last_activity_at || '').getTime()
                               )
                               .slice(0, 5)
                           : allBoards;
@@ -708,6 +719,7 @@ export default function HomePage() {
                             number: board.number,
                             color: board.color,
                             starred: starredBoard ? true : false,
+                            last_activity_at: board.last_activity_at,
                           };
                         }
                         return (
@@ -823,7 +835,7 @@ export default function HomePage() {
         onSuccess={handleBoardCreated}
         workspaceId={boardModalContext?.workspaceId}
         workspaceName={boardModalContext?.workspaceName}
-        workspaceColor={boardModalContext?.workspaceColor}
+        workspaceNumber={boardModalContext?.workspaceNumber}
       />
     </div>
   );

@@ -11,12 +11,18 @@ interface BoardCardProps {
   board: Board;
   onToggleStar: (boardId: string) => Promise<void>;
   showStar?: boolean;
+  // Only pass this where boards from different workspaces are mixed
+  // together without any grouping (Starred/Recent Boards on the home
+  // page) — leave it off wherever boards are already grouped under their
+  // workspace's own heading (redundant there).
+  showWorkspace?: boolean;
 }
 
 export function BoardCard({
   board,
   onToggleStar,
   showStar = true,
+  showWorkspace = false,
 }: BoardCardProps) {
   const [isToggling, setIsToggling] = useState(false);
 
@@ -54,17 +60,24 @@ export function BoardCard({
                     : colorForKey(board.id),
               }}
             />
-            <h3 className='font-semibold text-foreground text-base line-clamp-2 leading-tight'>
-              {board.name}
-              {board.number != null && (
-                <span
-                  className='ml-1.5 text-xs font-normal text-muted-foreground align-middle'
-                  title='Board number'
-                >
-                  #{board.number}
-                </span>
+            <div className='min-w-0'>
+              <h3 className='font-semibold text-foreground text-base line-clamp-2 leading-tight'>
+                {board.name}
+                {board.number != null && (
+                  <span
+                    className='ml-1.5 text-xs font-normal text-muted-foreground align-middle'
+                    title='Board number'
+                  >
+                    #{board.number}
+                  </span>
+                )}
+              </h3>
+              {showWorkspace && board.workspace_name && (
+                <p className='text-xs text-muted-foreground truncate mt-0.5'>
+                  {board.workspace_name}
+                </p>
               )}
-            </h3>
+            </div>
           </div>
 
           {showStar && (
@@ -91,11 +104,14 @@ export function BoardCard({
           )}
         </div>
 
-        {board.updated_at && (
+        {board.last_activity_at && (
           <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
             <Clock className='w-3.5 h-3.5' />
             <span>
-              Updated {formatDistanceToNow(new Date(board.updated_at), { addSuffix: true })}
+              Updated{' '}
+              {formatDistanceToNow(new Date(board.last_activity_at), {
+                addSuffix: true,
+              })}
             </span>
           </div>
         )}

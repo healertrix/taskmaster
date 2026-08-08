@@ -33,7 +33,13 @@ export async function GET() {
           lists!inner (
             id,
             board_id,
-            boards!inner ( id, name, board_number:number )
+            boards!inner (
+              id,
+              name,
+              board_number:number,
+              workspace_id,
+              workspaces!inner ( id, name )
+            )
           )
         )
       `
@@ -56,19 +62,20 @@ export async function GET() {
       return NextResponse.json({ upcoming: [], overdue: [], completed: [] });
     }
 
-    // "Completed" has no dedicated flag on cards — same convention as list
-    // view's row checkbox: a card sitting in its board's last (highest
-    // position) list counts as done. Figure out each relevant board's last
-    // list by fetching all of that board's lists, not just the ones these
-    // assigned cards happen to sit in — a board's true last list might have
-    // none of the user's cards in it.
+    // "Completed" has no dedicated flag on cards. Primary source: whichever
+    // list(s) the board's own members have explicitly marked as a "done"
+    // list (see supabase/supabase/migrations/20260808150000_add_list_is_done.sql
+    // — more than one can be marked, e.g. both "Done" and "Archive"). A
+    // board where nobody has marked anything falls back to the old
+    // heuristic — its last (highest position) list counts as done — so
+    // boards nobody's configured yet don't just stop reporting completions.
     const boardIds = Array.from(
       new Set(rows.map((card: any) => card.lists.board_id))
     );
 
     const { data: allLists, error: listsError } = await supabase
       .from('lists')
-      .select('id, board_id, position')
+      .select('id, board_id, position, is_done_list')
       .in('board_id', boardIds);
 
     if (listsError) {
@@ -79,8 +86,16 @@ export async function GET() {
       );
     }
 
+    const doneListIdsByBoard = new Map<string, Set<string>>();
     const lastListIdByBoard = new Map<string, string>();
+
     for (const list of allLists || []) {
+      if (list.is_done_list) {
+        const set = doneListIdsByBoard.get(list.board_id) || new Set<string>();
+        set.add(list.id);
+        doneListIdsByBoard.set(list.board_id, set);
+      }
+
       const current = lastListIdByBoard.get(list.board_id);
       if (!current) {
         lastListIdByBoard.set(list.board_id, list.id);
@@ -92,6 +107,14 @@ export async function GET() {
       }
     }
 
+    const isCardCompleted = (boardId: string, listId: string): boolean => {
+      const markedDone = doneListIdsByBoard.get(boardId);
+      if (markedDone && markedDone.size > 0) {
+        return markedDone.has(listId);
+      }
+      return lastListIdByBoard.get(boardId) === listId;
+    };
+
     const now = Date.now();
     const upcoming: any[] = [];
     const overdue: any[] = [];
@@ -100,7 +123,7 @@ export async function GET() {
     for (const card of rows) {
       const boardId = card.lists.board_id;
       const boardName = card.lists.boards?.name || 'Board';
-      const isCompleted = lastListIdByBoard.get(boardId) === card.list_id;
+      const isCompleted = isCardCompleted(boardId, card.list_id);
 
       const shaped = {
         id: card.id,
@@ -110,6 +133,8 @@ export async function GET() {
         due_date: card.due_date,
         board_id: boardId,
         board_name: boardName,
+        workspace_id: card.lists.boards?.workspace_id,
+        workspace_name: card.lists.boards?.workspaces?.name,
       };
 
       if (isCompleted) {

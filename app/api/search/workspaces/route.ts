@@ -37,7 +37,8 @@ export async function GET(request: NextRequest) {
         name,
         color,
         updated_at,
-        owner_id
+        owner_id,
+        number
       `
       )
       .or(`owner_id.eq.${userId}`)
@@ -61,7 +62,8 @@ export async function GET(request: NextRequest) {
           name,
           color,
           updated_at,
-          owner_id
+          owner_id,
+          number
         )
       `
       )
@@ -110,6 +112,7 @@ export async function GET(request: NextRequest) {
           id: workspace.id,
           name: workspace.name,
           color: workspace.color,
+          number: workspace.number,
           updatedAt: workspace.updated_at,
           isOwner: workspace.owner_id === userId,
           memberCount: (memberCount?.length || 0) + 1, // +1 for owner

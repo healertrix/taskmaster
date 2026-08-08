@@ -11,6 +11,7 @@ export type WorkspaceWithPermissions = {
   id: string;
   name: string;
   color: string;
+  number?: number;
   visibility: string;
   userRole: string;
   isOwner: boolean;

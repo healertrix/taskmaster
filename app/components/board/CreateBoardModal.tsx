@@ -23,7 +23,7 @@ import {
   useWorkspacesWithPermissions,
   type WorkspaceWithPermissions,
 } from '@/hooks/useWorkspacesWithPermissions';
-import { colorForKey } from '@/utils/idColor';
+import { colorForEntity } from '@/utils/idColor';
 
 // Board color is no longer user-picked here — it's derived from the
 // board's own display number once it's created (see utils/idColor.ts).
@@ -38,7 +38,7 @@ type CreateBoardModalProps = {
   // If workspace is provided, we're creating from a workspace page
   workspaceId?: string;
   workspaceName?: string;
-  workspaceColor?: string;
+  workspaceNumber?: number;
 };
 
 export type CreateBoardModalRef = {
@@ -47,7 +47,7 @@ export type CreateBoardModalRef = {
 
 export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModalProps>(
   function CreateBoardModal(
-    { isOpen, onClose, onSuccess, workspaceId, workspaceName, workspaceColor },
+    { isOpen, onClose, onSuccess, workspaceId, workspaceName, workspaceNumber },
     ref
   ) {
     const [name, setName] = useState('');
@@ -358,7 +358,7 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
                     className='w-4 h-4 rounded-full flex-shrink-0'
                     style={{
                       backgroundColor: workspaceId
-                        ? colorForKey(workspaceId)
+                        ? colorForEntity(workspaceId, workspaceNumber)
                         : '#3B82F6',
                     }}
                   />
@@ -494,15 +494,6 @@ const CustomWorkspaceDropdown = ({
     }
   }, [isOpen]);
 
-  const getColorDisplay = (color: string) => {
-    if (color.startsWith('#')) {
-      return { backgroundColor: color };
-    } else if (color.startsWith('bg-')) {
-      return { className: color };
-    }
-    return { backgroundColor: '#3B82F6' };
-  };
-
   return (
     <div className='relative' ref={dropdownRef}>
       <button
@@ -514,21 +505,15 @@ const CustomWorkspaceDropdown = ({
         <div className='flex items-center gap-2'>
           {selectedWorkspace ? (
             <>
-              {(() => {
-                const colorStyle = getColorDisplay(selectedWorkspace.color);
-                return (
-                  <div
-                    className={`w-4 h-4 rounded-full ${
-                      colorStyle.className || ''
-                    }`}
-                    style={
-                      colorStyle.backgroundColor
-                        ? { backgroundColor: colorStyle.backgroundColor }
-                        : {}
-                    }
-                  />
-                );
-              })()}
+              <div
+                className='w-4 h-4 rounded-full'
+                style={{
+                  backgroundColor: colorForEntity(
+                    selectedWorkspace.id,
+                    selectedWorkspace.number
+                  ),
+                }}
+              />
               <span>{selectedWorkspace.name}</span>
               <span className='text-muted-foreground'>•</span>
               <div className='flex items-center gap-1'>
@@ -560,7 +545,6 @@ const CustomWorkspaceDropdown = ({
             </div>
           ) : (
             availableWorkspaces.map((workspace) => {
-              const colorStyle = getColorDisplay(workspace.color);
               const isSelected = workspace.id === selectedWorkspaceId;
 
               return (
@@ -576,14 +560,13 @@ const CustomWorkspaceDropdown = ({
                   }`}
                 >
                   <div
-                    className={`w-4 h-4 rounded-full ${
-                      colorStyle.className || ''
-                    }`}
-                    style={
-                      colorStyle.backgroundColor
-                        ? { backgroundColor: colorStyle.backgroundColor }
-                        : {}
-                    }
+                    className='w-4 h-4 rounded-full'
+                    style={{
+                      backgroundColor: colorForEntity(
+                        workspace.id,
+                        workspace.number
+                      ),
+                    }}
                   />
                   <span className='flex-1'>{workspace.name}</span>
                   <div className='flex items-center gap-1'>

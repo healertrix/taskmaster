@@ -7,7 +7,8 @@ import { CreateBoardModal } from '@/app/components/board/CreateBoardModal';
 import { WorkspaceBoardCard } from '@/app/components/board/WorkspaceBoardCard';
 import { useWorkspaceBoards } from '@/hooks/useWorkspaceBoards';
 import { WorkspaceBoardsListSkeleton } from '@/app/components/ui/skeletons';
-import { colorForNumber, colorForKey } from '@/utils/idColor';
+import { EntityInfoModal } from '@/components/ui/EntityInfoModal';
+import { colorForNumber, colorForKey, colorForEntity } from '@/utils/idColor';
 import { createClient } from '@/utils/supabase/client';
 import {
   Plus,
@@ -24,7 +25,6 @@ import {
   X,
   Edit3,
   Info,
-  Save,
   Star,
   Clock,
 } from 'lucide-react';
@@ -104,216 +104,6 @@ const WorkspaceNameEditor = ({
 };
 
 // Workspace Description Modal Component
-const WorkspaceDescriptionModal = ({
-  isOpen,
-  onClose,
-  workspaceName,
-  description,
-  onSave,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  workspaceName: string;
-  description: string;
-  onSave: (description: string) => Promise<boolean>;
-}) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editDescription, setEditDescription] = useState(description);
-  const [isSaving, setIsSaving] = useState(false);
-
-  // Reset state when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setEditDescription(description);
-      setIsEditing(false);
-    }
-  }, [isOpen, description]);
-
-  const handleSave = async () => {
-    if (editDescription.trim() === description) {
-      setIsEditing(false);
-      return;
-    }
-
-    setIsSaving(true);
-    const success = await onSave(editDescription);
-    setIsSaving(false);
-
-    if (success) {
-      setIsEditing(false);
-    } else {
-      setEditDescription(description); // Revert on failure
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && e.ctrlKey) {
-      handleSave();
-    } else if (e.key === 'Escape') {
-      setEditDescription(description);
-      setIsEditing(false);
-    }
-  };
-
-  // Handle ESC key and back button/gesture
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleEscapeAction = () => {
-      if (isEditing) {
-        setEditDescription(description);
-        setIsEditing(false);
-      } else {
-        onClose();
-      }
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleEscapeAction();
-      }
-    };
-
-    const handlePopState = (e: PopStateEvent) => {
-      e.preventDefault();
-      handleEscapeAction();
-      // Push a new state to maintain history
-      window.history.pushState(null, '', window.location.href);
-    };
-
-    // Add state to history when opening modal
-    window.history.pushState(null, '', window.location.href);
-    document.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [isOpen, isEditing, description, onClose]);
-
-  if (!isOpen) return null;
-
-  // Handle click outside to close
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
-  return (
-    <div
-      className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'
-      onClick={handleBackdropClick}
-    >
-      <div className='bg-background rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden'>
-        {/* Header */}
-        <div className='px-6 py-4 border-b border-border'>
-          <div className='flex items-center justify-between'>
-            <h2 className='text-lg font-semibold text-foreground'>
-              {workspaceName} Information
-            </h2>
-          <button
-            onClick={onClose}
-              className='p-1 text-muted-foreground hover:text-foreground transition-colors'
-              aria-label='Close modal'
-          >
-            <X className='w-5 h-5' />
-          </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className='px-6 py-4 flex-1 overflow-y-auto'>
-          {!isEditing ? (
-          <div className='space-y-4'>
-              <div>
-                <h3 className='text-sm font-medium text-foreground mb-2'>
-                Description
-                </h3>
-                {description ? (
-                  <p className='text-sm text-muted-foreground whitespace-pre-wrap'>
-                    {description}
-                  </p>
-                ) : (
-                  <p className='text-sm text-muted-foreground italic'>
-                    No description added yet.
-                  </p>
-                )}
-              </div>
-
-              <div className='flex items-center justify-end'>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className='text-sm text-primary hover:text-primary/80 flex items-center gap-1 transition-colors'
-                >
-                  <Edit3 className='w-3 h-3' />
-                  Edit
-                </button>
-            </div>
-            </div>
-          ) : (
-              <div className='space-y-3'>
-                <textarea
-                  value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className='w-full h-32 p-3 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none text-sm'
-                  placeholder='Add a description for this workspace...'
-                  disabled={isSaving}
-                  autoFocus
-                />
-
-                <div className='space-y-2'>
-                  <p className='text-xs text-muted-foreground'>
-                    Ctrl + Enter to save, Escape to cancel
-                  </p>
-                  <div className='flex items-center gap-2'>
-                    <button
-                      onClick={() => {
-                        setEditDescription(description);
-                        setIsEditing(false);
-                      }}
-                      className='px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors'
-                      disabled={isSaving}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSave}
-                      disabled={isSaving}
-                      className='px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50'
-                    >
-                      {isSaving ? (
-                        <>
-                          <Loader2 className='w-3 h-3 animate-spin' />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save className='w-3 h-3' />
-                          Save
-                        </>
-                      )}
-                    </button>
-                  </div>
-                    </div>
-                  </div>
-                )}
-        </div>
-
-        {/* Footer */}
-        <div className='px-6 py-4 bg-muted/20 border-t border-border'>
-          <div className='flex items-center justify-between text-xs text-muted-foreground'>
-            <span>Click outside or press Esc to close</span>
-            <span>Ctrl + Enter to save when editing</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 export default function WorkspaceBoardsPage() {
   const params = useParams();
   const router = useRouter();
@@ -713,7 +503,12 @@ export default function WorkspaceBoardsPage() {
             <div className='flex items-center gap-2 ml-7'>
               <div
                 className='w-4 h-4 rounded text-white flex items-center justify-center text-xs font-bold flex-shrink-0'
-                style={{ backgroundColor: colorForKey(workspace.id) }}
+                style={{
+                  backgroundColor: colorForEntity(
+                    workspace.id,
+                    workspace.number
+                  ),
+                }}
               >
                 {workspace.name.charAt(0).toUpperCase()}
               </div>
@@ -736,7 +531,12 @@ export default function WorkspaceBoardsPage() {
             <div className='flex items-center gap-3 min-w-0 flex-1'>
               <div
                 className='w-10 h-10 rounded-lg text-white flex items-center justify-center text-lg font-bold shadow-md flex-shrink-0'
-                style={{ backgroundColor: colorForKey(workspace.id) }}
+                style={{
+                  backgroundColor: colorForEntity(
+                    workspace.id,
+                    workspace.number
+                  ),
+                }}
               >
                 {workspace.name.charAt(0).toUpperCase()}
               </div>
@@ -965,18 +765,22 @@ export default function WorkspaceBoardsPage() {
           onSuccess={handleBoardCreated}
           workspaceId={workspace.id}
           workspaceName={workspace.name}
-          workspaceColor={workspace.color}
+          workspaceNumber={workspace.number}
         />
       )}
 
       {/* Workspace description modal */}
       {workspaceData && (
-        <WorkspaceDescriptionModal
+        <EntityInfoModal
           isOpen={isDescriptionModalOpen}
           onClose={handleDescriptionModalClose}
-          workspaceName={workspaceData.name}
+          entityType='workspace'
+          name={workspaceData.name}
+          colorSeed={workspaceData.id}
+          number={workspaceData.number}
           description={workspaceData.description || ''}
           onSave={updateWorkspaceDescription}
+          createdAt={workspaceData.created_at}
         />
       )}
 

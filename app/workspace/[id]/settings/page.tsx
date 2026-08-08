@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useWorkspaceSettings } from '@/hooks/useWorkspaceSettings';
-import { colorForKey } from '@/utils/idColor';
 
 // Guards against a save spinner hanging forever if the underlying request
 // genuinely stalls (dropped connection, dev-server recompile mid-request,
@@ -626,30 +625,6 @@ export default function WorkspaceSettingsPage() {
                   <ChevronRight className='w-4 h-4 text-muted-foreground flex-shrink-0' />
                 )}
               </button>
-
-              {/* Workspace Color — read-only, derived from the workspace's
-                  own id (see utils/idColor.ts). Not a button: there's
-                  nothing to edit here anymore. */}
-              <div className='w-full flex items-center justify-between p-3 rounded-lg border border-border/50'>
-                <div className='flex items-center gap-3'>
-                  <div
-                    className='w-8 h-8 rounded-full flex-shrink-0'
-                    style={{
-                      backgroundColor: workspace
-                        ? colorForKey(workspace.id)
-                        : '#3B82F6',
-                    }}
-                  />
-                  <div>
-                    <div className='font-medium text-foreground text-sm'>
-                      Assigned automatically
-                    </div>
-                    <div className='text-xs text-muted-foreground'>
-                      Workspace color
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
 

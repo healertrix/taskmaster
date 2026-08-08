@@ -24,6 +24,10 @@ export interface Workspace {
   id: string;
   name: string;
   color: string;
+  // Permanent per-owner display number — feeds colorForNumber() for
+  // guaranteed-spread workspace colors. See
+  // supabase/supabase/migrations/20260812100000_add_workspace_number.sql.
+  number?: number;
   owner_id: string;
   visibility: string;
   created_at: string;

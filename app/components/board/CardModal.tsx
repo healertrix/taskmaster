@@ -51,6 +51,8 @@ import {
 import { DateTimeRangePicker } from '@/components/ui/DateTimeRangePicker';
 import { Checklist } from '@/components/ui/Checklist';
 import { AddChecklistModal } from '@/components/ui/AddChecklistModal';
+import { DescriptionEditor } from '@/components/ui/DescriptionEditor';
+import { renderDescription } from '@/components/ui/DescriptionText';
 import { AttachmentModal } from './AttachmentModal';
 import LabelModal from './LabelModal';
 import CardLabels from './CardLabels';
@@ -68,6 +70,12 @@ import { useMobile } from '@/hooks/useMobile';
 import { useAppStore, cacheUtils } from '@/lib/stores/useAppStore';
 import { MoveCardModal } from './MoveCardModal';
 import { colorForNumber } from '@/utils/idColor';
+import {
+  MentionInput,
+  MentionableMember,
+  filterMentionsStillPresent,
+} from './MentionInput';
+import { MentionText, Mention } from './MentionText';
 
 interface Card {
   id: string;
@@ -99,6 +107,9 @@ interface Card {
 interface Comment {
   id: string;
   content: string;
+  // @ mentions captured at comment-write time — see
+  // supabase/supabase/migrations/20260808100000_add_comment_mentions.sql.
+  mentions?: Mention[];
   created_at: string;
   updated_at: string;
   is_edited: boolean;
@@ -290,6 +301,17 @@ export function CardModal({
   const [comments, setComments] = useState<Comment[]>([]);
   const [activities, setActivities] = useState<ActivityData[]>([]);
   const [newComment, setNewComment] = useState('');
+  // Mentions picked via the @ autocomplete for the comment currently being
+  // composed/edited — pruned against the actual text right before submit
+  // (see filterMentionsStillPresent) so a mention deleted from the text
+  // doesn't get sent anyway.
+  const [newCommentMentions, setNewCommentMentions] = useState<Mention[]>([]);
+  const [editingCommentMentions, setEditingCommentMentions] = useState<
+    Mention[]
+  >([]);
+  const [mentionMembers, setMentionMembers] = useState<MentionableMember[]>(
+    []
+  );
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [isLoadingActivities, setIsLoadingActivities] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
@@ -478,6 +500,46 @@ export function CardModal({
   const handleCancelClose = () => {
     setShowSaveWarningModal(false);
   };
+
+  // Members available to @ mention in comments — reuse the cached
+  // workspace members list the caller already fetched for the member
+  // picker when available (no extra round trip), otherwise fetch once
+  // ourselves the same way CardMemberPicker does.
+  useEffect(() => {
+    if (cachedWorkspaceMembers && cachedWorkspaceMembers.length > 0) {
+      setMentionMembers(
+        cachedWorkspaceMembers.map((m: any) => ({
+          id: m.profiles.id,
+          full_name: m.profiles.full_name,
+          email: m.profiles.email,
+          avatar_url: m.profiles.avatar_url,
+        }))
+      );
+      return;
+    }
+
+    if (!workspaceId || !card.board_id) return;
+
+    fetch(
+      `/api/workspaces/${workspaceId}/available-members?board_id=${card.board_id}`
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.members) {
+          setMentionMembers(
+            data.members.map((m: any) => ({
+              id: m.profiles.id,
+              full_name: m.profiles.full_name,
+              email: m.profiles.email,
+              avatar_url: m.profiles.avatar_url,
+            }))
+          );
+        }
+      })
+      .catch((error) =>
+        console.error('Error fetching members for @ mentions:', error)
+      );
+  }, [cachedWorkspaceMembers, workspaceId, card.board_id]);
 
   // Reset form when card changes
   useEffect(() => {
@@ -916,6 +978,11 @@ export function CardModal({
     }
 
     try {
+      const mentionsToSend = filterMentionsStillPresent(
+        newComment.trim(),
+        newCommentMentions
+      );
+
       const response = await fetch(`/api/cards/${card.id}/comments`, {
         method: 'POST',
         headers: {
@@ -923,6 +990,7 @@ export function CardModal({
         },
         body: JSON.stringify({
           content: newComment.trim(),
+          mentions: mentionsToSend,
         }),
       });
 
@@ -936,6 +1004,7 @@ export function CardModal({
           return updated;
         });
         setNewComment('');
+        setNewCommentMentions([]);
         // Refresh activities to show the new comment activity
         fetchActivities();
       } else {
@@ -1163,6 +1232,7 @@ export function CardModal({
   const handleEditComment = (comment: Comment) => {
     setEditingCommentId(comment.id);
     setEditingCommentContent(comment.content);
+    setEditingCommentMentions(comment.mentions || []);
   };
 
   const handleSaveEditComment = async (commentId: string) => {
@@ -1171,6 +1241,11 @@ export function CardModal({
     setEditingSavingCommentId(commentId);
 
     try {
+      const mentionsToSend = filterMentionsStillPresent(
+        editingCommentContent.trim(),
+        editingCommentMentions
+      );
+
       const response = await fetch(
         `/api/cards/${card?.id}/comments/${commentId}`,
         {
@@ -1180,6 +1255,7 @@ export function CardModal({
           },
           body: JSON.stringify({
             content: editingCommentContent.trim(),
+            mentions: mentionsToSend,
           }),
         }
       );
@@ -1194,6 +1270,7 @@ export function CardModal({
         );
         setEditingCommentId(null);
         setEditingCommentContent('');
+        setEditingCommentMentions([]);
         // Refresh activities to show the comment edit activity
         fetchActivities();
       } else {
@@ -2304,13 +2381,14 @@ export function CardModal({
 
               {isEditingDescription ? (
                 <div className='space-y-2 sm:space-y-3'>
-                  <textarea
+                  <DescriptionEditor
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    onChange={setDescription}
                     onKeyDown={handleDescriptionKeyPress}
-                    className='w-full min-h-[100px] sm:min-h-[120px] bg-background text-foreground border border-border rounded-md px-2 sm:px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none text-sm'
-                    placeholder='Add a more detailed description...'
+                    placeholder='Add a more detailed description... paste a link, or wrap text in **bold** / _italic_ / ==highlight=='
                     disabled={isSaving}
+                    className='w-full min-h-[100px] sm:min-h-[120px] bg-background text-foreground border border-border rounded-md px-2 sm:px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none text-sm'
+                    autoFocus
                   />
                   <div className='flex gap-2'>
                     <button
@@ -2342,7 +2420,7 @@ export function CardModal({
                 >
                   {card.description ? (
                     <p className='text-xs sm:text-sm text-foreground whitespace-pre-wrap'>
-                      {card.description}
+                      {renderDescription(card.description)}
                     </p>
                   ) : (
                     <p className='text-xs sm:text-sm text-muted-foreground'>
@@ -2922,7 +3000,7 @@ export function CardModal({
 
           {/* Right Side - Sidebar with Actions and Discussion */}
           <div
-            className={`w-full lg:w-80 lg:flex-shrink-0 flex flex-col mt-4 lg:mt-0 ${
+            className={`w-full lg:w-96 lg:flex-shrink-0 flex flex-col mt-4 lg:mt-0 ${
               activeMobileTab === 'details' ? 'hidden lg:flex' : 'flex'
             }`}
           >
@@ -3069,7 +3147,7 @@ export function CardModal({
 
             {/* Discussion Section (Comments & Activity) */}
             <div className='flex flex-col flex-1 min-h-0'>
-              <div className='flex-shrink-0 border-b border-border'>
+              <div className='flex-shrink-0 pb-3'>
                 <div className='flex items-center gap-2 p-1 bg-muted rounded-lg'>
                   <button
                     onClick={() => setActiveTab('comments')}
@@ -3096,31 +3174,36 @@ export function CardModal({
 
               {/* Comment Input */}
               {activeTab === 'comments' && (
-                <div className='flex-shrink-0 p-2 border-b border-border'>
-                  <div className='flex items-start gap-2'>
-                    <div className='mt-2'>
-                      <UserAvatar profile={currentUserProfile} size={24} />
+                <div className='flex-shrink-0 pb-4 mb-3 border-b border-border'>
+                  <div className='flex items-start gap-3'>
+                    <div className='mt-0.5'>
+                      <UserAvatar profile={currentUserProfile} size={28} />
                     </div>
-                    <form onSubmit={handleSubmitComment} className='flex-1'>
-                      <textarea
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        placeholder='Write a comment...'
-                        className='w-full bg-transparent text-sm text-foreground p-2 rounded-lg focus:outline-none focus:bg-muted resize-none min-h-[40px]'
-                        rows={1}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && e.ctrlKey) {
-                            handleSubmitComment(e);
+                    <form onSubmit={handleSubmitComment} className='flex-1 min-w-0'>
+                      <div className='bg-muted/50 border border-border/60 rounded-xl focus-within:border-primary/50 focus-within:bg-muted transition-colors'>
+                        <MentionInput
+                          value={newComment}
+                          onChange={setNewComment}
+                          members={mentionMembers}
+                          onMentionInsert={(member) =>
+                            setNewCommentMentions((prev) => [
+                              ...prev,
+                              { id: member.id, full_name: member.full_name },
+                            ])
                           }
-                          // Auto-resize textarea
-                          e.currentTarget.style.height = 'auto';
-                          e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
-                        }}
-                      />
+                          onSubmit={() =>
+                            handleSubmitComment({
+                              preventDefault: () => {},
+                            } as React.FormEvent)
+                          }
+                          placeholder='Write a comment... (@ to mention someone)'
+                          className='w-full bg-transparent text-sm text-foreground px-3 py-2.5 rounded-xl focus:outline-none resize-none min-h-[44px] leading-relaxed'
+                          rows={1}
+                        />
+                      </div>
                       {newComment && (
-                        <div className='flex items-center justify-between mt-1'>
+                        <div className='flex items-center justify-between mt-2'>
                           <p className='text-xs text-muted-foreground'>
-                            Press{' '}
                             <kbd className='px-1.5 py-0.5 border border-border rounded bg-muted text-xs'>
                               Ctrl
                             </kbd>{' '}
@@ -3133,7 +3216,7 @@ export function CardModal({
                           <button
                             type='submit'
                             disabled={!newComment.trim() || isSubmittingComment}
-                            className='px-3 py-1.5 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors'
+                            className='px-3.5 py-1.5 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors'
                           >
                             {isSubmittingComment ? '...' : 'Comment'}
                           </button>
@@ -3150,11 +3233,11 @@ export function CardModal({
                   isLoadingComments ? (
                     <div className='space-y-4 py-1'>
                       {[0, 1].map((i) => (
-                        <div key={i} className='flex items-start gap-2'>
-                          <div className='w-7 h-7 rounded-full bg-muted/40 animate-pulse flex-shrink-0' />
-                          <div className='flex-1 space-y-1.5'>
+                        <div key={i} className='flex items-start gap-3 px-2.5'>
+                          <div className='w-8 h-8 rounded-full bg-muted/40 animate-pulse flex-shrink-0' />
+                          <div className='flex-1 space-y-2'>
                             <div className='h-3 w-24 bg-muted/40 rounded animate-pulse' />
-                            <div className='h-3 w-full bg-muted/40 rounded animate-pulse' />
+                            <div className='h-8 w-full bg-muted/40 rounded-xl animate-pulse' />
                           </div>
                         </div>
                       ))}
@@ -3170,7 +3253,7 @@ export function CardModal({
                       return (
                         <div
                           key={comment.id}
-                          className='p-2 flex items-start gap-3 group'
+                          className='p-2.5 mb-2 rounded-xl flex items-start gap-3 group hover:bg-muted/30 transition-colors'
                         >
                           <UserAvatar profile={comment.profiles} size={32} />
                           <div className='flex-1 min-w-0'>
@@ -3178,7 +3261,7 @@ export function CardModal({
                               <p className='font-semibold text-sm'>
                                 {comment.profiles.full_name || 'User'}
                               </p>
-                              <p className='text-xs text-muted-foreground'>
+                              <p className='text-xs text-muted-foreground flex-shrink-0'>
                                 {formatTimestamp(comment.created_at)}
                                 {comment.is_edited && ' (edited)'}
                               </p>
@@ -3206,13 +3289,24 @@ export function CardModal({
                             </div>
 
                             {isEditingThis ? (
-                              <div className='mt-1 space-y-2'>
-                                <textarea
+                              <div className='mt-2 space-y-2'>
+                                <MentionInput
                                   value={editingCommentContent}
-                                  onChange={(e) =>
-                                    setEditingCommentContent(e.target.value)
+                                  onChange={setEditingCommentContent}
+                                  members={mentionMembers}
+                                  onMentionInsert={(member) =>
+                                    setEditingCommentMentions((prev) => [
+                                      ...prev,
+                                      {
+                                        id: member.id,
+                                        full_name: member.full_name,
+                                      },
+                                    ])
                                   }
-                                  className='w-full px-2.5 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none'
+                                  onSubmit={() =>
+                                    handleSaveEditComment(comment.id)
+                                  }
+                                  className='w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none leading-relaxed'
                                   rows={2}
                                   disabled={isSavingThis}
                                   autoFocus
@@ -3234,6 +3328,7 @@ export function CardModal({
                                     onClick={() => {
                                       setEditingCommentId(null);
                                       setEditingCommentContent('');
+                                      setEditingCommentMentions([]);
                                     }}
                                     disabled={isSavingThis}
                                     className='px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground rounded-md transition-colors'
@@ -3243,8 +3338,11 @@ export function CardModal({
                                 </div>
                               </div>
                             ) : (
-                              <div className='bg-muted rounded-lg p-2 mt-1 text-sm text-foreground'>
-                                {comment.content}
+                              <div className='bg-muted rounded-xl px-3 py-2 mt-1.5 text-sm text-foreground leading-relaxed'>
+                                <MentionText
+                                  text={comment.content}
+                                  mentions={comment.mentions}
+                                />
                               </div>
                             )}
                           </div>

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { colorForNumber, colorForKey, colorForIndex } from '@/utils/idColor';
+import { colorForNumber, colorForEntity } from '@/utils/idColor';
 
 // Search result types
 interface SearchCard {
@@ -60,6 +60,7 @@ interface SearchWorkspace {
   id: string;
   name: string;
   color: string;
+  number?: number;
   updatedAt: string;
   isOwner: boolean;
   memberCount: number;
@@ -950,7 +951,10 @@ export default function SearchPage() {
                             <div
                               className='flex-shrink-0 w-10 h-10 rounded-md flex items-center justify-center text-white font-semibold'
                               style={{
-                                backgroundColor: colorForIndex(workspaceIndex),
+                                backgroundColor: colorForEntity(
+                                  workspace.id,
+                                  workspace.number
+                                ),
                               }}
                             >
                               {workspace.letter}

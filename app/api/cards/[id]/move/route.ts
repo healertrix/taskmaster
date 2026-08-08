@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { notifyCardMembers } from '@/utils/notifications';
 
 export async function POST(
   request: NextRequest,
@@ -197,6 +198,25 @@ export async function POST(
           card_title: card.title,
         },
       });
+
+      // A reorder within the same list isn't a move worth notifying
+      // about — only a genuine list-to-list change is.
+      if (card.list_id !== list_id) {
+        try {
+          await notifyCardMembers(supabase, {
+            type: 'moved_list',
+            actorId: user.id,
+            cardId,
+            boardId: card.board_id,
+            content: `Moved from ${fromList?.name || 'a list'} to ${targetList.name}`,
+          });
+        } catch (notificationError) {
+          console.error(
+            'Failed to create move notifications:',
+            notificationError
+          );
+        }
+      }
     } catch (activityError) {
       console.error('Failed to log move activity:', activityError);
       // Don't fail the request if activity logging fails

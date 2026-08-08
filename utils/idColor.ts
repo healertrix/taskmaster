@@ -82,6 +82,18 @@ export function colorForKey(id: string): string {
 }
 
 /**
+ * Color for an entity that has (or might not yet have) a real scoped
+ * display number — prefers the guaranteed-spread colorForNumber when one
+ * exists, falls back to the hash-based colorForKey otherwise (e.g. a row
+ * fetched before a migration backfilled its number). Used for workspaces
+ * (numbered per owner — see 20260812100000_add_workspace_number.sql) the
+ * same way boards/lists/cards already use their own numbers.
+ */
+export function colorForEntity(id: string, number?: number | null): string {
+  return number != null ? colorForNumber(number) : colorForKey(id);
+}
+
+/**
  * Color for an item's position within a list you're rendering right now —
  * use this instead of colorForKey whenever SEVERAL workspaces (or any
  * other UUID-keyed, non-numbered entity) are shown side by side, so they

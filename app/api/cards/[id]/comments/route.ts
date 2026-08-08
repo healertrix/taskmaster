@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { notifyCardMembers } from '@/utils/notifications';
 
 // GET /api/cards/[id]/comments - Fetch comments for a card
 export async function GET(
@@ -38,6 +39,7 @@ export async function GET(
         `
         id,
         content,
+        mentions,
         created_at,
         updated_at,
         is_edited,
@@ -97,7 +99,23 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { content } = body;
+    const { content, mentions } = body;
+
+    // Trust only the shape, not the caller's claim of who's mentionable —
+    // access to workspace member data is already gated elsewhere (the
+    // picker only ever offers people this user can see); this just
+    // defends against a malformed payload.
+    const sanitizedMentions = Array.isArray(mentions)
+      ? mentions
+          .filter(
+            (m: any) => m && typeof m.id === 'string' && m.id.trim()
+          )
+          .map((m: any) => ({
+            id: m.id,
+            full_name:
+              typeof m.full_name === 'string' ? m.full_name : null,
+          }))
+      : [];
 
     console.log('Request body:', { content });
 
@@ -202,11 +220,13 @@ export async function POST(
         card_id: cardId,
         profile_id: user.id,
         content: content.trim(),
+        mentions: sanitizedMentions,
       })
       .select(
         `
         id,
         content,
+        mentions,
         created_at,
         updated_at,
         is_edited,
@@ -230,6 +250,35 @@ export async function POST(
     }
 
     console.log('Comment created successfully:', comment);
+
+    // Notify assigned card members about the new comment. Mention
+    // notifications are NOT created here — the pre-existing
+    // handle_new_comment() DB trigger already creates those on every
+    // comment insert; doing it again here would double-notify mentioned
+    // users. Excluding mentioned people from this one too, since they
+    // already got the (higher-priority) mention notification from the
+    // trigger for this same comment.
+    try {
+      const mentionedIds = sanitizedMentions.map((m) => m.id);
+      const excerpt =
+        content.trim().length > 140
+          ? `${content.trim().slice(0, 140)}…`
+          : content.trim();
+
+      await notifyCardMembers(supabase, {
+        type: 'comment',
+        actorId: user.id,
+        cardId,
+        boardId: card.board_id,
+        commentId: comment.id,
+        content: excerpt,
+        excludeProfileIds: mentionedIds,
+      });
+    } catch (notificationError) {
+      console.error('Failed to create comment notifications:', notificationError);
+      // Don't fail comment creation if notifications fail
+    }
+
     return NextResponse.json({ comment }, { status: 201 });
   } catch (error) {
     console.error('Unexpected error in POST comments:', error);

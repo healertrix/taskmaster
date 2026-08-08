@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
           name,
           color,
           owner_id,
-          visibility
+          visibility,
+          workspace_number:number
         )
       `
       )
@@ -171,6 +172,7 @@ export async function GET(request: NextRequest) {
         id: workspace.id,
         name: workspace.name,
         color: workspace.color,
+        number: workspace.workspace_number,
         visibility: workspace.visibility,
         userRole,
         isOwner,

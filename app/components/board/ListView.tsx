@@ -25,6 +25,7 @@ import {
   GripVertical,
   MessageSquare,
   Paperclip,
+  CheckCircle2,
 } from 'lucide-react';
 import { AddCardForm } from './AddCardForm';
 import { ListActionsMenu } from './ListActionsMenu';
@@ -57,6 +58,9 @@ interface Column {
   title: string;
   // Shareable display number, scoped per board — see Task.number above.
   number?: number;
+  // Whether this list counts toward "completed" in My Tasks — see
+  // supabase/supabase/migrations/20260808150000_add_list_is_done.sql.
+  is_done_list?: boolean;
   cards: Task[];
 }
 
@@ -71,6 +75,7 @@ interface ListViewProps {
   onAddCard: (columnId: string, cardTitle: string) => Promise<boolean>;
   onDeleteList?: (listId: string) => Promise<boolean>;
   onUpdateListName?: (listId: string, newName: string) => Promise<boolean>;
+  onToggleDoneList?: (listId: string, isDone: boolean) => Promise<boolean>;
   onMoveTask?: (taskId: string) => void;
   onDeleteTask?: (taskId: string) => Promise<boolean>;
   // (sourceListId/targetListId can be the same list — a same-section
@@ -479,6 +484,7 @@ export function ListView({
   onAddCard,
   onDeleteList,
   onUpdateListName,
+  onToggleDoneList,
   onMoveTask,
   onDeleteTask,
   onMoveCard,
@@ -675,17 +681,25 @@ export function ListView({
                   </span>
                 )}
 
+                {column.is_done_list && (
+                  <span title='Cards here count as completed'>
+                    <CheckCircle2 className='w-3.5 h-3.5 text-success flex-shrink-0' />
+                  </span>
+                )}
+
                 <span className='flex-shrink-0 text-xs text-muted-foreground pr-1'>
                   {column.cards.length}
                 </span>
 
-                {onDeleteList && (
+                {(onDeleteList || onToggleDoneList) && (
                   <div className='opacity-0 group-hover/header:opacity-100 transition-opacity'>
                     <ListActionsMenu
                       listId={column.id}
                       listName={column.title}
                       cardCount={column.cards.length}
                       onDeleteList={onDeleteList}
+                      isDoneList={column.is_done_list}
+                      onToggleDoneList={onToggleDoneList}
                     />
                   </div>
                 )}

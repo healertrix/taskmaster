@@ -10,6 +10,9 @@ export interface List {
   // Optional only because rows fetched through older/partial selects may
   // omit it — every list created after that migration always has one.
   number?: number;
+  // Whether this list counts toward "completed" in My Tasks — see
+  // supabase/supabase/migrations/20260808150000_add_list_is_done.sql.
+  is_done_list?: boolean;
   position: number;
   created_at: string;
   updated_at: string;
@@ -429,6 +432,52 @@ export const useLists = (boardId: string) => {
     [lists, setCache]
   );
 
+  const toggleListDone = useCallback(
+    async (listId: string, isDone: boolean) => {
+      let previousValue = false;
+
+      try {
+        setLists((prev) => {
+          const updated = prev.map((list) => {
+            if (list.id !== listId) return list;
+            previousValue = !!list.is_done_list;
+            return { ...list, is_done_list: isDone };
+          });
+          setCache(CACHE_KEY, updated, CACHE_TTL);
+          return updated;
+        });
+
+        const response = await fetch('/api/lists', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: listId, is_done_list: isDone }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to update list');
+        }
+
+        return true;
+      } catch (err) {
+        console.error('Error toggling list done status:', err);
+        setLists((prev) => {
+          const updated = prev.map((list) =>
+            list.id === listId
+              ? { ...list, is_done_list: previousValue }
+              : list
+          );
+          setCache(CACHE_KEY, updated, CACHE_TTL);
+          return updated;
+        });
+        setError(err instanceof Error ? err.message : 'Failed to update list');
+        return false;
+      }
+    },
+    [setCache]
+  );
+
   const moveCard = useCallback(
     (
       cardId: string,
@@ -510,6 +559,7 @@ export const useLists = (boardId: string) => {
     moveCard,
     deleteList,
     archiveList,
+    toggleListDone,
     refetch: fetchLists,
   };
 };

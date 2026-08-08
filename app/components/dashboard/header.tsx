@@ -22,9 +22,10 @@ import {
 import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { UserProfileMenu } from './UserProfileMenu';
+import { NotificationBell } from './NotificationBell';
 import { CreateWorkspaceModal } from '../workspace/CreateWorkspaceModal';
 import { CreateBoardModal } from '../board/CreateBoardModal';
-import { colorForNumber, colorForKey, colorForIndex } from '@/utils/idColor';
+import { colorForNumber, colorForEntity } from '@/utils/idColor';
 
 // Types for search results
 interface SearchCard {
@@ -62,6 +63,7 @@ interface SearchWorkspace {
   id: string;
   name: string;
   color: string;
+  number?: number;
   updatedAt: string;
   isOwner: boolean;
   memberCount: number;
@@ -327,9 +329,12 @@ export function DashboardHeader() {
                   </button>
                 )}
 
-                {/* Search Results Dropdown */}
+                {/* Search Results Dropdown — bg-popover (fully opaque, not
+                    the translucent .card/75) since this floats over
+                    arbitrary page content (home page text, etc.), which
+                    still showed through .card's 75% opacity + blur. */}
                 {showSearchResults && (
-                  <div className='absolute top-full left-0 right-0 mt-1 card p-2 z-50 max-h-[80vh] overflow-y-auto'>
+                  <div className='absolute top-full left-0 right-0 mt-1 bg-popover text-popover-foreground rounded-lg border border-border shadow-2xl p-2 z-50 max-h-[80vh] overflow-y-auto'>
                     {/* Tabs */}
                     <div className='flex border-b border-border mb-2'>
                       <button
@@ -557,8 +562,9 @@ export function DashboardHeader() {
                                           <div
                                             className='w-5 h-5 mr-2 rounded flex items-center justify-center text-white text-xs font-bold flex-shrink-0'
                                             style={{
-                                              backgroundColor: colorForIndex(
-                                                workspaceIndex
+                                              backgroundColor: colorForEntity(
+                                                workspace.id,
+                                                workspace.number
                                               ),
                                             }}
                                           >
@@ -770,11 +776,13 @@ export function DashboardHeader() {
                 )}
               </div>
 
+              <NotificationBell />
               <UserProfileMenu />
             </div>
 
             {/* Desktop Right section */}
             <div className='hidden md:flex items-center gap-4'>
+              <NotificationBell />
               <UserProfileMenu />
             </div>
           </div>
@@ -1037,8 +1045,9 @@ export function DashboardHeader() {
                                     <div
                                       className='w-4 h-4 rounded flex items-center justify-center text-white text-xs font-bold flex-shrink-0'
                                       style={{
-                                        backgroundColor: colorForIndex(
-                                          workspaceIndex
+                                        backgroundColor: colorForEntity(
+                                          workspace.id,
+                                          workspace.number
                                         ),
                                       }}
                                     >

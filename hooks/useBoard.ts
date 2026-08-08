@@ -14,6 +14,11 @@ export interface BoardData {
   workspace_id: string;
   created_at: string;
   updated_at: string;
+  // "Any activity happened on this board" timestamp (comments, card/list
+  // mutations — see the bump_board_last_activity trigger), distinct from
+  // updated_at which only reflects the board's own row (name/description/
+  // color) being edited. This is what "Last updated" should display.
+  last_activity_at?: string;
   owner_id: string;
   is_archived: boolean;
   is_closed: boolean;
@@ -95,6 +100,7 @@ export const useBoard = (boardId: string) => {
           workspace_id,
           created_at,
           updated_at,
+          last_activity_at,
           owner_id,
           is_archived,
           is_closed,

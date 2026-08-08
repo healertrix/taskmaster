@@ -11,7 +11,19 @@ export interface Board {
   color: string;
   starred?: boolean;
   workspace_id?: string;
-  updated_at?: string;
+  // Only actually needed where boards from different workspaces are mixed
+  // together without any grouping (Starred/Recent Boards on the home
+  // page) — not set/used where boards are already grouped under their
+  // workspace's own heading.
+  workspace_name?: string;
+  // "Last updated" as shown to the user means "last time anything
+  // happened on this board" (a card moved, created, edited — same
+  // semantic Jira/ADO use for an issue's own "Updated" timestamp), NOT
+  // when the board's own row (name/description/color) last changed —
+  // that's what the `updated_at` column actually means, and it's the
+  // wrong one to show here. See the migration in
+  // supabase/supabase/migrations/20260809100000_bump_board_last_activity.sql.
+  last_activity_at?: string;
 }
 
 export const useBoardStars = () => {
@@ -44,7 +56,8 @@ export const useBoardStars = () => {
             board_number:number,
             color,
             workspace_id,
-            updated_at
+            last_activity_at,
+            workspaces:workspace_id ( name )
           )
         `
         )
@@ -62,8 +75,13 @@ export const useBoardStars = () => {
       // (it collides with the `number` TS type keyword during inference).
       const boards =
         data?.map((item: any) => {
-          const { board_number, ...rest } = item.boards;
-          return { ...rest, number: board_number, starred: true };
+          const { board_number, workspaces, ...rest } = item.boards;
+          return {
+            ...rest,
+            number: board_number,
+            workspace_name: workspaces?.name,
+            starred: true,
+          };
         }) || [];
 
       setStarredBoards(boards as Board[]);
@@ -109,7 +127,9 @@ export const useBoardStars = () => {
       const boardPromises = recentBoardIds.map(async (boardId) => {
         const { data: boardData, error: boardError } = await supabase
           .from('boards')
-          .select('id, name, number, color, workspace_id, updated_at')
+          .select(
+            'id, name, number, color, workspace_id, last_activity_at, workspaces:workspace_id(name)'
+          )
           .eq('id', boardId)
           .maybeSingle();
 
@@ -122,7 +142,12 @@ export const useBoardStars = () => {
       });
 
       const boardResults = await Promise.all(boardPromises);
-      const boardsData = boardResults.filter((board) => board !== null);
+      const boardsData = boardResults
+        .filter((board) => board !== null)
+        .map((board: any) => {
+          const { workspaces, ...rest } = board;
+          return { ...rest, workspace_name: workspaces?.name };
+        });
 
       if (boardsData.length === 0) {
         setRecentBoards([]);
@@ -211,7 +236,9 @@ export const useBoardStars = () => {
           // Get board details to add to starred boards
           const { data: boardData, error: boardError } = await supabase
             .from('boards')
-            .select('id, name, number, color, workspace_id, updated_at')
+            .select(
+            'id, name, number, color, workspace_id, last_activity_at, workspaces:workspace_id(name)'
+          )
             .eq('id', boardId)
             .maybeSingle();
 
@@ -221,9 +248,14 @@ export const useBoardStars = () => {
           }
 
           // Update local state
+          const { workspaces, ...boardRest } = boardData as any;
           setStarredBoards((prev) => [
             ...prev,
-            { ...boardData, starred: true } as Board,
+            {
+              ...boardRest,
+              workspace_name: workspaces?.name,
+              starred: true,
+            } as Board,
           ]);
         }
 

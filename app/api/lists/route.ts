@@ -183,6 +183,7 @@ export async function GET(request: NextRequest) {
         id,
         name,
         number,
+        is_done_list,
         position,
         created_at,
         updated_at,
@@ -366,7 +367,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, is_archived } = body;
+    const { id, is_archived, is_done_list } = body;
 
     // Validate required fields
     if (!id) {
@@ -376,29 +377,45 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (typeof is_archived !== 'boolean') {
+    if (is_archived === undefined && is_done_list === undefined) {
+      return NextResponse.json(
+        { error: 'Nothing to update — provide is_archived and/or is_done_list' },
+        { status: 400 }
+      );
+    }
+
+    if (is_archived !== undefined && typeof is_archived !== 'boolean') {
       return NextResponse.json(
         { error: 'Archive status must be a boolean' },
         { status: 400 }
       );
     }
 
-    // Archive/unarchive the list
+    if (is_done_list !== undefined && typeof is_done_list !== 'boolean') {
+      return NextResponse.json(
+        { error: 'Done-list status must be a boolean' },
+        { status: 400 }
+      );
+    }
+
+    const updates: { is_archived?: boolean; is_done_list?: boolean } = {};
+    if (is_archived !== undefined) updates.is_archived = is_archived;
+    if (is_done_list !== undefined) updates.is_done_list = is_done_list;
+
+    // Archive/unarchive and/or mark/unmark as a "done" list for the
+    // completed-tasks calculation (see the migration in
+    // supabase/supabase/migrations/20260808150000_add_list_is_done.sql)
     const { data: list, error: updateError } = await supabase
       .from('lists')
-      .update({ is_archived })
+      .update(updates)
       .eq('id', id)
       .select()
       .single();
 
     if (updateError) {
-      console.error('List archive error:', updateError);
+      console.error('List update error:', updateError);
       return NextResponse.json(
-        {
-          error: `Failed to ${is_archived ? 'archive' : 'unarchive'} list: ${
-            updateError.message
-          }`,
-        },
+        { error: `Failed to update list: ${updateError.message}` },
         { status: 500 }
       );
     }

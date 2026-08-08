@@ -2,13 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import {
-  CheckCircle2,
-  Circle,
-  Clock,
-  LayoutGrid,
-  Loader2,
-} from 'lucide-react';
+import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
 import { colorForNumber } from '@/utils/idColor';
 
 interface MyTask {
@@ -22,6 +16,8 @@ interface MyTask {
   due_date: string | null;
   board_id: string;
   board_name: string;
+  workspace_id?: string;
+  workspace_name?: string;
 }
 
 interface MyTasksResponse {
@@ -46,11 +42,7 @@ const getGreeting = () => {
   return 'Good evening';
 };
 
-export function HomeOverview({
-  displayName,
-}: {
-  displayName: string;
-}) {
+export function HomeOverview({ displayName }: { displayName: string }) {
   const [data, setData] = useState<MyTasksResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('upcoming');
@@ -93,22 +85,6 @@ export function HomeOverview({
 
   const activeTasks = data?.[activeTab] || [];
 
-  // Per-board "due soon" counts (upcoming + overdue), for the Projects panel.
-  const dueSoonByBoard = new Map<string, { name: string; count: number }>();
-  if (data) {
-    for (const task of [...data.upcoming, ...data.overdue]) {
-      const entry = dueSoonByBoard.get(task.board_id) || {
-        name: task.board_name,
-        count: 0,
-      };
-      entry.count += 1;
-      dueSoonByBoard.set(task.board_id, entry);
-    }
-  }
-  const projectSummaries = Array.from(dueSoonByBoard.entries()).map(
-    ([boardId, info]) => ({ boardId, ...info })
-  );
-
   return (
     <section className='mb-12'>
       {/* Greeting */}
@@ -119,7 +95,7 @@ export function HomeOverview({
         </h1>
       </div>
 
-      <div className='grid grid-cols-1 lg:grid-cols-2 gap-5'>
+      <div>
         {/* My tasks */}
         <div className='bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl p-5'>
           <div className='flex items-center justify-between mb-4'>
@@ -170,32 +146,46 @@ export function HomeOverview({
             </div>
           ) : (
             <div className='space-y-0.5'>
-              {activeTasks.slice(0, 6).map((task) => (
-                <Link
+              {activeTasks.slice(0, 10).map((task) => (
+                <div
                   key={task.id}
-                  href={`/board/${task.board_id}?card=${task.id}`}
-                  className='flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-muted/30 transition-colors group'
+                  className='flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-muted/30 transition-colors'
                 >
-                  {task.number != null && (
-                    <span
-                      className='w-1.5 h-1.5 rounded-full flex-shrink-0'
-                      style={{ backgroundColor: colorForNumber(task.number) }}
-                    />
-                  )}
-                  <span className='flex-1 text-sm text-foreground truncate min-w-0 group-hover:text-primary transition-colors'>
-                    {task.title}
-                    {task.board_number != null && task.number != null && (
+                  <Link
+                    href={`/board/${task.board_id}?card=${task.id}`}
+                    className='flex items-center gap-2 flex-1 min-w-0 group'
+                  >
+                    {task.number != null && (
                       <span
-                        className='ml-1.5 text-xs font-normal text-muted-foreground'
-                        title='Card id'
-                      >
-                        #{task.board_number}-{task.number}
-                      </span>
+                        className='w-1.5 h-1.5 rounded-full flex-shrink-0'
+                        style={{ backgroundColor: colorForNumber(task.number) }}
+                      />
                     )}
-                  </span>
-                  <span className='text-xs text-muted-foreground truncate max-w-[35%] flex-shrink-0'>
+                    <span className='text-sm text-foreground truncate min-w-0 group-hover:text-primary transition-colors'>
+                      {task.title}
+                      {task.board_number != null && task.number != null && (
+                        <span
+                          className='ml-1.5 text-xs font-normal text-muted-foreground'
+                          title='Card id'
+                        >
+                          #{task.board_number}-{task.number}
+                        </span>
+                      )}
+                    </span>
+                  </Link>
+                  <Link
+                    href={`/board/${task.board_id}`}
+                    className='text-xs text-muted-foreground hover:text-primary transition-colors truncate max-w-[35%] flex-shrink-0'
+                    title={
+                      task.workspace_name
+                        ? `${task.board_name} · ${task.workspace_name}`
+                        : task.board_name
+                    }
+                  >
                     {task.board_name}
-                  </span>
+                    {task.board_number != null && ` #${task.board_number}`}
+                    {task.workspace_name && ` · ${task.workspace_name}`}
+                  </Link>
                   {task.due_date && (
                     <span
                       className={`text-xs flex-shrink-0 ${
@@ -207,51 +197,7 @@ export function HomeOverview({
                       {formatDue(task.due_date)}
                     </span>
                   )}
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Projects */}
-        <div className='bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl p-5'>
-          <h2 className='text-base font-semibold text-foreground mb-4'>
-            Boards with tasks due soon
-          </h2>
-
-          {isLoading ? (
-            <div className='flex items-center justify-center py-10 text-muted-foreground'>
-              <Loader2 className='w-5 h-5 animate-spin' />
-            </div>
-          ) : projectSummaries.length === 0 ? (
-            <div className='flex flex-col items-center justify-center py-10 text-center'>
-              <LayoutGrid className='w-8 h-8 text-muted-foreground/50 mb-3' />
-              <p className='text-sm text-muted-foreground'>
-                No boards with tasks due soon right now.
-              </p>
-            </div>
-          ) : (
-            <div className='space-y-1'>
-              {projectSummaries.slice(0, 6).map((project) => (
-                <Link
-                  key={project.boardId}
-                  href={`/board/${project.boardId}`}
-                  className='flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-muted/30 transition-colors group'
-                >
-                  <div className='w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0'>
-                    <LayoutGrid className='w-4 h-4 text-primary' />
-                  </div>
-                  <div className='flex-1 min-w-0'>
-                    <div className='text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors'>
-                      {project.name}
-                    </div>
-                    <div className='text-xs text-muted-foreground flex items-center gap-1'>
-                      <Clock className='w-3 h-3' />
-                      {project.count} task{project.count === 1 ? '' : 's'} due
-                      soon
-                    </div>
-                  </div>
-                </Link>
+                </div>
               ))}
             </div>
           )}
