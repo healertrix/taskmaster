@@ -23,11 +23,11 @@ interface GithubLink {
   github_repos: { full_name: string } | null;
 }
 
-const PAGE_SIZE = 7;
+const PAGE_SIZE = 5;
 // The scroll window is sized to exactly PAGE_SIZE rows — anything beyond
 // that scrolls, triggering infinite-scroll pagination (see the sentinel
 // below) rather than growing the card modal itself.
-const SCROLL_WINDOW_HEIGHT = '26rem';
+const SCROLL_WINDOW_HEIGHT = '19rem';
 
 // Live-updates while the card modal is open, no manual refresh control —
 // polls the first page on the same cadence as the notification bell

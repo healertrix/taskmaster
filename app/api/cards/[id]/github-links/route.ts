@@ -8,8 +8,8 @@ import { createClient } from '@/utils/supabase/server';
 // caller's workspace membership covers.
 //
 // Query params:
-//   limit  - page size (default 7 — matches the panel's fixed-height,
-//            7-rows-tall scroll window)
+//   limit  - page size (default 5 — matches the panel's fixed-height,
+//            5-rows-tall scroll window)
 //   offset - for pagination past the first page (default 0)
 //   search - matched against title/author_login/external_id (commit SHA or
 //            PR number), case-insensitive
@@ -29,7 +29,7 @@ export async function GET(
   }
 
   const { searchParams } = new URL(request.url);
-  const limit = parseInt(searchParams.get('limit') || '7');
+  const limit = parseInt(searchParams.get('limit') || '5');
   const offset = parseInt(searchParams.get('offset') || '0');
   const search = searchParams.get('search')?.trim();
 

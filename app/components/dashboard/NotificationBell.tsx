@@ -59,9 +59,8 @@ const notificationHref = (n: NotificationItem) => {
 const POLL_INTERVAL_MS = 45_000;
 
 // Dropdown preview count — the full, paginated history lives at
-// /notifications. 8 fits without the dropdown itself needing to scroll on
-// typical screen heights.
-const DROPDOWN_LIMIT = 8;
+// /notifications.
+const DROPDOWN_LIMIT = 5;
 
 // Unread rows sort above read ones (each group keeps its own created_at-desc
 // order — Array.sort is stable) — applied whenever a fresh list comes back
