@@ -97,6 +97,17 @@ export default function WorkspaceSettingsPage() {
     fetchGithubStatus();
   }, [fetchGithubStatus]);
 
+  // "Connect GitHub" opens the install flow in a new tab (see the anchor
+  // below) so this settings tab is never navigated away from — but that
+  // means this tab has no way to know the connection finished on its own.
+  // Refetching whenever the window regains focus (switching back from the
+  // GitHub tab) picks it up without needing a manual reload.
+  useEffect(() => {
+    const handleFocus = () => fetchGithubStatus();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchGithubStatus]);
+
   // Surfaces the result of the install-flow redirect (?github=connected or
   // ?github=error&reason=... — see app/api/github/callback/route.ts) as a
   // toast, then strips those params from the URL so refreshing the page
@@ -919,6 +930,8 @@ export default function WorkspaceSettingsPage() {
                 {canManageSettings ? (
                   <a
                     href={`/api/workspaces/${workspaceId}/github/connect`}
+                    target='_blank'
+                    rel='noopener noreferrer'
                     className='flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex-shrink-0'
                   >
                     <Github className='w-3.5 h-3.5' />
