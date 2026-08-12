@@ -6,6 +6,13 @@ import { createClient } from '@/utils/supabase/server';
 // how these get created). Powers the card modal's "Development" panel.
 // RLS (card_github_links_select_member) already scopes this to cards the
 // caller's workspace membership covers.
+//
+// Query params:
+//   limit  - page size (default 7 — matches the panel's fixed-height,
+//            7-rows-tall scroll window)
+//   offset - for pagination past the first page (default 0)
+//   search - matched against title/author_login/external_id (commit SHA or
+//            PR number), case-insensitive
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -21,7 +28,12 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: links, error } = await supabase
+  const { searchParams } = new URL(request.url);
+  const limit = parseInt(searchParams.get('limit') || '7');
+  const offset = parseInt(searchParams.get('offset') || '0');
+  const search = searchParams.get('search')?.trim();
+
+  let query = supabase
     .from('card_github_links')
     .select(
       `
@@ -38,12 +50,25 @@ export async function GET(
     `
     )
     .eq('card_id', cardId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (search) {
+    const escaped = search.replace(/[%_]/g, (c) => `\\${c}`);
+    query = query.or(
+      `title.ilike.%${escaped}%,author_login.ilike.%${escaped}%,external_id.ilike.%${escaped}%`
+    );
+  }
+
+  const { data: links, error } = await query;
 
   if (error) {
     console.error('Error fetching card GitHub links:', error);
     return NextResponse.json({ error: 'Failed to fetch links' }, { status: 500 });
   }
 
-  return NextResponse.json({ links: links || [] });
+  return NextResponse.json({
+    links: links || [],
+    hasMore: (links || []).length === limit,
+  });
 }
