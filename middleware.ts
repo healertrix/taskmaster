@@ -16,7 +16,17 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Define public routes that don't require authentication
-  const publicRoutes = ['/auth/login', '/api/auth/callback'];
+  const publicRoutes = [
+    '/auth/login',
+    '/api/auth/callback',
+    // GitHub calls this directly, server-to-server — there's no user
+    // session, ever (that's what its own HMAC signature check in
+    // utils/github/verifyWebhook.ts is for instead). Without this, every
+    // delivery got redirected to /auth/login by the block below and
+    // bounced with a 405 (a page route can't handle POST) before our
+    // handler ever ran.
+    '/api/github/webhook',
+  ];
   const isPublicRoute = publicRoutes.some((route) =>
     pathname.startsWith(route)
   );
