@@ -417,9 +417,12 @@ export default function WorkspaceMembersPage() {
             <ArrowLeft className='w-4 h-4 sm:w-5 sm:h-5' />
           </button>
           <div className='min-w-0 flex-1'>
-            <h1 className='text-xl sm:text-2xl font-bold text-foreground truncate heading-enter'>
+            <Link
+              href={`/boards/${workspaceId}`}
+              className='text-xl sm:text-2xl font-bold text-foreground truncate heading-enter hover:text-primary transition-colors block w-fit'
+            >
               {workspace.name}
-            </h1>
+            </Link>
             <p className='text-muted-foreground text-xs sm:text-sm'>
               {members.length} member{members.length === 1 ? '' : 's'}
             </p>
