@@ -3,8 +3,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export type NotificationType =
   | 'mention'
   | 'comment'
+  | 'comment_on_watched_card'
   | 'due_date_changed'
-  | 'moved_list';
+  | 'moved_list'
+  | 'workspace_member_added';
 
 // Matches the REAL notifications table already present in the database
 // (discovered mid-build — see the migrations around
@@ -128,4 +130,33 @@ export async function notifyCardMembers(
 
   const { error } = await supabase.from('notifications').insert(rows);
   if (error) console.error('Failed to create notifications:', error);
+}
+
+/**
+ * Notifies a user they've been added to a workspace. Always on, like
+ * `mention` — not gated through `notification_preferences` (that table
+ * only governs the 4 toggleable card-level types; being added to a
+ * workspace is a one-time, unambiguously-wanted event, not ongoing noise
+ * someone would want to opt out of).
+ */
+export async function notifyWorkspaceMemberAdded(
+  supabase: SupabaseClient,
+  params: {
+    workspaceId: string;
+    workspaceName: string;
+    actorId: string;
+    newMemberProfileId: string;
+  }
+) {
+  if (params.newMemberProfileId === params.actorId) return; // e.g. self-service join, no self-notify
+
+  const { error } = await supabase.from('notifications').insert({
+    profile_id: params.newMemberProfileId,
+    type: 'workspace_member_added' as const,
+    actor_id: params.actorId,
+    related_workspace_id: params.workspaceId,
+    content: `You were added to "${params.workspaceName}"`,
+  });
+
+  if (error) console.error('Failed to create workspace-added notification:', error);
 }

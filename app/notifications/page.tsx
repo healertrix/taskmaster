@@ -3,18 +3,33 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { DashboardHeader } from '../components/dashboard/header';
-import { Bell, AtSign, MessageSquare, Calendar, ArrowRightLeft, X } from 'lucide-react';
+import {
+  Bell,
+  AtSign,
+  MessageSquare,
+  Calendar,
+  ArrowRightLeft,
+  Users,
+  X,
+} from 'lucide-react';
 import { useMarkReadOnView } from '@/hooks/useMarkReadOnView';
 
 interface NotificationItem {
   id: string;
-  type: 'mention' | 'comment' | 'due_date_changed' | 'moved_list' | string;
+  type:
+    | 'mention'
+    | 'comment'
+    | 'due_date_changed'
+    | 'moved_list'
+    | 'workspace_member_added'
+    | string;
   content: string;
   is_read: boolean;
   created_at: string;
   actor_id: string | null;
   related_card_id: string | null;
   related_board_id: string | null;
+  related_workspace_id: string | null;
   actor: { full_name: string | null; avatar_url: string | null } | null;
   cards: { title: string; card_number: number | null } | null;
   boards: {
@@ -22,7 +37,18 @@ interface NotificationItem {
     board_number: number | null;
     workspaces: { name: string } | null;
   } | null;
+  workspaces: { name: string } | null;
 }
+
+// Where a notification links to — card-scoped types go to the card,
+// moved_list/etc. go to the board, and workspace_member_added (no card, no
+// board) goes to the workspace's members page instead.
+const notificationHref = (n: NotificationItem) => {
+  if (n.related_card_id) return `/board/${n.related_board_id}?card=${n.related_card_id}`;
+  if (n.related_board_id) return `/board/${n.related_board_id}`;
+  if (n.related_workspace_id) return `/workspace/${n.related_workspace_id}/members`;
+  return '#';
+};
 
 const PAGE_SIZE = 20;
 
@@ -39,6 +65,7 @@ const TYPE_ICON: Record<string, typeof Bell> = {
   comment_on_watched_card: MessageSquare,
   due_date_changed: Calendar,
   moved_list: ArrowRightLeft,
+  workspace_member_added: Users,
 };
 
 const timeAgo = (iso: string) => {
@@ -294,9 +321,7 @@ export default function NotificationsPage() {
             </div>
           ) : (
             notifications.map((n) => {
-              const href = n.related_card_id
-                ? `/board/${n.related_board_id}?card=${n.related_card_id}`
-                : `/board/${n.related_board_id}`;
+              const href = notificationHref(n);
 
               return (
                 <Link
@@ -328,6 +353,7 @@ export default function NotificationsPage() {
                       {n.boards?.workspaces?.name && `${n.boards.workspaces.name} · `}
                       {n.boards?.name}
                       {n.boards?.board_number != null && ` · #${n.boards.board_number}`}
+                      {!n.boards && n.workspaces?.name}
                       {' · '}
                       {timeAgo(n.created_at)}
                     </p>

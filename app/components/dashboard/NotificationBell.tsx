@@ -9,19 +9,27 @@ import {
   MessageSquare,
   Calendar,
   ArrowRightLeft,
+  Users,
   X,
 } from 'lucide-react';
 import { useMarkReadOnView } from '@/hooks/useMarkReadOnView';
 
 interface NotificationItem {
   id: string;
-  type: 'mention' | 'comment' | 'due_date_changed' | 'moved_list' | string;
+  type:
+    | 'mention'
+    | 'comment'
+    | 'due_date_changed'
+    | 'moved_list'
+    | 'workspace_member_added'
+    | string;
   content: string;
   is_read: boolean;
   created_at: string;
   actor_id: string | null;
   related_card_id: string | null;
   related_board_id: string | null;
+  related_workspace_id: string | null;
   actor: { full_name: string | null; avatar_url: string | null } | null;
   cards: { title: string; card_number: number | null } | null;
   boards: {
@@ -29,7 +37,18 @@ interface NotificationItem {
     board_number: number | null;
     workspaces: { name: string } | null;
   } | null;
+  workspaces: { name: string } | null;
 }
+
+// Where a notification's row/dropdown item links to — card-scoped types go
+// to the card, moved_list/etc. go to the board, and workspace_member_added
+// (no card, no board) goes to the workspace's members page instead.
+const notificationHref = (n: NotificationItem) => {
+  if (n.related_card_id) return `/board/${n.related_board_id}?card=${n.related_card_id}`;
+  if (n.related_board_id) return `/board/${n.related_board_id}`;
+  if (n.related_workspace_id) return `/workspace/${n.related_workspace_id}/members`;
+  return '#';
+};
 
 // Polling, not realtime — no realtime infrastructure exists elsewhere in
 // this app to hook into, and a 45s interval is frequent enough for a
@@ -63,6 +82,7 @@ const TYPE_ICON: Record<string, typeof Bell> = {
   comment_on_watched_card: MessageSquare,
   due_date_changed: Calendar,
   moved_list: ArrowRightLeft,
+  workspace_member_added: Users,
 };
 
 const timeAgo = (iso: string) => {
@@ -180,10 +200,7 @@ export function NotificationBell() {
           });
           popup.onclick = () => {
             window.focus();
-            const href = n.related_card_id
-              ? `/board/${n.related_board_id}?card=${n.related_card_id}`
-              : `/board/${n.related_board_id}`;
-            window.location.href = href;
+            window.location.href = notificationHref(n);
             fetch('/api/notifications', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
@@ -364,9 +381,7 @@ export function NotificationBell() {
             ) : (
               notifications.map((n) => {
                 const isMention = n.type === 'mention';
-                const href = n.related_card_id
-                  ? `/board/${n.related_board_id}?card=${n.related_card_id}`
-                  : `/board/${n.related_board_id}`;
+                const href = notificationHref(n);
 
                 return (
                   <Link
@@ -400,6 +415,7 @@ export function NotificationBell() {
                         {n.boards?.name}
                         {n.boards?.board_number != null &&
                           ` · #${n.boards.board_number}`}
+                        {!n.boards && n.workspaces?.name}
                         {' · '}
                         {timeAgo(n.created_at)}
                       </p>

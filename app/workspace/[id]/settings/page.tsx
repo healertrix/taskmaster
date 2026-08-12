@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useWorkspaceSettings } from '@/hooks/useWorkspaceSettings';
+import { GithubHowToModal } from '@/app/components/workspace/GithubHowToModal';
 
 // Guards against a save spinner hanging forever if the underlying request
 // genuinely stalls (dropped connection, dev-server recompile mid-request,
@@ -79,6 +80,7 @@ export default function WorkspaceSettingsPage() {
   >([]);
   const [isLoadingGithub, setIsLoadingGithub] = useState(true);
   const [isDisconnectingGithub, setIsDisconnectingGithub] = useState(false);
+  const [showGithubHowTo, setShowGithubHowTo] = useState(false);
 
   const fetchGithubStatus = useCallback(() => {
     if (!workspaceId) return;
@@ -837,9 +839,19 @@ export default function WorkspaceSettingsPage() {
 
           {/* GitHub Integration */}
           <div className='bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl p-4 sm:p-5'>
-            <h2 className='text-sm font-semibold text-foreground mb-3'>
-              GitHub integration
-            </h2>
+            <div className='flex items-center justify-between mb-3'>
+              <h2 className='text-sm font-semibold text-foreground'>
+                GitHub integration
+              </h2>
+              <button
+                onClick={() => setShowGithubHowTo(true)}
+                className='w-5 h-5 flex items-center justify-center rounded-full border border-border/60 text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors text-xs font-medium'
+                title='How to use'
+                aria-label='How to use GitHub integration'
+              >
+                ?
+              </button>
+            </div>
 
             {isLoadingGithub ? (
               <div className='flex justify-center py-6'>
@@ -885,13 +897,16 @@ export default function WorkspaceSettingsPage() {
                 {githubRepos.length > 0 && (
                   <div className='divide-y divide-border/40 rounded-lg border border-border/50 overflow-hidden'>
                     {githubRepos.map((repo) => (
-                      <div
+                      <a
                         key={repo.id}
-                        className='flex items-center gap-2 px-3 py-2 text-sm text-foreground'
+                        href={`https://github.com/${repo.full_name}`}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className='flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/40 hover:text-primary transition-colors'
                       >
                         <Link2 className='w-3.5 h-3.5 text-muted-foreground flex-shrink-0' />
                         <span className='truncate'>{repo.full_name}</span>
-                      </div>
+                      </a>
                     ))}
                   </div>
                 )}
@@ -1098,6 +1113,11 @@ export default function WorkspaceSettingsPage() {
           </div>
         </div>
       )}
+
+      <GithubHowToModal
+        isOpen={showGithubHowTo}
+        onClose={() => setShowGithubHowTo(false)}
+      />
 
       {/* Membership Restriction Modal */}
       {showMembershipModal && (

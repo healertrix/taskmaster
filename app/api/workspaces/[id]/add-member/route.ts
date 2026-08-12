@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { notifyWorkspaceMemberAdded } from '@/utils/notifications';
 
 // POST /api/workspaces/[id]/add-member - Add existing user as member
 export async function POST(
@@ -182,6 +183,22 @@ export async function POST(
           role: role,
         },
       });
+
+      // Best-effort, same convention as every other notification call
+      // site — never lets a notification failure block the add itself.
+      try {
+        await notifyWorkspaceMemberAdded(supabase, {
+          workspaceId,
+          workspaceName: workspace.name,
+          actorId: user.id,
+          newMemberProfileId: profile_id,
+        });
+      } catch (notificationError) {
+        console.error(
+          'Failed to create workspace-added notification:',
+          notificationError
+        );
+      }
     }
 
     return NextResponse.json({

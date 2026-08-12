@@ -52,13 +52,15 @@ export async function GET(request: NextRequest) {
         actor_id,
         related_card_id,
         related_board_id,
+        related_workspace_id,
         actor:actor_id (full_name, avatar_url),
         cards:related_card_id (title, card_number:number),
         boards:related_board_id (
           name,
           board_number:number,
           workspaces:workspace_id (name)
-        )
+        ),
+        workspaces:related_workspace_id (name)
       `
       )
       .is('dismissed_at', null)
