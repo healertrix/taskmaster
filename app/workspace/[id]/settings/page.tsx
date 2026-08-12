@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { DashboardHeader } from '../../../components/dashboard/header';
 import { createClient } from '@/utils/supabase/client';
 import {
@@ -23,6 +23,9 @@ import {
   Check,
   CheckCircle2,
   FileText,
+  Github,
+  Link2,
+  Unlink,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useWorkspaceSettings } from '@/hooks/useWorkspaceSettings';
@@ -62,6 +65,90 @@ export default function WorkspaceSettingsPage() {
   // route already allows both — see app/api/workspaces/[id]/settings —
   // this just keeps the UI's gating in sync with that).
   const canManageSettings = userRole === 'admin' || userRole === 'owner';
+
+  // GitHub integration — connection status + connected repos. See
+  // app/api/workspaces/[id]/github/route.ts.
+  const searchParams = useSearchParams();
+  const [githubInstallation, setGithubInstallation] = useState<{
+    account_login: string;
+    account_type: string;
+    created_at: string;
+  } | null>(null);
+  const [githubRepos, setGithubRepos] = useState<
+    { id: string; full_name: string; created_at: string }[]
+  >([]);
+  const [isLoadingGithub, setIsLoadingGithub] = useState(true);
+  const [isDisconnectingGithub, setIsDisconnectingGithub] = useState(false);
+
+  const fetchGithubStatus = useCallback(() => {
+    if (!workspaceId) return;
+    setIsLoadingGithub(true);
+    fetch(`/api/workspaces/${workspaceId}/github`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data) => {
+        setGithubInstallation(data.installation || null);
+        setGithubRepos(data.repos || []);
+      })
+      .catch((error) => console.error('Error fetching GitHub status:', error))
+      .finally(() => setIsLoadingGithub(false));
+  }, [workspaceId]);
+
+  useEffect(() => {
+    fetchGithubStatus();
+  }, [fetchGithubStatus]);
+
+  // Surfaces the result of the install-flow redirect (?github=connected or
+  // ?github=error&reason=... — see app/api/github/callback/route.ts) as a
+  // toast, then strips those params from the URL so refreshing the page
+  // doesn't re-show it.
+  useEffect(() => {
+    const github = searchParams.get('github');
+    if (!github) return;
+
+    if (github === 'connected') {
+      const reason = searchParams.get('reason');
+      showSuccess(
+        reason?.endsWith('_repos_already_linked_elsewhere')
+          ? `Connected — ${reason.split('_')[0]} repo(s) were skipped, already linked to another workspace.`
+          : 'GitHub connected successfully.'
+      );
+      fetchGithubStatus();
+    } else if (github === 'error') {
+      const reason = searchParams.get('reason');
+      const messages: Record<string, string> = {
+        installation_already_linked:
+          'This GitHub installation is already connected to another workspace.',
+        access_denied: "You don't have permission to connect GitHub for this workspace.",
+        awaiting_org_approval:
+          'Install request sent — waiting on your GitHub org owner to approve it.',
+        not_signed_in: 'Please sign in and try connecting again.',
+      };
+      showError(messages[reason || ''] || 'Failed to connect GitHub. Please try again.');
+    }
+
+    router.replace(`/workspace/${workspaceId}/settings`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const handleDisconnectGithub = async () => {
+    if (!confirm('Disconnect GitHub? All linked commits/PRs on cards will be removed.'))
+      return;
+    setIsDisconnectingGithub(true);
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/github`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Request failed');
+      setGithubInstallation(null);
+      setGithubRepos([]);
+      showSuccess('GitHub disconnected.');
+    } catch (error) {
+      console.error('Error disconnecting GitHub:', error);
+      showError('Failed to disconnect GitHub. Please try again.');
+    } finally {
+      setIsDisconnectingGithub(false);
+    }
+  };
 
   // Modal states
   const [showMembershipModal, setShowMembershipModal] = useState(false);
@@ -735,6 +822,115 @@ export default function WorkspaceSettingsPage() {
                 )}
               </button>
             </div>
+          </div>
+
+          {/* GitHub Integration */}
+          <div className='bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl p-4 sm:p-5'>
+            <h2 className='text-sm font-semibold text-foreground mb-3'>
+              GitHub integration
+            </h2>
+
+            {isLoadingGithub ? (
+              <div className='flex justify-center py-6'>
+                <Loader2 className='w-5 h-5 animate-spin text-muted-foreground' />
+              </div>
+            ) : githubInstallation ? (
+              <div className='space-y-3'>
+                <div className='flex items-center justify-between p-3 rounded-lg border border-border/50'>
+                  <div className='flex items-center gap-3 min-w-0'>
+                    <div className='w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center flex-shrink-0'>
+                      <Github className='w-4 h-4 text-foreground' />
+                    </div>
+                    <div className='min-w-0'>
+                      <div className='font-medium text-foreground text-sm truncate'>
+                        Connected to {githubInstallation.account_login}
+                      </div>
+                      <div className='text-xs text-muted-foreground'>
+                        {githubRepos.length} repo{githubRepos.length === 1 ? '' : 's'}{' '}
+                        connected · mention a card with{' '}
+                        <code className='px-1 py-0.5 bg-muted rounded text-[11px]'>
+                          #board-card
+                        </code>{' '}
+                        in a commit or PR to link it
+                      </div>
+                    </div>
+                  </div>
+                  {canManageSettings && (
+                    <button
+                      onClick={handleDisconnectGithub}
+                      disabled={isDisconnectingGithub}
+                      className='flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0'
+                    >
+                      {isDisconnectingGithub ? (
+                        <Loader2 className='w-3.5 h-3.5 animate-spin' />
+                      ) : (
+                        <Unlink className='w-3.5 h-3.5' />
+                      )}
+                      Disconnect
+                    </button>
+                  )}
+                </div>
+
+                {githubRepos.length > 0 && (
+                  <div className='divide-y divide-border/40 rounded-lg border border-border/50 overflow-hidden'>
+                    {githubRepos.map((repo) => (
+                      <div
+                        key={repo.id}
+                        className='flex items-center gap-2 px-3 py-2 text-sm text-foreground'
+                      >
+                        <Link2 className='w-3.5 h-3.5 text-muted-foreground flex-shrink-0' />
+                        <span className='truncate'>{repo.full_name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {canManageSettings && (
+                  <p className='text-xs text-muted-foreground'>
+                    To add or remove repos, manage this from{' '}
+                    <a
+                      href={`https://github.com/settings/installations`}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='text-primary hover:text-primary/80 underline'
+                    >
+                      GitHub's App permissions page
+                    </a>
+                    .
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className='flex items-center justify-between gap-3 p-3 rounded-lg border border-border/50'>
+                <div className='flex items-center gap-3 min-w-0'>
+                  <div className='w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center flex-shrink-0'>
+                    <Github className='w-4 h-4 text-muted-foreground' />
+                  </div>
+                  <div className='min-w-0'>
+                    <div className='font-medium text-foreground text-sm'>
+                      Not connected
+                    </div>
+                    <div className='text-xs text-muted-foreground hidden sm:block'>
+                      Link commits and pull requests to cards, and move cards to Done
+                      automatically when a PR merges
+                    </div>
+                  </div>
+                </div>
+                {canManageSettings ? (
+                  <a
+                    href={`/api/workspaces/${workspaceId}/github/connect`}
+                    className='flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex-shrink-0'
+                  >
+                    <Github className='w-3.5 h-3.5' />
+                    Connect GitHub
+                  </a>
+                ) : (
+                  <span className='text-xs text-muted-foreground flex-shrink-0'>
+                    Admin only
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Danger Zone - Workspace Deletion */}

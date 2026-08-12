@@ -49,6 +49,7 @@ import {
 } from 'lucide-react';
 import { DateTimeRangePicker } from '@/components/ui/DateTimeRangePicker';
 import { Checklist } from '@/components/ui/Checklist';
+import { CardDevelopmentPanel } from './CardDevelopmentPanel';
 import { AddChecklistModal } from '@/components/ui/AddChecklistModal';
 import { DescriptionEditor } from '@/components/ui/DescriptionEditor';
 import { renderDescription } from '@/components/ui/DescriptionText';
@@ -2876,6 +2877,12 @@ export function CardModal({
                   </div>
                 )}
               </div>
+
+              {/* Development Section — commits/PRs that mention this
+                  card's #board-card id on GitHub. Renders nothing if
+                  there's no linked activity, so it doesn't clutter every
+                  card with an empty section. */}
+              <CardDevelopmentPanel cardId={card.id} />
 
               {/* Attachments Section */}
               <div>
