@@ -502,7 +502,16 @@ export default function WorkspaceMembersPage() {
       {/* Add Member Modal */}
       <AddMemberModal
         workspaceId={workspaceId}
-        onSuccess={showSuccess}
+        onSuccess={(message) => {
+          showSuccess(message);
+          // The modal's own add-member mutation only invalidates the
+          // TanStack Query cache it reads for search — this page's member
+          // LIST comes from this file's separate useWorkspaceMembers hook
+          // (its own useAppStore-backed cache), which that invalidation
+          // never touches. Without this, the new member wouldn't show up
+          // until a full page reload cleared/reinitialized that cache.
+          refetch();
+        }}
         onError={showError}
       />
 

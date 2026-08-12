@@ -296,6 +296,18 @@ export const AddMemberModal = React.memo<AddMemberModalProps>(
                       {selected.email}
                     </div>
                   </div>
+                  {/* Deselect — only way to back out was re-finding this
+                      exact person in the results list and clicking them
+                      again, or clearing the whole search box. This is the
+                      direct "no, not them" affordance right on the card. */}
+                  <button
+                    onClick={() => setSelectedMember(null)}
+                    className='p-1 -m-1 text-muted-foreground hover:text-foreground hover:bg-muted/60 rounded-md transition-colors flex-shrink-0'
+                    aria-label='Remove selected member'
+                    title='Remove'
+                  >
+                    <X className='w-4 h-4' />
+                  </button>
                 </div>
 
                 <div className='grid grid-cols-2 gap-2'>
