@@ -135,9 +135,15 @@ export function ColumnContainer({
   return (
     <div
       ref={setColumnRef}
-      className='flex flex-col w-80 flex-shrink-0 mr-5 kanban-column rounded-2xl overflow-hidden max-h-[calc(100vh-180px)]'
+      // max-h-full (not h-full) + the row's items-start (see
+      // app/board/[id]/page.tsx) — a column is only as tall as its own
+      // content (header + cards + add-card form), capped at whatever
+      // height is actually available, not forced to match the tallest
+      // column. Matches Trello: short/empty lists stay short; only a
+      // genuinely long list scrolls internally once it hits the cap.
+      className='flex flex-col w-80 flex-shrink-0 mr-5 kanban-column rounded-2xl overflow-hidden max-h-full'
     >
-      <div className='p-4 rounded-t-2xl kanban-column-header flex justify-between items-center relative z-10'>
+      <div className='flex-shrink-0 p-4 rounded-t-2xl kanban-column-header flex justify-between items-center relative z-10'>
         <div className='flex items-center gap-2 flex-1 min-w-0'>
           <span
             className='w-2 h-2 rounded-full flex-shrink-0'
@@ -179,11 +185,13 @@ export function ColumnContainer({
           onToggleDoneList={onToggleDoneList}
         />
       </div>
-      {/* Make the content area scrollable */}
-      <div
-        className='flex-1 overflow-y-auto p-4 kanban-column-content rounded-b-2xl'
-        style={{ maxHeight: 'calc(100vh - 280px)' }} // Increased height for bigger lists
-      >
+      {/* Make the content area scrollable — flex-1 min-h-0 so it fills
+          whatever's left below the header within the column's own
+          max-h-full, rather than a hardcoded max-height. Extra bottom
+          padding (pb-6 vs p-4 everywhere else) so the last card gets some
+          breathing room above the add-card form instead of sitting flush
+          against it. */}
+      <div className='flex-1 min-h-0 overflow-y-auto p-4 pb-6 kanban-column-content rounded-b-2xl'>
         <SortableContext items={taskIds}>
           <div className='space-y-2 transition-all duration-300 ease-in-out'>
             {/* Show indicator at the top if dropping at index 0 */}

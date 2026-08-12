@@ -1304,11 +1304,23 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   };
 
   return (
-    <div className='min-h-screen dot-pattern-dark flex flex-col'>
+    <div
+      // Board (kanban/grid) view is a fixed-height shell — no page-level
+      // scroll — so the row of columns is immediately usable without
+      // scrolling down first, and horizontal scroll always works right
+      // away on any screen size (see ColumnContainer, which now sizes off
+      // this real bounded height via flexbox instead of a magic-number vh
+      // calc). List view keeps the old window-scrolling shell — it
+      // already scrolls correctly at the page level and wasn't the
+      // reported problem.
+      className={`dot-pattern-dark flex flex-col ${
+        boardView === 'list' ? 'min-h-screen' : 'h-dvh overflow-hidden'
+      }`}
+    >
       <DashboardHeader />
 
       {/* Board Header */}
-      <div className='container mx-auto max-w-full px-3 sm:px-4 pt-16 sm:pt-24 pb-3 sm:pb-8'>
+      <div className='flex-shrink-0 container mx-auto max-w-full px-3 sm:px-4 pt-16 sm:pt-24 pb-3 sm:pb-8'>
         <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 group'>
           {/* Mobile: Board name first, then breadcrumb */}
           <div className='flex flex-col gap-2 sm:hidden min-w-0'>
@@ -1586,7 +1598,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           onEditAssignee={setQuickEditAssigneeCardId}
         />
       ) : (
-      <div className='flex-1 overflow-x-auto'>
+      <div className='flex-1 min-h-0 overflow-x-auto'>
         <DndContext
           // Dragging is disabled (no sensor to trigger it) while a search
           // filter is active — filteredColumns' card indices don't line up
@@ -1599,6 +1611,19 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
+          {/* Deliberately NOT items-start here: each column's wrapping
+              slot below still needs to stretch to the row's full,
+              definite height — that's what lets max-h-full on
+              ColumnContainer's own root correctly cap a long list (and
+              keep the whole PAGE from needing to scroll). The "short
+              lists stay short" behavior instead comes from
+              ColumnContainer's root being naturally auto-height (not
+              itself stretched — it isn't a flex child of anything, only
+              its invisible slot wrapper is), capped by that same
+              max-h-full. Adding items-start here breaks the slot's own
+              height into `auto`, which breaks the percentage basis
+              max-h-full needs — that's what caused the whole-page-scroll
+              regression. */}
           <div className='flex gap-6 h-full min-w-max px-4'>
             {filteredColumns.map((column) => (
               <div key={column.id} className='flex-shrink-0'>

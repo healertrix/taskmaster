@@ -294,7 +294,7 @@ function TaskRow({
               }
             }}
             autoFocus
-            className='flex-1 min-w-0 text-sm bg-background border border-primary rounded px-1.5 py-0.5 text-foreground focus:outline-none'
+            className='flex-1 min-w-0 text-[15px] bg-background border border-primary rounded px-1.5 py-0.5 text-foreground focus:outline-none'
           />
         ) : (
           <>
@@ -317,8 +317,8 @@ function TaskRow({
                 setTitleDraft(task.title);
                 setIsEditingTitle(true);
               }}
-              className={`inline-block w-fit shrink text-sm truncate min-w-0 transition-colors ${
-                onUpdateCardTitle ? 'hover:bg-muted/40 rounded px-1 -mx-1' : ''
+              className={`inline-block w-fit shrink text-[15px] truncate min-w-0 transition-colors ${
+                onUpdateCardTitle ? 'hover:bg-muted/70 rounded px-1 -mx-1' : ''
               } ${
                 isDone ? 'text-muted-foreground line-through' : 'text-foreground'
               }`}

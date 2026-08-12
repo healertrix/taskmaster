@@ -30,7 +30,6 @@ import {
   SortAsc,
   SortDesc,
   Filter,
-  Settings,
   Check,
   Image,
   Video,
@@ -345,7 +344,6 @@ export function CardModal({
   const [showCommentFilters, setShowCommentFilters] = useState(false);
 
   // Actions dropdown state
-  const [isActionsDropdownOpen, setIsActionsDropdownOpen] = useState(false);
   const [isAddToCardDropdownOpen, setIsAddToCardDropdownOpen] = useState(false);
 
   // Date picker state
@@ -3006,9 +3004,25 @@ export function CardModal({
           >
             {/* Action Buttons */}
             <div className='flex-shrink-0 pb-4'>
-              <h3 className='text-xs font-semibold text-muted-foreground uppercase mb-2'>
-                Actions
-              </h3>
+              {/* Delete sits at the far end of the "Actions" heading line
+                  itself — icon-only, muted by default (red only on hover)
+                  so it's deliberately off to the side, never adjacent to
+                  Add/Move where a quick click could land on it by mistake.
+                  Still gated behind the existing confirm modal
+                  (showDeleteCardConfirm). */}
+              <div className='flex items-center justify-between mb-2'>
+                <h3 className='text-xs font-semibold text-muted-foreground uppercase'>
+                  Actions
+                </h3>
+                <button
+                  onClick={() => setShowDeleteCardConfirm(true)}
+                  className='p-1 -m-1 text-muted-foreground/60 hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors'
+                  title='Delete card'
+                  aria-label='Delete card'
+                >
+                  <Trash2 className='w-3.5 h-3.5' />
+                </button>
+              </div>
               <div className='grid grid-cols-2 gap-2'>
                 {/* Add to Card Dropdown */}
                 <div className='relative'>
@@ -3091,57 +3105,15 @@ export function CardModal({
                   )}
                 </div>
 
-                {/* Actions Dropdown */}
-                <div className='relative'>
-                  <button
-                    onClick={() =>
-                      setIsActionsDropdownOpen(!isActionsDropdownOpen)
-                    }
-                    className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-transparent border border-border text-muted-foreground rounded-lg hover:text-foreground hover:border-primary/50 transition-colors font-medium text-sm'
-                    title='Card actions'
-                  >
-                    <Settings className='w-4 h-4' />
-                    Actions
-                    <ChevronDown
-                      className={`w-4 h-4 transition-transform duration-200 ${
-                        isActionsDropdownOpen ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </button>
-                  {isActionsDropdownOpen && (
-                    <>
-                      <div
-                        className='fixed inset-0 z-10'
-                        onClick={() => setIsActionsDropdownOpen(false)}
-                      />
-                      <div className='absolute top-full left-0 right-0 mt-2 bg-card/95 backdrop-blur-xl border border-border rounded-xl shadow-xl z-20 py-2 animate-in fade-in-0 zoom-in-95 duration-150'>
-                        <button
-                          onClick={() => {
-                            handleOpenMoveModal();
-                            setIsActionsDropdownOpen(false);
-                          }}
-                          className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted rounded-lg transition-colors'
-                        >
-                          <Move className='w-4 h-4 text-muted-foreground' />
-                          Move
-                        </button>
-
-                        <div className='my-1 h-px bg-border' />
-
-                        <button
-                          onClick={() => {
-                            setShowDeleteCardConfirm(true);
-                            setIsActionsDropdownOpen(false);
-                          }}
-                          className='w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-red-500 hover:bg-red-500/10 rounded-lg transition-colors'
-                        >
-                          <Trash2 className='w-4 h-4' />
-                          Delete
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                {/* Move — standalone button, no dropdown to open first. */}
+                <button
+                  onClick={handleOpenMoveModal}
+                  className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-transparent border border-border text-muted-foreground rounded-lg hover:text-foreground hover:border-primary/50 transition-colors font-medium text-sm'
+                  title='Move card'
+                >
+                  <Move className='w-4 h-4' />
+                  Move
+                </button>
               </div>
             </div>
 

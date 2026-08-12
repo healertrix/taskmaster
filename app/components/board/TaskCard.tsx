@@ -173,16 +173,16 @@ export function TaskCard({
   // Don't render card content in original position when dragging
   const cardContent = isDragging ? (
     // Just render an empty placeholder when dragging
-    <div className='w-full h-full border-dashed border-2 border-primary/30 rounded-lg bg-primary/5 min-h-[80px]' />
+    <div className='w-full h-full border-dashed border-2 border-primary/30 rounded-lg bg-primary/5 min-h-[64px]' />
   ) : (
     <>
       {/* Labels as elegant color bars at the top */}
       {task.labels && task.labels.length > 0 && (
-        <div className='flex gap-1 mb-3'>
+        <div className='flex gap-1 mb-2'>
           {task.labels.map((label, index) => (
             <div
               key={`${label.color}-${index}`} // More stable key for transitions
-              className='h-1.5 flex-1 rounded-full transition-all duration-300 ease-out hover:h-2 hover:shadow-sm'
+              className='h-1 flex-1 rounded-full transition-all duration-300 ease-out hover:h-1.5 hover:shadow-sm'
               style={{
                 ...getLabelStyle(label.color),
                 animationDelay: `${index * 50}ms`,
@@ -193,35 +193,26 @@ export function TaskCard({
         </div>
       )}
 
-      {/* Header with Actions */}
-      <div className='flex justify-between items-start mb-2'>
-        <div className='flex-1'>
-          {task.number != null && (
-            <span
-              className='inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground'
-              title='Card id'
-            >
-              <span
-                className='w-1.5 h-1.5 rounded-full flex-shrink-0'
-                style={{ backgroundColor: colorForNumber(task.number) }}
-              />
-              #{boardNumber ?? '?'}-{task.number}
-            </span>
-          )}
+      {/* Three-dot menu — floats top-right instead of taking its own row,
+          so the id badge + title can share the space a whole header row
+          used to eat by itself. Always visible on mobile (no hover
+          state there), hover-only on desktop, matching the same pattern
+          used for the star button on BoardCard. */}
+      {hasActions && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className='absolute top-2 right-2 z-10 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity'
+        >
+          <TaskActionsMenu
+            task={task}
+            onMoveTask={onMoveTask}
+            onDeleteTask={onDeleteTask}
+          />
         </div>
-        {/* Three-dot menu - Only show if there are actions */}
-        {hasActions && (
-          <div onClick={(e) => e.stopPropagation()}>
-            <TaskActionsMenu
-              task={task}
-              onMoveTask={onMoveTask}
-              onDeleteTask={onDeleteTask}
-            />
-          </div>
-        )}
-      </div>
+      )}
 
-      {/* Title */}
+      {/* Id badge + title share one row instead of stacking — the badge
+          sits inline right before the title text. */}
       {isEditingTitle ? (
         <input
           type='text'
@@ -240,7 +231,7 @@ export function TaskCard({
             }
           }}
           autoFocus
-          className='w-full text-sm font-medium mb-3 bg-background border border-primary rounded px-1.5 py-1 text-foreground focus:outline-none'
+          className='w-full text-sm font-medium mb-2 bg-background border border-primary rounded px-1.5 py-1 text-foreground focus:outline-none'
         />
       ) : (
         <p
@@ -254,10 +245,22 @@ export function TaskCard({
             setTitleDraft(task.title);
             setIsEditingTitle(true);
           }}
-          className={`inline-block w-fit max-w-full text-sm font-medium text-foreground mb-3 leading-snug break-words ${
-            onUpdateCardTitle ? 'hover:bg-muted/40 rounded px-1 -mx-1' : ''
+          className={`inline-block w-fit text-sm font-medium text-foreground mb-2 leading-snug break-words ${
+            onUpdateCardTitle ? 'hover:bg-muted/70 rounded px-1 -mx-1' : ''
           }`}
         >
+          {task.number != null && (
+            <span
+              className='inline-flex items-center gap-1 mr-1.5 text-[11px] font-medium text-muted-foreground align-middle'
+              title='Card id'
+            >
+              <span
+                className='w-1.5 h-1.5 rounded-full flex-shrink-0'
+                style={{ backgroundColor: colorForNumber(task.number) }}
+              />
+              #{boardNumber ?? '?'}-{task.number}
+            </span>
+          )}
           {task.title}
         </p>
       )}
@@ -279,11 +282,13 @@ export function TaskCard({
             onEditDates(task.id);
           }}
           title={onEditDates ? 'Edit dates' : undefined}
-          className={`mb-3 space-y-1 ${
-            onEditDates ? 'hover:bg-muted/40 rounded px-1 -mx-1 py-0.5' : ''
+          className={`flex w-fit items-center flex-wrap gap-x-3 gap-y-0.5 mb-2 ${
+            onEditDates ? 'hover:bg-muted/70 rounded px-1 -mx-1 py-0.5' : ''
           }`}
         >
-          {/* Start Date */}
+          {/* Start Date — shares a row with the due date instead of each
+              taking a full row, so having both set costs no extra vertical
+              space over having just one. */}
           {task.start_date && (
             <div className='flex items-center gap-1.5 text-xs text-success'>
               <div className='w-2 h-2 bg-success rounded-full' />
@@ -338,7 +343,7 @@ export function TaskCard({
                 onEditDates(task.id);
               }}
               title='Add due date'
-              className='w-6 h-6 rounded-full border border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors flex-shrink-0'
+              className='w-5 h-5 rounded-full border border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors flex-shrink-0'
             >
               <Calendar className='w-3 h-3' />
             </button>
@@ -361,14 +366,14 @@ export function TaskCard({
           >
           {onEditAssignee &&
             (!task.assignees || task.assignees.length === 0) && (
-              <div className='w-6 h-6 rounded-full border border-dashed border-border flex items-center justify-center text-muted-foreground text-xs'>
+              <div className='w-5 h-5 rounded-full border border-dashed border-border flex items-center justify-center text-muted-foreground text-xs'>
                 +
               </div>
             )}
           {task.assignees?.map((assignee, index) => (
             <div
               key={`${assignee.full_name}-${index}`} // More stable key for transitions
-              className={`w-6 h-6 rounded-full ${
+              className={`w-5 h-5 rounded-full ${
                 assignee.avatar_url ? 'bg-gray-200' : assignee.color
               } flex items-center justify-center text-white text-xs font-bold ring-2 ring-white/20 overflow-hidden
               transition-all duration-300 ease-out ${
@@ -430,7 +435,7 @@ export function TaskCard({
         {...attributes}
         {...listeners}
         onClick={handleCardClick}
-        className={`group bg-card/75 backdrop-blur-xl p-3 rounded-md border cursor-pointer min-h-[80px] h-auto mb-3 last:mb-0
+        className={`group relative bg-card/75 backdrop-blur-xl p-2.5 rounded-md border cursor-pointer min-h-[64px] h-auto mb-2 last:mb-0
           ${isDragging ? '' : 'transition-colors duration-200'}
           ${!isDragging && !isMobile ? 'hover:-translate-y-0.5 transition-transform' : ''}
           border-border hover:border-muted-foreground/40

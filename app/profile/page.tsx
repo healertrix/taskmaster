@@ -8,18 +8,18 @@ import { colorForNumber } from '@/utils/idColor';
 import {
   Mail,
   Clock,
-  Activity as ActivityIcon,
   CalendarClock,
   AlertTriangle,
   CheckCircle2,
   Circle,
+  Loader2,
+  Activity as ActivityIcon,
   MessageSquare,
   Tag,
   Users,
   Paperclip,
   CheckSquare,
   PlusCircle,
-  Loader2,
   Search,
   X,
 } from 'lucide-react';
@@ -44,26 +44,6 @@ interface ProfileActivity {
   workspace_name: string | null;
 }
 
-interface MyTask {
-  id: string;
-  title: string;
-  number?: number;
-  board_number?: number;
-  due_date: string | null;
-  board_id: string;
-  board_name: string;
-  workspace_id?: string;
-  workspace_name?: string;
-}
-
-interface MyTasksResponse {
-  upcoming: MyTask[];
-  overdue: MyTask[];
-  completed: MyTask[];
-}
-
-type TasksTab = 'upcoming' | 'overdue' | 'completed';
-
 const ACTIVITY_CATEGORIES: { key: string; label: string }[] = [
   { key: 'comment', label: 'Comments' },
   { key: 'label', label: 'Labels' },
@@ -74,7 +54,7 @@ const ACTIVITY_CATEGORIES: { key: string; label: string }[] = [
   { key: 'card', label: 'Card' },
 ];
 
-const ACTIVITY_PAGE_SIZE = 15;
+const ACTIVITY_PAGE_SIZE = 10;
 
 const activityIcon = (actionType: string) => {
   if (actionType.startsWith('comment')) return MessageSquare;
@@ -87,8 +67,8 @@ const activityIcon = (actionType: string) => {
 };
 
 // Verb phrase only — "who" (you vs. someone else's name) is composed on
-// top of this at render time, since it's now a team feed, not just your
-// own actions.
+// top of this at render time, since it's a team feed, not just your own
+// actions.
 const ACTIVITY_VERB: Record<string, string> = {
   card_created: 'created',
   card_updated: 'updated',
@@ -131,6 +111,26 @@ const formatRelativeTime = (dateString: string) => {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
+interface MyTask {
+  id: string;
+  title: string;
+  number?: number;
+  board_number?: number;
+  due_date: string | null;
+  board_id: string;
+  board_name: string;
+  workspace_id?: string;
+  workspace_name?: string;
+}
+
+interface MyTasksResponse {
+  upcoming: MyTask[];
+  overdue: MyTask[];
+  completed: MyTask[];
+}
+
+type TasksTab = 'upcoming' | 'overdue' | 'completed';
+
 const formatDue = (dueDate: string | null) => {
   if (!dueDate) return null;
   const date = new Date(dueDate);
@@ -139,8 +139,7 @@ const formatDue = (dueDate: string | null) => {
 };
 
 // A board mention: name + its own #number + which workspace it's in — used
-// wherever a task/activity row references a board, so it's never just a
-// bare name.
+// wherever a task references a board, so it's never just a bare name.
 function BoardTag({
   boardId,
   boardName,
@@ -169,6 +168,35 @@ function BoardTag({
 export default function ProfilePage() {
   const { user } = useAuth();
 
+  const [tasksData, setTasksData] = useState<MyTasksResponse | null>(null);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(true);
+  const [tasksTab, setTasksTab] = useState<TasksTab>('upcoming');
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    const fetchTasks = async () => {
+      setIsLoadingTasks(true);
+      try {
+        const response = await fetch('/api/dashboard/my-tasks');
+        const data = await response.json();
+        if (!cancelled && response.ok) {
+          setTasksData(data);
+        }
+      } catch (error) {
+        console.error('Error fetching task counts:', error);
+      } finally {
+        if (!cancelled) setIsLoadingTasks(false);
+      }
+    };
+
+    fetchTasks();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   // Activity feed — paginated, searchable, filterable by category.
   const [activities, setActivities] = useState<ProfileActivity[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(true);
@@ -179,10 +207,6 @@ export default function ProfilePage() {
     null
   );
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-
-  const [tasksData, setTasksData] = useState<MyTasksResponse | null>(null);
-  const [isLoadingTasks, setIsLoadingTasks] = useState(true);
-  const [tasksTab, setTasksTab] = useState<TasksTab>('upcoming');
 
   const fetchActivity = useCallback(
     async (opts: { offset: number; append: boolean }) => {
@@ -227,31 +251,6 @@ export default function ProfilePage() {
     return () => clearTimeout(debounceRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, activitySearch, activityCategory]);
-
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-
-    const fetchTasks = async () => {
-      setIsLoadingTasks(true);
-      try {
-        const response = await fetch('/api/dashboard/my-tasks');
-        const data = await response.json();
-        if (!cancelled && response.ok) {
-          setTasksData(data);
-        }
-      } catch (error) {
-        console.error('Error fetching task counts:', error);
-      } finally {
-        if (!cancelled) setIsLoadingTasks(false);
-      }
-    };
-
-    fetchTasks();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
 
   if (!user) {
     return null; // Let the RouteGuard handle redirection

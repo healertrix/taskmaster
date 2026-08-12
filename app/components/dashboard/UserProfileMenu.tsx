@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import Image from 'next/image';
-import { User, LogOut } from 'lucide-react';
+import { User, Settings, LogOut } from 'lucide-react';
 
 export function UserProfileMenu() {
   const { user, signOut } = useAuth();
@@ -74,7 +74,7 @@ export function UserProfileMenu() {
       </button>
 
       {isOpen && (
-        <div className='absolute right-0 mt-2 w-64 glass-dark rounded-xl overflow-hidden shadow-lg z-50 animate-in fade-in-0 zoom-in-95 duration-150'>
+        <div className='absolute right-0 mt-2 w-64 bg-popover text-popover-foreground border border-border rounded-xl overflow-hidden shadow-lg z-50 animate-in fade-in-0 zoom-in-95 duration-150'>
           <div className='p-4 border-b border-border'>
             <div className='font-medium'>
               {user.user_metadata?.full_name || user.email}
@@ -92,6 +92,14 @@ export function UserProfileMenu() {
               <span>Profile</span>
             </Link>
 
+            <Link
+              href='/settings'
+              className='flex items-center gap-3 px-4 py-2.5 hover:bg-muted/20 w-full text-left text-sm'
+              onClick={() => setIsOpen(false)}
+            >
+              <Settings className='h-4 w-4' />
+              <span>Settings</span>
+            </Link>
           </div>
 
           <div className='border-t border-border py-2'>
