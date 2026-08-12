@@ -42,11 +42,11 @@ interface NotificationItem {
 
 // Where a notification links to — card-scoped types go to the card,
 // moved_list/etc. go to the board, and workspace_member_added (no card, no
-// board) goes to the workspace's members page instead.
+// board) goes to the workspace's boards page instead.
 const notificationHref = (n: NotificationItem) => {
   if (n.related_card_id) return `/board/${n.related_board_id}?card=${n.related_card_id}`;
   if (n.related_board_id) return `/board/${n.related_board_id}`;
-  if (n.related_workspace_id) return `/workspace/${n.related_workspace_id}/members`;
+  if (n.related_workspace_id) return `/boards/${n.related_workspace_id}`;
   return '#';
 };
 
