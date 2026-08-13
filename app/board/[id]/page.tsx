@@ -38,6 +38,7 @@ import {
   BoardListViewSkeleton,
 } from '../../components/ui/skeletons';
 import { colorForNumber, colorForKey } from '@/utils/idColor';
+import { AISummaryModal } from '@/app/components/ai/AISummaryModal';
 import {
   Star,
   User,
@@ -234,6 +235,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [activeColumnId, setActiveColumnId] = useState<string | null>(null);
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
 
   // Board settings and deletion states
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
@@ -1488,6 +1490,15 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               <Info className='w-4 h-4 sm:w-5 sm:h-5' />
             </button>
 
+            {/* AI activity summary */}
+            <button
+              onClick={() => setIsSummaryModalOpen(true)}
+              className='p-2 sm:p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+              title='Summarize recent activity'
+            >
+              <Sparkles className='w-4 h-4 sm:w-5 sm:h-5' />
+            </button>
+
             {/* last_activity_at reflects any activity on the board (cards,
                 lists, comments — see bump_board_last_activity trigger),
                 not just edits to the board's own name/description/color
@@ -1689,6 +1700,15 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         createdAt={board.created_at}
         updatedAt={board.last_activity_at}
       />
+
+      {isSummaryModalOpen && (
+        <AISummaryModal
+          scope='board'
+          id={board.id}
+          label={board.name}
+          onClose={() => setIsSummaryModalOpen(false)}
+        />
+      )}
 
       {/* Board Deletion Confirmation Modal */}
       {showBoardDeletionModal && board && (

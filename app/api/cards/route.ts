@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { createCard } from '@/utils/cards/createCard';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,115 +19,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { title, description, list_id, board_id, position } = body;
 
-    // Validate required fields
-    if (!title?.trim()) {
+    const result = await createCard(supabase, user.id, {
+      title,
+      description,
+      list_id,
+      board_id,
+      position,
+    });
+
+    if (!result.ok) {
       return NextResponse.json(
-        { error: 'Card title is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!list_id) {
-      return NextResponse.json(
-        { error: 'List ID is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!board_id) {
-      return NextResponse.json(
-        { error: 'Board ID is required' },
-        { status: 400 }
-      );
-    }
-
-    // Verify the list exists and belongs to the board
-    const { data: listData, error: listError } = await supabase
-      .from('lists')
-      .select('id, board_id')
-      .eq('id', list_id)
-      .eq('board_id', board_id)
-      .single();
-
-    if (listError || !listData) {
-      return NextResponse.json(
-        { error: 'List not found or does not belong to this board' },
-        { status: 404 }
-      );
-    }
-
-    // Get the next position for the card if not provided
-    let cardPosition = position;
-    if (cardPosition === undefined || cardPosition === null) {
-      const { data: positionData } = await supabase
-        .from('cards')
-        .select('position')
-        .eq('list_id', list_id)
-        .order('position', { ascending: false })
-        .limit(1)
-        .single();
-
-      cardPosition = (positionData?.position || 0) + 1;
-    }
-
-    // Claim this card's display number — atomic, per-board counter (see
-    // supabase/supabase/migrations/20260807120000_add_scoped_display_numbers.sql).
-    const { data: cardNumber, error: numberError } = await supabase.rpc(
-      'next_card_number',
-      { p_board_id: board_id }
-    );
-
-    if (numberError || cardNumber == null) {
-      console.error('Card number assignment error:', numberError);
-      return NextResponse.json(
-        { error: 'Failed to assign card number' },
-        { status: 500 }
-      );
-    }
-
-    // Create the card
-    const { data: cardData, error: cardError } = await supabase
-      .from('cards')
-      .insert({
-        title: title.trim(),
-        description: description?.trim() || null,
-        list_id,
-        board_id,
-        position: cardPosition,
-        created_by: user.id,
-        number: cardNumber,
-      })
-      .select('*')
-      .single();
-
-    if (cardError) {
-      console.error('Card creation error:', cardError);
-
-      // Return more specific error message
-      if (cardError.code === '42501') {
-        return NextResponse.json(
-          {
-            error:
-              'Permission denied: You are not authorized to create cards on this board',
-            details: 'Make sure you are a member of this board',
-          },
-          { status: 403 }
-        );
-      }
-
-      return NextResponse.json(
-        {
-          error: 'Failed to create card',
-          details: cardError.message,
-        },
-        { status: 500 }
+        { error: result.error, ...(result.details && { details: result.details }) },
+        { status: result.status }
       );
     }
 
     return NextResponse.json(
       {
         message: 'Card created successfully',
-        card: cardData,
+        card: result.card,
       },
       { status: 201 }
     );

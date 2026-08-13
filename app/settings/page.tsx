@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { DashboardHeader } from '../components/dashboard/header';
+import { AIKeysSection } from '../components/settings/AIKeysSection';
 import { useAuth } from '@/context/AuthContext';
 import {
   Bell,
@@ -244,6 +245,8 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+
+        <AIKeysSection />
       </main>
     </div>
   );

@@ -8,6 +8,7 @@ import { WorkspaceBoardCard } from '@/app/components/board/WorkspaceBoardCard';
 import { useWorkspaceBoards } from '@/hooks/useWorkspaceBoards';
 import { WorkspaceBoardsListSkeleton } from '@/app/components/ui/skeletons';
 import { EntityInfoModal } from '@/components/ui/EntityInfoModal';
+import { AISummaryModal } from '@/app/components/ai/AISummaryModal';
 import { colorForNumber, colorForKey, colorForEntity } from '@/utils/idColor';
 import { createClient } from '@/utils/supabase/client';
 import {
@@ -27,6 +28,7 @@ import {
   Info,
   Star,
   Clock,
+  Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useWorkspace } from '@/hooks/useWorkspace';
@@ -111,6 +113,7 @@ export default function WorkspaceBoardsPage() {
 
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [isDescriptionModalOpen, setIsDescriptionModalOpen] = useState(false);
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
 
   // Grid/list toggle + in-page board search — persisted per-workspace so
   // switching workspaces doesn't carry a stale filter over, but coming back
@@ -570,6 +573,14 @@ export default function WorkspaceBoardsPage() {
             >
               <Info className='w-4 h-4 sm:w-5 sm:h-5' />
             </button>
+            <button
+              onClick={() => setIsSummaryModalOpen(true)}
+              className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+              aria-label='Summarize recent activity'
+              title='Summarize recent activity'
+            >
+              <Sparkles className='w-4 h-4 sm:w-5 sm:h-5' />
+            </button>
             <Link
               href={`/workspace/${workspace.id}/members`}
               className='p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
@@ -781,6 +792,15 @@ export default function WorkspaceBoardsPage() {
           description={workspaceData.description || ''}
           onSave={updateWorkspaceDescription}
           createdAt={workspaceData.created_at}
+        />
+      )}
+
+      {isSummaryModalOpen && (
+        <AISummaryModal
+          scope='workspace'
+          id={workspace.id}
+          label={workspace.name}
+          onClose={() => setIsSummaryModalOpen(false)}
         />
       )}
 

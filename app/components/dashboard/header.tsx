@@ -23,6 +23,7 @@ import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { UserProfileMenu } from './UserProfileMenu';
 import { NotificationBell } from './NotificationBell';
+import { AIChatWidget } from '../ai/AIChatWidget';
 import { CreateWorkspaceModal } from '../workspace/CreateWorkspaceModal';
 import { CreateBoardModal } from '../board/CreateBoardModal';
 import { colorForNumber, colorForEntity } from '@/utils/idColor';
@@ -777,12 +778,14 @@ export function DashboardHeader() {
               </div>
 
               <NotificationBell />
+              <AIChatWidget />
               <UserProfileMenu />
             </div>
 
             {/* Desktop Right section */}
             <div className='hidden md:flex items-center gap-4'>
               <NotificationBell />
+              <AIChatWidget />
               <UserProfileMenu />
             </div>
           </div>
