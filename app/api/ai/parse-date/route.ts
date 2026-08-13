@@ -1,13 +1,15 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveClientForUser } from '@/utils/ai/client';
-import { resolveDueDatePhrase } from '@/utils/ai/resolveDate';
+import { resolveDateRangePhrase } from '@/utils/ai/resolveDate';
 
 // POST /api/ai/parse-date - fallback for date phrases the deterministic
 // parser (utils/parseDueDate.ts) doesn't recognize, used by the
-// post-creation date picker's free-text field. See utils/ai/resolveDate.ts
-// for the shared "deterministic parser first, LLM normalization as
-// fallback" logic — the skeleton generation route uses the same helper.
+// post-creation date picker's free-text field. Resolves both ends of a
+// range at once ("start today and end in one month") — a phrase naming
+// only one end comes back with the other as null. See
+// utils/ai/resolveDate.ts for the shared "deterministic parser first, LLM
+// normalization as fallback" logic.
 //
 // Body: { phrase: string }
 export async function POST(request: NextRequest) {
@@ -38,16 +40,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const resolved = await resolveDueDatePhrase(activeClient.client, activeClient.model, phrase);
+    const resolved = await resolveDateRangePhrase(activeClient.client, activeClient.model, phrase);
 
-    if (!resolved) {
+    if (!resolved.startDate && !resolved.dueDate) {
       return NextResponse.json(
         { error: 'unresolved', message: `Couldn't figure out a date from "${phrase}".` },
         { status: 400 }
       );
     }
 
-    return NextResponse.json({ date: resolved });
+    return NextResponse.json(resolved);
   } catch (error) {
     console.error('Unexpected error:', error);
     return NextResponse.json(

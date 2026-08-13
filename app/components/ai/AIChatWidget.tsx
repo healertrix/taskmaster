@@ -24,7 +24,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/utils/supabase/client';
 import { useAIChatStore, type AIChatMessage as ChatMessage } from '@/lib/stores/useAIChatStore';
-import { parseDueDate } from '@/utils/parseDueDate';
+import { parseDateRange } from '@/utils/parseDueDate';
 import {
   WorkspaceBoardMentionInput,
   type MentionableItem,
@@ -144,6 +144,8 @@ export function AIChatWidget() {
     setSkeletonEdits,
     dismissedSkeletonIds,
     setDismissedSkeletonIds,
+    approvedSkeletonIds,
+    setApprovedSkeletonIds,
     expandedAssignId,
     setExpandedAssignId,
     cardMembers,
@@ -162,6 +164,8 @@ export function AIChatWidget() {
     setDateDrafts,
     dueDatesByCard,
     setDueDatesByCard,
+    startDatesByCard,
+    setStartDatesByCard,
     settingDateKey,
     setSettingDateKey,
     dateErrorByCard,
@@ -606,15 +610,35 @@ export function AIChatWidget() {
   // Done yet — drives the docked actions bar (Add member / Set due date /
   // Done) above the compose box, always reachable regardless of scroll
   // position, the same treatment as the Create task bar.
+  // Only ever the most recent message overall, not just the most recent
+  // post_create_actions one — otherwise, creating a task, not clicking
+  // Done, and then starting to describe a completely different task left
+  // this bar (for the *old* task) sitting there the whole time, looking
+  // like it was asking about a task that didn't exist yet. The instant
+  // anything else happens — a new message, a board switch — the old task
+  // is implicitly done with, whether or not "Done" was ever clicked.
   const pendingPostCreateMessage = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
-      if (m.metadata?.kind === 'post_create_actions') {
-        return completedAssignIds.has(m.id) ? null : m;
-      }
-    }
-    return null;
+    const last = messages[messages.length - 1];
+    if (!last || last.metadata?.kind !== 'post_create_actions') return null;
+    return completedAssignIds.has(last.id) ? null : last;
   }, [messages, completedAssignIds]);
+
+  // Whether an unapproved preview from this draft already exists — drives
+  // relabeling "Create task" to "Regenerate": clicking it while one's
+  // already showing doesn't create a second thing, it supersedes the
+  // current preview with a fresh one from the fuller conversation (see
+  // dismissStalePendingSkeletons), which is a different enough action from
+  // the first click that it deserves its own label.
+  const hasPendingSkeleton = useMemo(
+    () =>
+      messages.some(
+        (msg) =>
+          msg.metadata?.kind === 'skeleton_proposal' &&
+          !dismissedSkeletonIds.has(msg.id) &&
+          !approvedSkeletonIds.has(msg.id)
+      ),
+    [messages, dismissedSkeletonIds, approvedSkeletonIds]
+  );
 
   // Keeps the "N added" badge on the docked bar accurate without requiring
   // the panel to be expanded first — e.g. right after creating the task,
@@ -624,6 +648,30 @@ export function AIChatWidget() {
       fetchCardMembers(pendingPostCreateMessage.metadata.card_id);
     }
   }, [pendingPostCreateMessage?.metadata?.card_id, fetchCardMembers]);
+
+  // A skeleton proposal that's still sitting there unapproved goes stale
+  // the moment anything else happens — another message sent, or "Create
+  // task" clicked again — because at that point it's no longer clear the
+  // preview still reflects what's being talked about. Dismiss it outright
+  // (same as clicking Cancel) rather than leaving it visible: there's
+  // nothing to grey it into that wouldn't just be confusing clutter next
+  // to a conversation that's already moved on.
+  const dismissStalePendingSkeletons = () => {
+    const staleIds = messages
+      .filter(
+        (msg) =>
+          msg.metadata?.kind === 'skeleton_proposal' &&
+          !dismissedSkeletonIds.has(msg.id) &&
+          !approvedSkeletonIds.has(msg.id)
+      )
+      .map((msg) => msg.id);
+    if (staleIds.length === 0) return;
+    setDismissedSkeletonIds((prev) => {
+      const next = new Set(prev);
+      staleIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
 
   const sendMessage = async () => {
     const content = input;
@@ -641,6 +689,7 @@ export function AIChatWidget() {
           boardId: effectiveContext.boardId,
         }),
       });
+      dismissStalePendingSkeletons();
       setMessages((prev) => [...prev, ...(data.messages || [])]);
     } catch (err: any) {
       console.error('Error sending AI chat message:', err);
@@ -665,6 +714,10 @@ export function AIChatWidget() {
           boardName: effectiveContext.boardName,
         }),
       });
+      // Clicking "Create task" again while an earlier proposal from this
+      // same draft is still sitting there unapproved supersedes it — the
+      // newer one always wins, regenerated from the fuller draft.
+      dismissStalePendingSkeletons();
       setMessages((prev) => [...prev, ...(data.messages || [])]);
     } catch (err: any) {
       console.error('Error creating task skeleton:', err);
@@ -684,6 +737,7 @@ export function AIChatWidget() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'discard' }),
       });
+      dismissStalePendingSkeletons();
       setMessages((prev) => [...prev, ...(data.messages || [])]);
     } catch (err: any) {
       console.error('Error discarding draft:', err);
@@ -700,6 +754,20 @@ export function AIChatWidget() {
   // locally right away so its buttons disappear immediately.
   const completeAssign = async (messageId: string) => {
     setCompletedAssignIds((prev) => new Set(prev).add(messageId));
+    // The muted "Created from this draft" preview card is only there as a
+    // fading record between approving and wrapping up — once "Done" is
+    // clicked, the confirmation pill is the permanent record of it and the
+    // preview card is just clutter. Close it out the same way Cancel does.
+    const approvedIds = messages
+      .filter((msg) => msg.metadata?.kind === 'skeleton_proposal' && approvedSkeletonIds.has(msg.id))
+      .map((msg) => msg.id);
+    if (approvedIds.length > 0) {
+      setDismissedSkeletonIds((prev) => {
+        const next = new Set(prev);
+        approvedIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
     try {
       const data = await fetchJson('/api/ai/chat', {
         method: 'POST',
@@ -715,15 +783,17 @@ export function AIChatWidget() {
     }
   };
 
-  // Any due date came from what was said in chat (extracted by the
-  // skeleton endpoint) — there's no in-preview date field to edit
-  // anymore, so this is the only source. Changing/adding a date after
-  // creation happens in exactly one place: the docked date panel below.
+  // Start/due date default to whatever was extracted from chat, but are
+  // editable right in the preview while it's still the draft (see
+  // showActions below) — edit?.startDate/dueDate wins once the user
+  // touches either field. Once approved, editing moves to exactly one
+  // place: the docked date panel after creation.
   const approveSkeleton = async (m: ChatMessage) => {
     const edit = skeletonEdits[m.id];
     const title = edit?.title ?? m.metadata?.title;
     const description = edit?.description ?? m.metadata?.description;
-    const dueDate = m.metadata?.due_date ?? null;
+    const startDate = edit?.startDate ?? m.metadata?.start_date ?? null;
+    const dueDate = edit?.dueDate ?? m.metadata?.due_date ?? null;
     if (!title?.trim()) return;
 
     setConfirmingId(m.id);
@@ -734,6 +804,7 @@ export function AIChatWidget() {
         body: JSON.stringify({
           title,
           description,
+          startDate,
           dueDate,
           boardId: m.metadata.board_id,
           workspaceId: m.metadata.workspace_id,
@@ -742,6 +813,7 @@ export function AIChatWidget() {
       });
       setMessages((prev) => [...prev, ...(data.messages || [])]);
       setEditingSkeletonId(null);
+      setApprovedSkeletonIds((prev) => new Set(prev).add(m.id));
       if (m.metadata.workspace_id) {
         prefetchMembers(m.metadata.workspace_id, m.metadata.board_id);
       }
@@ -754,46 +826,38 @@ export function AIChatWidget() {
     }
   };
 
-  // Quick-pick due date options, computed fresh each render — cheap, and
-  // "today" needs to actually be today.
-  const dueDateQuickOptions = () => {
-    const mk = (daysFromNow: number) => {
-      const d = new Date();
-      d.setHours(0, 0, 0, 0);
-      d.setDate(d.getDate() + daysFromNow);
-      return d.toISOString();
-    };
-    return [
-      { label: 'Today', iso: mk(0) },
-      { label: 'Tomorrow', iso: mk(1) },
-      { label: 'In 3 days', iso: mk(3) },
-      { label: 'In 1 week', iso: mk(7) },
-      { label: 'In 30 days', iso: mk(30) },
-    ];
-  };
-
   const formatDueDate = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-  // Sets/changes a due date on an already-created card — used by both the
-  // confirmation pill's calendar icon and the post-creation actions block,
-  // keyed by card id so both stay in sync.
-  const applyDueDate = async (cardId: string, iso: string | null) => {
+  // Sets/changes start and/or due date on an already-created card — used
+  // by the post-creation date panel. Only the fields actually passed get
+  // sent/updated, so setting one doesn't clobber the other.
+  const applyDates = async (
+    cardId: string,
+    changes: { startDate?: string | null; dueDate?: string | null }
+  ) => {
     setSettingDateKey(cardId);
     setDateErrorByCard((prev) => ({ ...prev, [cardId]: null }));
     try {
+      const body: Record<string, string | null> = {};
+      if ('startDate' in changes) body.start_date = changes.startDate ?? null;
+      if ('dueDate' in changes) body.due_date = changes.dueDate ?? null;
       // /api/cards/[id] only exports PUT, not PATCH — this was the actual
       // cause of "Failed to save the date": every call 405'd.
       const res = await fetch(`/api/cards/${cardId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ due_date: iso }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error('Failed to save the date — try again.');
-      setDueDatesByCard((prev) => ({ ...prev, [cardId]: iso }));
-      if (iso) setExpandedDateCardId(null);
+      if ('startDate' in changes) {
+        setStartDatesByCard((prev) => ({ ...prev, [cardId]: changes.startDate ?? null }));
+      }
+      if ('dueDate' in changes) {
+        setDueDatesByCard((prev) => ({ ...prev, [cardId]: changes.dueDate ?? null }));
+      }
     } catch (err: any) {
-      console.error('Error setting due date:', err);
+      console.error('Error setting date:', err);
       setDateErrorByCard((prev) => ({ ...prev, [cardId]: err.message || 'Failed to save the date.' }));
     } finally {
       setSettingDateKey(null);
@@ -803,14 +867,20 @@ export function AIChatWidget() {
   // Free-text natural-language date, submitted via the Set button or Enter
   // — parsing happens client-side first (fast, no network) so the common
   // phrasings resolve instantly; if that fails, fall back to asking the AI
-  // to interpret it before giving up and showing an error.
+  // to interpret it before giving up and showing an error. Understands a
+  // single date ("6th oct") as well as a range in one phrase ("start
+  // today and end in one month") — whichever end(s) it recognizes get set.
   const submitDateDraft = async (cardId: string) => {
     const draft = dateDrafts[cardId]?.trim();
     if (!draft) return;
 
-    const iso = parseDueDate(draft);
-    if (iso) {
-      applyDueDate(cardId, iso);
+    const direct = parseDateRange(draft);
+    if (direct.startDate || direct.dueDate) {
+      const changes: { startDate?: string | null; dueDate?: string | null } = {};
+      if (direct.startDate) changes.startDate = direct.startDate;
+      if (direct.dueDate) changes.dueDate = direct.dueDate;
+      await applyDates(cardId, changes);
+      setExpandedDateCardId(null);
       return;
     }
 
@@ -822,13 +892,18 @@ export function AIChatWidget() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phrase: draft }),
       });
-      await applyDueDate(cardId, data.date);
+      const changes: { startDate?: string | null; dueDate?: string | null } = {};
+      if (data.startDate) changes.startDate = data.startDate;
+      if (data.dueDate) changes.dueDate = data.dueDate;
+      await applyDates(cardId, changes);
+      setExpandedDateCardId(null);
     } catch (err: any) {
       console.error('Error resolving date via AI:', err);
       setDateErrorByCard((prev) => ({
         ...prev,
-        [cardId]: err.message || `Couldn't understand "${draft}" — try "30 days from now" or "6th oct".`,
+        [cardId]: err.message || `Couldn't understand "${draft}" — try "30 days from now" or "start today, due in a month".`,
       }));
+    } finally {
       setSettingDateKey(null);
     }
   };
@@ -939,45 +1014,64 @@ export function AIChatWidget() {
     );
   };
 
-  const renderDueDatePicker = (cardId: string) => {
-    const current = dueDatesByCard[cardId];
-    return (
-      <div className='mt-2 space-y-2.5 bg-background/60 border border-border/60 rounded-lg p-3'>
+  // One compact column per end of the range, side by side — just a label,
+  // the current value (if set), Clear, and the native date input itself.
+  // No quick-pick buttons here: "today", "tomorrow", "in 3 days" etc. all
+  // already work by just typing them into the free-text field below —
+  // having them again as buttons here was redundant.
+  const renderDateSection = (
+    cardId: string,
+    label: string,
+    current: string | null | undefined,
+    onPick: (iso: string | null) => void
+  ) => (
+    <div className='flex-1 min-w-0 space-y-1'>
+      <div className='flex items-center justify-between gap-1'>
+        <p className='text-[11px] font-semibold uppercase tracking-wide text-muted-foreground truncate'>
+          {label}
+          {current && <span className='ml-1 normal-case font-medium text-foreground'>{formatDueDate(current)}</span>}
+        </p>
         {current && (
-          <div className='flex items-center justify-between'>
-            <span className='text-xs font-medium text-foreground'>Due {formatDueDate(current)}</span>
-            <button
-              onClick={() => applyDueDate(cardId, null)}
-              disabled={settingDateKey === cardId}
-              className='text-[11px] text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50'
-            >
-              Clear
-            </button>
-          </div>
-        )}
-
-        <p className='text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'>Quick pick</p>
-        <div className='flex flex-wrap gap-1.5'>
-          {dueDateQuickOptions().map((opt) => (
-            <button
-              key={opt.label}
-              disabled={settingDateKey === cardId}
-              onClick={() => applyDueDate(cardId, opt.iso)}
-              className='text-xs font-medium px-2.5 py-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50'
-            >
-              {opt.label}
-            </button>
-          ))}
-          <input
-            type='date'
+          <button
+            onClick={() => onPick(null)}
             disabled={settingDateKey === cardId}
-            onChange={(e) => e.target.value && applyDueDate(cardId, new Date(e.target.value).toISOString())}
-            className='text-xs bg-background border border-border rounded-md px-2 py-1.5 text-foreground focus:outline-none focus:border-primary'
-          />
+            className='text-[11px] text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50 flex-shrink-0'
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      <input
+        type='date'
+        value={current ? current.slice(0, 10) : ''}
+        disabled={settingDateKey === cardId}
+        onChange={(e) => onPick(e.target.value ? new Date(e.target.value).toISOString() : null)}
+        className='w-full text-xs bg-background border border-border rounded-md px-2 py-1.5 text-foreground focus:outline-none focus:border-primary'
+      />
+    </div>
+  );
+
+  // initialStartDate/initialDueDate cover whatever was extracted from chat
+  // at creation time (metadata.start_date/due_date) — until this panel's
+  // own store entry is set, that's the real current value; without this
+  // fallback the picker showed empty even though the card genuinely
+  // already had that date.
+  const renderDueDatePicker = (
+    cardId: string,
+    initialStartDate: string | null = null,
+    initialDueDate: string | null = null
+  ) => {
+    const currentStart = startDatesByCard[cardId] ?? initialStartDate;
+    const currentDue = dueDatesByCard[cardId] ?? initialDueDate;
+    return (
+      <div className='mt-2 space-y-3 bg-background/60 border border-border/60 rounded-lg p-3'>
+        <div className='flex items-start gap-3'>
+          {renderDateSection(cardId, 'Start', currentStart, (iso) => applyDates(cardId, { startDate: iso }))}
+          {renderDateSection(cardId, 'Due', currentDue, (iso) => applyDates(cardId, { dueDate: iso }))}
         </div>
 
         <p className='text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'>
-          Or describe it
+          Or describe it — either or both ("start today, due in a month")
         </p>
         <div className='flex items-center gap-2'>
           <input
@@ -1164,13 +1258,12 @@ export function AIChatWidget() {
                     <Loader2 className='w-4 h-4 animate-spin text-muted-foreground' />
                   </div>
                 )}
-                {messages.map((m, idx) => {
-                const isLatest = idx === messages.length - 1;
-
+                {messages.map((m) => {
                 // Boundary markers render as centered dividers, not bubbles
                 // — makes the "draft reset" moment visually obvious.
                 if (m.message_type === 'confirmation') {
                   const cardId: string | undefined = m.metadata?.card_id;
+                  const currentStart = cardId ? startDatesByCard[cardId] ?? m.metadata?.start_date ?? null : null;
                   const currentDue = cardId ? dueDatesByCard[cardId] ?? m.metadata?.due_date ?? null : null;
 
                   // Just a link — no controls of its own. While the task
@@ -1190,9 +1283,11 @@ export function AIChatWidget() {
                         >
                           <CheckCircle2 className='w-4 h-4 text-success flex-shrink-0' />
                           <span className='text-sm font-medium text-foreground truncate'>{m.metadata.title}</span>
-                          {currentDue && (
+                          {(currentStart || currentDue) && (
                             <span className='text-xs text-success/80 flex-shrink-0'>
-                              · {formatDueDate(currentDue)}
+                              ·{currentStart && ` ${formatDueDate(currentStart)}`}
+                              {currentStart && currentDue && ' →'}
+                              {currentDue && ` ${formatDueDate(currentDue)}`}
                             </span>
                           )}
                           <ArrowUpRight className='w-3.5 h-3.5 text-success flex-shrink-0 opacity-70 group-hover:opacity-100 transition-opacity' />
@@ -1220,11 +1315,21 @@ export function AIChatWidget() {
                 // Skeleton proposal — an editable card, not a plain bubble.
                 if (m.metadata?.kind === 'skeleton_proposal') {
                   const dismissed = dismissedSkeletonIds.has(m.id);
-                  const showActions = isLatest && !dismissed;
+                  const approved = approvedSkeletonIds.has(m.id);
+                  // Actionable until explicitly approved or dismissed —
+                  // NOT tied to "is this the latest message" anymore.
+                  // Continuing to talk after clicking "Create task" used
+                  // to silently lock this into looking already-created;
+                  // now it stays open until you actually approve/cancel
+                  // it (or supersede it by generating a fresh one — see
+                  // createSkeleton's auto-dismiss).
+                  const showActions = !dismissed && !approved;
                   const isEditing = editingSkeletonId === m.id;
                   const edit = skeletonEdits[m.id] ?? {
                     title: m.metadata.title,
                     description: m.metadata.description,
+                    startDate: m.metadata.start_date ?? null,
+                    dueDate: m.metadata.due_date ?? null,
                   };
 
                   if (dismissed) return null;
@@ -1279,20 +1384,76 @@ export function AIChatWidget() {
                           )}
                         </div>
                       )}
-                      {/* Read-only — whatever date was mentioned in chat,
-                          nothing editable here. Setting or changing a date
-                          happens in exactly one place, after creation: the
-                          docked date panel (see pendingPostCreateMessage). */}
-                      {m.metadata.due_date ? (
-                        <p className='text-[11px] text-muted-foreground flex items-center gap-1'>
-                          <Calendar className='w-3 h-3 flex-shrink-0' /> Due {formatDueDate(m.metadata.due_date)}
-                        </p>
+                      {showActions ? (
+                        // Editable while this is still the draft — the
+                        // extracted phrase is only a starting point, and
+                        // it's much easier to fix a wrong guess here than
+                        // to notice and fix it after the task exists.
+                        // Locks for good the moment this stops being the
+                        // latest message (see the read-only branch below).
+                        <div className='flex items-center gap-3'>
+                          <div className='flex-1 min-w-0 flex items-center gap-1.5'>
+                            <span className='text-[11px] text-muted-foreground flex-shrink-0'>Start</span>
+                            <input
+                              type='date'
+                              value={edit.startDate ? edit.startDate.slice(0, 10) : ''}
+                              onChange={(e) =>
+                                setSkeletonEdits((prev) => ({
+                                  ...prev,
+                                  [m.id]: {
+                                    ...edit,
+                                    startDate: e.target.value ? new Date(e.target.value).toISOString() : null,
+                                  },
+                                }))
+                              }
+                              className='w-full text-xs bg-background border border-border rounded-md px-2 py-1.5 text-foreground focus:outline-none focus:border-primary'
+                            />
+                          </div>
+                          <div className='flex-1 min-w-0 flex items-center gap-1.5'>
+                            <Calendar className='w-3.5 h-3.5 text-muted-foreground flex-shrink-0' />
+                            <span className='text-[11px] text-muted-foreground flex-shrink-0'>Due</span>
+                            <input
+                              type='date'
+                              value={edit.dueDate ? edit.dueDate.slice(0, 10) : ''}
+                              onChange={(e) =>
+                                setSkeletonEdits((prev) => ({
+                                  ...prev,
+                                  [m.id]: {
+                                    ...edit,
+                                    dueDate: e.target.value ? new Date(e.target.value).toISOString() : null,
+                                  },
+                                }))
+                              }
+                              className='w-full text-xs bg-background border border-border rounded-md px-2 py-1.5 text-foreground focus:outline-none focus:border-primary'
+                            />
+                          </div>
+                        </div>
                       ) : (
-                        m.metadata.due_date_phrase && (
-                          <p className='text-[11px] text-amber-500'>
-                            Mentioned "{m.metadata.due_date_phrase}" but couldn't resolve it — you can set a date after creating the task.
+                        // Locked — this card is a historical record now.
+                        // Reflects whatever was actually sent on Approve
+                        // (edit.startDate/dueDate), not just the original
+                        // extraction, so it doesn't go stale if it was
+                        // hand-edited before approving. Changing it from
+                        // here on happens in exactly one place: the docked
+                        // date panel after creation.
+                        (edit.startDate || edit.dueDate) && (
+                          <p className='text-[11px] text-muted-foreground flex items-center gap-1'>
+                            <Calendar className='w-3 h-3 flex-shrink-0' />
+                            {edit.startDate && `Start ${formatDueDate(edit.startDate)}`}
+                            {edit.startDate && edit.dueDate && ' · '}
+                            {edit.dueDate && `Due ${formatDueDate(edit.dueDate)}`}
                           </p>
                         )
+                      )}
+                      {showActions && m.metadata.start_date_phrase && !edit.startDate && (
+                        <p className='text-[11px] text-amber-500'>
+                          Mentioned a start of "{m.metadata.start_date_phrase}" but couldn't resolve it — set it above.
+                        </p>
+                      )}
+                      {showActions && m.metadata.due_date_phrase && !edit.dueDate && (
+                        <p className='text-[11px] text-amber-500'>
+                          Mentioned "{m.metadata.due_date_phrase}" but couldn't resolve it — set it above.
+                        </p>
                       )}
                       <p className='text-[11px] text-muted-foreground'>
                         into {m.metadata.board_name}
@@ -1422,61 +1583,97 @@ export function AIChatWidget() {
                 need an AI key: assigning members and setting dates are
                 plain bot actions, not LLM calls. */}
             {pendingPostCreateMessage && (
-              <div className='bg-muted/40 border border-border/60 rounded-xl p-3 space-y-2'>
-                <p className='text-sm text-foreground'>{pendingPostCreateMessage.content}</p>
-                <div className='flex flex-wrap items-center gap-1.5'>
-                  <button
-                    onClick={() =>
-                      toggleMemberExpand(
-                        pendingPostCreateMessage.metadata.card_id,
-                        pendingPostCreateMessage.metadata.workspace_id,
-                        pendingPostCreateMessage.metadata.board_id
-                      )
-                    }
-                    className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors ${
-                      expandedAssignId === pendingPostCreateMessage.metadata.card_id
-                        ? 'bg-primary/20 text-primary'
-                        : 'bg-primary/10 text-primary hover:bg-primary/20'
-                    }`}
-                  >
-                    <UserPlus className='w-3 h-3' />
-                    {(() => {
-                      const count = (cardMembers[pendingPostCreateMessage.metadata.card_id] || []).length;
-                      return count > 0 ? `${count} added` : 'Add member';
-                    })()}
-                  </button>
-                  <button
-                    onClick={() => toggleDateExpand(pendingPostCreateMessage.metadata.card_id)}
-                    className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors ${
-                      expandedDateCardId === pendingPostCreateMessage.metadata.card_id
-                        ? 'bg-primary/20 text-primary'
-                        : 'bg-primary/10 text-primary hover:bg-primary/20'
-                    }`}
-                  >
-                    <Calendar className='w-3 h-3' />
-                    {(() => {
-                      const due =
-                        dueDatesByCard[pendingPostCreateMessage.metadata.card_id] ??
-                        pendingPostCreateMessage.metadata.due_date ??
-                        null;
-                      return due ? formatDueDate(due) : 'Set due date';
-                    })()}
-                  </button>
-                  <button
-                    onClick={() => completeAssign(pendingPostCreateMessage.id)}
-                    className='ml-auto flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors'
-                  >
-                    <Check className='w-3.5 h-3.5' /> Done with this task
-                  </button>
+              <div className='space-y-1.5'>
+                <div className='w-full bg-muted/40 border border-border/60 rounded-xl p-3 space-y-2'>
+                  <div className='flex items-center justify-between gap-2'>
+                    <p className='text-sm text-foreground'>{pendingPostCreateMessage.content}</p>
+                    {/* Same effect as closing any other popover in this
+                        panel — collapses whichever of the member list /
+                        date picker is open below, nothing more. It never
+                        hides this bar itself, so there's no separate
+                        "reopen" state to manage. */}
+                    {(expandedAssignId === pendingPostCreateMessage.metadata.card_id ||
+                      expandedDateCardId === pendingPostCreateMessage.metadata.card_id) && (
+                      <button
+                        onClick={() => {
+                          setExpandedAssignId(null);
+                          setExpandedDateCardId(null);
+                        }}
+                        className='p-1 -m-1 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0'
+                        aria-label='Close'
+                        title='Close'
+                      >
+                        <X className='w-3.5 h-3.5' />
+                      </button>
+                    )}
+                  </div>
+                  <div className='flex flex-wrap items-center gap-1.5'>
+                    <button
+                      onClick={() =>
+                        toggleMemberExpand(
+                          pendingPostCreateMessage.metadata.card_id,
+                          pendingPostCreateMessage.metadata.workspace_id,
+                          pendingPostCreateMessage.metadata.board_id
+                        )
+                      }
+                      className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors ${
+                        expandedAssignId === pendingPostCreateMessage.metadata.card_id
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'bg-primary/10 text-primary hover:bg-primary/20'
+                      }`}
+                    >
+                      <UserPlus className='w-3 h-3' />
+                      {(() => {
+                        const count = (cardMembers[pendingPostCreateMessage.metadata.card_id] || []).length;
+                        return count > 0 ? `${count} added` : 'Add member';
+                      })()}
+                    </button>
+                    <button
+                      onClick={() => toggleDateExpand(pendingPostCreateMessage.metadata.card_id)}
+                      className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors ${
+                        expandedDateCardId === pendingPostCreateMessage.metadata.card_id
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'bg-primary/10 text-primary hover:bg-primary/20'
+                      }`}
+                    >
+                      <Calendar className='w-3 h-3' />
+                      {(() => {
+                        const start =
+                          startDatesByCard[pendingPostCreateMessage.metadata.card_id] ??
+                          pendingPostCreateMessage.metadata.start_date ??
+                          null;
+                        const due =
+                          dueDatesByCard[pendingPostCreateMessage.metadata.card_id] ??
+                          pendingPostCreateMessage.metadata.due_date ??
+                          null;
+                        if (!start && !due) return 'Pick dates';
+                        if (start && due) return `${formatDueDate(start)} → ${formatDueDate(due)}`;
+                        return formatDueDate(start || due);
+                      })()}
+                    </button>
+                  </div>
+
+                  {expandedAssignId === pendingPostCreateMessage.metadata.card_id &&
+                    renderMemberList(
+                      pendingPostCreateMessage.metadata.card_id,
+                      pendingPostCreateMessage.metadata.workspace_id
+                    )}
+                  {expandedDateCardId === pendingPostCreateMessage.metadata.card_id &&
+                    renderDueDatePicker(
+                      pendingPostCreateMessage.metadata.card_id,
+                      pendingPostCreateMessage.metadata.start_date ?? null,
+                      pendingPostCreateMessage.metadata.due_date ?? null
+                    )}
                 </div>
 
-                {expandedAssignId === pendingPostCreateMessage.metadata.card_id &&
-                  renderMemberList(
-                    pendingPostCreateMessage.metadata.card_id,
-                    pendingPostCreateMessage.metadata.workspace_id
-                  )}
-                {expandedDateCardId === pendingPostCreateMessage.metadata.card_id &&
-                  renderDueDatePicker(pendingPostCreateMessage.metadata.card_id)}
+                {/* Same width as the bar above it, its own row — wrapping
+                    up the task is a separate action from configuring it. */}
+                <button
+                  onClick={() => completeAssign(pendingPostCreateMessage.id)}
+                  className='w-full flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors'
+                >
+                  <Check className='w-3.5 h-3.5' /> Done with this task
+                </button>
               </div>
             )}
 
@@ -1508,10 +1705,12 @@ export function AIChatWidget() {
                     >
                       {isCreatingSkeleton ? (
                         <Loader2 className='w-3.5 h-3.5 animate-spin' />
+                      ) : hasPendingSkeleton ? (
+                        <RotateCcw className='w-3.5 h-3.5' />
                       ) : (
                         <Sparkles className='w-3.5 h-3.5' />
                       )}
-                      Create task
+                      {hasPendingSkeleton ? 'Regenerate' : 'Create task'}
                     </button>
                   </div>
                 )}

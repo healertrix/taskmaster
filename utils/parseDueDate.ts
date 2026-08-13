@@ -10,6 +10,10 @@ const MONTH_NAMES = [
   'july', 'august', 'september', 'october', 'november', 'december',
 ];
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const WORD_NUMBERS: Record<string, number> = {
+  a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+  seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+};
 
 function monthIndex(name: string): number {
   const n = name.toLowerCase();
@@ -49,10 +53,12 @@ export function parseDueDate(phrase: string, now: Date = new Date()): string | n
   if (p === 'next month') return addMonths(today, 1).toISOString();
 
   // "in N days/weeks/months", "N days/weeks/months from now", or the same
-  // with "a"/"an" standing in for 1 ("a week from now", "in a month").
-  let m = p.match(/^(?:in\s+)?(\d+|an?)\s*(day|week|month)s?(?:\s+from\s+now)?$/);
+  // with a word standing in for the number ("a week from now", "in one
+  // month", "in two weeks").
+  let m = p.match(/^(?:in\s+)?(\d+|[a-z]+)\s*(day|week|month)s?(?:\s+from\s+now)?$/);
   if (m) {
-    const n = /^\d+$/.test(m[1]) ? parseInt(m[1], 10) : 1;
+    const n = /^\d+$/.test(m[1]) ? parseInt(m[1], 10) : WORD_NUMBERS[m[1]];
+    if (n === undefined) return null;
     const unit = m[2];
     if (unit === 'day') return addDays(today, n).toISOString();
     if (unit === 'week') return addWeeks(today, n).toISOString();
@@ -100,4 +106,58 @@ export function parseDueDate(phrase: string, now: Date = new Date()): string | n
   }
 
   return null;
+}
+
+const START_KEYWORDS = /\b(start(?:s|ing)?|begin(?:s|ning)?|from)\b/i;
+const DUE_KEYWORDS = /\b(due|end(?:s|ing)?|by|until|deadline)\b/i;
+// Matches whichever of the two keyword groups comes first, so a phrase
+// can be split at each one in turn.
+const RANGE_KEYWORD_RE = new RegExp(
+  `${START_KEYWORDS.source}|${DUE_KEYWORDS.source}`,
+  'gi'
+);
+
+// "start today and end in one month", "from tomorrow until next friday",
+// "starting the 6th oct, due 20th oct" — a single phrase naming both ends
+// of a range. Splits the phrase at each start/due keyword and parses the
+// text between them independently; a phrase with only one recognized
+// keyword (or none) resolves to just that one date, same as parseDueDate.
+export function parseDateRange(
+  phrase: string,
+  now: Date = new Date()
+): { startDate: string | null; dueDate: string | null } {
+  const trimmed = phrase?.trim();
+  if (!trimmed) return { startDate: null, dueDate: null };
+
+  const matches = [...trimmed.matchAll(RANGE_KEYWORD_RE)];
+  if (matches.length < 2) {
+    // Nothing (or only one keyword) to split on — a start-only phrase
+    // ("starting next monday") resolves as a start date; everything else,
+    // including plain phrases with no keyword at all, resolves as a due
+    // date (parseDueDate's existing behavior).
+    const isStartOnly = START_KEYWORDS.test(trimmed) && !DUE_KEYWORDS.test(trimmed);
+    const date = parseDueDate(trimmed, now);
+    return isStartOnly ? { startDate: date, dueDate: null } : { startDate: null, dueDate: date };
+  }
+
+  let startDate: string | null = null;
+  let dueDate: string | null = null;
+
+  for (let i = 0; i < matches.length; i++) {
+    const isStart = START_KEYWORDS.test(matches[i][0]);
+    const segStart = (matches[i].index ?? 0) + matches[i][0].length;
+    const segEnd = i + 1 < matches.length ? matches[i + 1].index ?? trimmed.length : trimmed.length;
+    const segment = trimmed
+      .slice(segStart, segEnd)
+      .replace(/^\s*(?:and|,|;|:)+\s*/i, '')
+      .replace(/\s*(?:and|,|;)+\s*$/i, '')
+      .trim();
+    if (!segment) continue;
+    const date = parseDueDate(segment, now);
+    if (!date) continue;
+    if (isStart && !startDate) startDate = date;
+    if (!isStart && !dueDate) dueDate = date;
+  }
+
+  return { startDate, dueDate };
 }

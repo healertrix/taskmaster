@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveClientForUser } from '@/utils/ai/client';
 import { getDraftMessages } from '@/utils/ai/chatDraft';
-import { resolveDueDatePhrase } from '@/utils/ai/resolveDate';
+import { resolveTwoDatePhrases } from '@/utils/ai/resolveDate';
 
 // Note: no "is this actually a task?" gate here anymore. That check
 // belongs to the per-message conversational reply (see app/api/ai/chat/
@@ -14,11 +14,12 @@ import { resolveDueDatePhrase } from '@/utils/ai/resolveDate';
 // command and was the "why does it keep asking for more detail" bug.
 const SYSTEM_PROMPT = `You read a back-and-forth chat conversation where someone is describing a task they want created on a project board. They have just explicitly clicked "Create task" — always produce one from whatever is in the conversation, using your best judgment, even if it's brief or sparse. Never ask a clarifying question and never refuse; make a reasonable task out of what's there.
 
-Respond ONLY with JSON of this exact shape: {"title": string, "description": string, "due_date_phrase": string}.
+Respond ONLY with JSON of this exact shape: {"title": string, "description": string, "start_date_phrase": string, "due_date_phrase": string}.
 
 - "title": short and clear (max 8 words), summarizing the task.
-- "description": a clean, well-written synthesis of everything relevant said across the whole conversation — combine details from multiple messages into one coherent description, don't just repeat the last message. If the conversation is very sparse, just clean up what was said rather than inventing detail that wasn't there.
-- "due_date_phrase": if a deadline/due date was mentioned anywhere in the conversation (e.g. "by 6th oct", "due in 2 weeks", "30 days from now", "next friday"), copy that phrase out verbatim (just the date part, e.g. "6th oct", "30 days from now", "next friday") — do not do any date math yourself, just extract the phrase. If no date was mentioned, set this to "".`;
+- "description": a clean, well-written synthesis of everything relevant said across the whole conversation — combine details from multiple messages into one coherent description, don't just repeat the last message. If the conversation is very sparse, just clean up what was said rather than inventing detail that wasn't there. Don't repeat the start/due date phrases here if you've already captured them below — they get applied to the task directly, not just described.
+- "start_date_phrase": if a start date was mentioned (e.g. "starting in 5 days", "start today", "from next monday"), copy just the date part verbatim (e.g. "in 5 days", "today", "next monday") — no date math, just the phrase. "" if none was mentioned.
+- "due_date_phrase": if a deadline/due/end date was mentioned (e.g. "by 6th oct", "due in 2 weeks", "end in one month", "next friday"), copy just the date part verbatim (e.g. "6th oct", "in 2 weeks", "one month", "next friday") — no date math, just the phrase. "" if none was mentioned.`;
 
 // POST /api/ai/chat/skeleton - the "Create task" button. Synthesizes one
 // task (title + description) from the entire current draft (see
@@ -107,9 +108,10 @@ export async function POST(request: NextRequest) {
     // user said, which is always at least as good as asking them to
     // repeat themselves.
     const lastUserTurn = [...draft].reverse().find((t) => t.role === 'user');
-    let parsed: { title: string; description: string; due_date_phrase: string } = {
+    let parsed: { title: string; description: string; start_date_phrase: string; due_date_phrase: string } = {
       title: (lastUserTurn?.content || 'New task').slice(0, 60),
       description: lastUserTurn?.content || '',
+      start_date_phrase: '',
       due_date_phrase: '',
     };
     try {
@@ -130,6 +132,7 @@ export async function POST(request: NextRequest) {
         parsed = {
           title: raw.title.trim(),
           description: typeof raw.description === 'string' ? raw.description.trim() : parsed.description,
+          start_date_phrase: typeof raw.start_date_phrase === 'string' ? raw.start_date_phrase.trim() : '',
           due_date_phrase: typeof raw.due_date_phrase === 'string' ? raw.due_date_phrase.trim() : '',
         };
       }
@@ -139,13 +142,17 @@ export async function POST(request: NextRequest) {
 
     // Deterministic parsing first (see parseDueDate.ts — reliable "same
     // year unless it's already passed" rollover isn't something to trust
-    // an LLM's own arithmetic for); only asks the LLM to normalize the
-    // phrase if that fails, so uncommon phrasings ("next week", "the end
-    // of the month") still resolve here instead of surfacing the "couldn't
-    // resolve it" warning for anything the deterministic patterns miss.
-    const dueDate = parsed.due_date_phrase
-      ? await resolveDueDatePhrase(activeClient.client, activeClient.model, parsed.due_date_phrase)
-      : null;
+    // an LLM's own arithmetic for); only asks the LLM to normalize
+    // whichever phrase(s) that fails on, in one combined call — not one
+    // call per phrase, which was adding up to two extra LLM round trips
+    // on top of the title/description generation and made "Create task"
+    // noticeably more likely to hit the request timeout.
+    const { startDate, dueDate } = await resolveTwoDatePhrases(
+      activeClient.client,
+      activeClient.model,
+      parsed.start_date_phrase,
+      parsed.due_date_phrase
+    );
 
     const { data: message } = await supabase
       .from('ai_chat_messages')
@@ -158,10 +165,11 @@ export async function POST(request: NextRequest) {
           kind: 'skeleton_proposal',
           title: parsed.title,
           description: parsed.description,
+          start_date: startDate,
           due_date: dueDate,
-          // Kept even when dueDate resolution failed, so the preview can
-          // show what was said and let the user confirm/fix it manually
-          // instead of the phrase just silently vanishing.
+          // Kept even when resolution failed, so the preview can show what
+          // was said instead of the phrase just silently vanishing.
+          start_date_phrase: !startDate && parsed.start_date_phrase ? parsed.start_date_phrase : null,
           due_date_phrase: !dueDate && parsed.due_date_phrase ? parsed.due_date_phrase : null,
           list_id: firstList.id,
           board_id: boardId,

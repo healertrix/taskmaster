@@ -1,5 +1,5 @@
 import type OpenAI from 'openai';
-import { parseDueDate } from '@/utils/parseDueDate';
+import { parseDueDate, parseDateRange } from '@/utils/parseDueDate';
 
 // Shared by app/api/ai/chat/skeleton/route.ts (resolving a date phrase
 // mentioned during task drafting) and app/api/ai/parse-date/route.ts
@@ -41,4 +41,104 @@ export async function resolveDueDatePhrase(
   }
 
   return null;
+}
+
+// Same idea as resolveDueDatePhrase, but for phrases naming both ends of a
+// range ("start today and end in one month") — used by the post-creation
+// date picker's free-text field. Tries the deterministic parser first;
+// only asks the LLM when it found neither date.
+export async function resolveDateRangePhrase(
+  client: OpenAI,
+  model: string,
+  phrase: string
+): Promise<{ startDate: string | null; dueDate: string | null }> {
+  const direct = parseDateRange(phrase);
+  if (direct.startDate || direct.dueDate) return direct;
+
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const completion = await client.chat.completions.create({
+      model,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: `Today's date is ${today}. The phrase may describe a start date, a due/end date, or both. Respond ONLY with JSON {"startDate": "YYYY-MM-DD" | null, "dueDate": "YYYY-MM-DD" | null} — null for whichever end isn't mentioned. Do not explain, just the JSON.`,
+        },
+        { role: 'user', content: phrase },
+      ],
+    });
+    const raw = JSON.parse(completion.choices[0]?.message?.content || '{}');
+    const startDate =
+      typeof raw.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.startDate)
+        ? parseDueDate(raw.startDate)
+        : null;
+    const dueDate =
+      typeof raw.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.dueDate)
+        ? parseDueDate(raw.dueDate)
+        : null;
+    return { startDate, dueDate };
+  } catch (err) {
+    console.error('AI date range normalization failed:', err);
+  }
+
+  return { startDate: null, dueDate: null };
+}
+
+// Resolves two already-separated phrases (the skeleton endpoint's
+// start_date_phrase/due_date_phrase, extracted independently by the LLM)
+// with at most ONE extra LLM call total, not one per phrase — two
+// separate resolveDueDatePhrase calls would each fall back to their own
+// LLM request when the deterministic parser misses, doubling the number
+// of round trips a single "Create task" click makes and made it
+// noticeably more likely to hit the request timeout. Whatever the
+// deterministic parser already handles doesn't need the LLM at all.
+export async function resolveTwoDatePhrases(
+  client: OpenAI,
+  model: string,
+  startPhrase: string,
+  duePhrase: string
+): Promise<{ startDate: string | null; dueDate: string | null }> {
+  const directStart = startPhrase ? parseDueDate(startPhrase) : null;
+  const directDue = duePhrase ? parseDueDate(duePhrase) : null;
+
+  const needsStart = !!startPhrase && !directStart;
+  const needsDue = !!duePhrase && !directDue;
+
+  if (!needsStart && !needsDue) {
+    return { startDate: directStart, dueDate: directDue };
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const parts: string[] = [];
+    if (needsStart) parts.push(`start phrase: "${startPhrase}"`);
+    if (needsDue) parts.push(`due phrase: "${duePhrase}"`);
+
+    const completion = await client.chat.completions.create({
+      model,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: `Today's date is ${today}. Convert the given phrase(s) into absolute calendar dates. Respond ONLY with JSON {"startDate": "YYYY-MM-DD" | null, "dueDate": "YYYY-MM-DD" | null} — null for whichever phrase wasn't given. Do not explain, just the JSON.`,
+        },
+        { role: 'user', content: parts.join('\n') },
+      ],
+    });
+    const raw = JSON.parse(completion.choices[0]?.message?.content || '{}');
+    const startDate =
+      needsStart && typeof raw.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.startDate)
+        ? parseDueDate(raw.startDate)
+        : directStart;
+    const dueDate =
+      needsDue && typeof raw.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.dueDate)
+        ? parseDueDate(raw.dueDate)
+        : directDue;
+    return { startDate, dueDate };
+  } catch (err) {
+    console.error('AI dual date normalization failed:', err);
+  }
+
+  return { startDate: directStart, dueDate: directDue };
 }

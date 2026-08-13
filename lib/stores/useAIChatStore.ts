@@ -25,6 +25,8 @@ export interface AIChatSelected {
 export interface SkeletonEdit {
   title: string;
   description: string;
+  startDate: string | null;
+  dueDate: string | null;
 }
 
 interface AIChatState {
@@ -85,6 +87,15 @@ interface AIChatState {
   setSkeletonEdits: (updater: (prev: Record<string, SkeletonEdit>) => Record<string, SkeletonEdit>) => void;
   dismissedSkeletonIds: Set<string>;
   setDismissedSkeletonIds: (updater: (prev: Set<string>) => Set<string>) => void;
+  // Set once approveSkeleton succeeds for a given skeleton message — a
+  // skeleton stays actionable (editable/approvable) until it's explicitly
+  // approved or dismissed, regardless of what's said in chat after it.
+  // Previously this was inferred from "is this the latest message", which
+  // broke the moment the user kept talking after clicking "Create task":
+  // the still-unapproved preview would silently render as if it had
+  // already been created.
+  approvedSkeletonIds: Set<string>;
+  setApprovedSkeletonIds: (updater: (prev: Set<string>) => Set<string>) => void;
 
   // Post-creation actions: assign members. expandedAssignId holds the
   // *card* id being expanded (not a message id) — one card has exactly one
@@ -110,13 +121,15 @@ interface AIChatState {
   prefetchedMembers: Record<string, any[]>;
   setPrefetchedMembers: (updater: (prev: Record<string, any[]>) => Record<string, any[]>) => void;
 
-  // Post-creation actions: due date.
+  // Post-creation actions: start + due date.
   expandedDateCardId: string | null;
   setExpandedDateCardId: (value: string | null | ((prev: string | null) => string | null)) => void;
   dateDrafts: Record<string, string>;
   setDateDrafts: (updater: (prev: Record<string, string>) => Record<string, string>) => void;
   dueDatesByCard: Record<string, string | null>;
   setDueDatesByCard: (updater: (prev: Record<string, string | null>) => Record<string, string | null>) => void;
+  startDatesByCard: Record<string, string | null>;
+  setStartDatesByCard: (updater: (prev: Record<string, string | null>) => Record<string, string | null>) => void;
   settingDateKey: string | null;
   setSettingDateKey: (key: string | null) => void;
   dateErrorByCard: Record<string, string | null>;
@@ -177,6 +190,8 @@ export const useAIChatStore = create<AIChatState>()(
     setSkeletonEdits: (updater) => set((state) => ({ skeletonEdits: updater(state.skeletonEdits) })),
     dismissedSkeletonIds: new Set(),
     setDismissedSkeletonIds: (updater) => set((state) => ({ dismissedSkeletonIds: updater(state.dismissedSkeletonIds) })),
+    approvedSkeletonIds: new Set(),
+    setApprovedSkeletonIds: (updater) => set((state) => ({ approvedSkeletonIds: updater(state.approvedSkeletonIds) })),
 
     expandedAssignId: null,
     setExpandedAssignId: (value) =>
@@ -203,6 +218,8 @@ export const useAIChatStore = create<AIChatState>()(
     setDateDrafts: (updater) => set((state) => ({ dateDrafts: updater(state.dateDrafts) })),
     dueDatesByCard: {},
     setDueDatesByCard: (updater) => set((state) => ({ dueDatesByCard: updater(state.dueDatesByCard) })),
+    startDatesByCard: {},
+    setStartDatesByCard: (updater) => set((state) => ({ startDatesByCard: updater(state.startDatesByCard) })),
     settingDateKey: null,
     setSettingDateKey: (key) => set({ settingDateKey: key }),
     dateErrorByCard: {},
