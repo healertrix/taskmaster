@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveClientForUser } from '@/utils/ai/client';
 import { getDraftMessages } from '@/utils/ai/chatDraft';
-import { parseDueDate } from '@/utils/parseDueDate';
+import { resolveDueDatePhrase } from '@/utils/ai/resolveDate';
 
 // Note: no "is this actually a task?" gate here anymore. That check
 // belongs to the per-message conversational reply (see app/api/ai/chat/
@@ -137,11 +137,15 @@ export async function POST(request: NextRequest) {
       console.error('AI skeleton generation failed, using fallback title:', err);
     }
 
-    // Actual date math happens here, deterministically — the model only
-    // extracts the raw phrase (see parseDueDate.ts for why: reliable
-    // "same year unless it's already passed" rollover logic isn't
-    // something to trust an LLM to get right every time).
-    const dueDate = parsed.due_date_phrase ? parseDueDate(parsed.due_date_phrase) : null;
+    // Deterministic parsing first (see parseDueDate.ts — reliable "same
+    // year unless it's already passed" rollover isn't something to trust
+    // an LLM's own arithmetic for); only asks the LLM to normalize the
+    // phrase if that fails, so uncommon phrasings ("next week", "the end
+    // of the month") still resolve here instead of surfacing the "couldn't
+    // resolve it" warning for anything the deterministic patterns miss.
+    const dueDate = parsed.due_date_phrase
+      ? await resolveDueDatePhrase(activeClient.client, activeClient.model, parsed.due_date_phrase)
+      : null;
 
     const { data: message } = await supabase
       .from('ai_chat_messages')

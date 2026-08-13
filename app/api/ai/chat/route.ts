@@ -4,7 +4,7 @@ import { getActiveClientForUser } from '@/utils/ai/client';
 import { getDraftMessages } from '@/utils/ai/chatDraft';
 import { getBoardSuggestions } from '@/utils/ai/boardSuggestions';
 
-const HISTORY_LIMIT = 100;
+const HISTORY_PAGE_SIZE = 5;
 
 const CONVERSATION_SYSTEM_PROMPT = `You're the reply voice of a chat widget whose only purpose is helping someone describe ONE task before they click a separate "Create task" button — you never create anything yourself, you just talk with them while they describe it.
 
@@ -14,9 +14,14 @@ Never ask who should be assigned/responsible for the task, and don't bring up as
 
 Guardrail: if the message isn't about describing a task for this board (general knowledge questions, coding help, weather, jokes, anything off-topic), politely decline and steer back — e.g. "I can only help with creating a task here — what would you like done?" Don't answer the off-topic question even briefly.`;
 
-// GET /api/ai/chat - this user's chat log, oldest first (one continuous
-// log per user, no threads).
-export async function GET() {
+// GET /api/ai/chat - this user's chat log, most recent page first (one
+// continuous log per user, no threads). Paginated: only the last
+// HISTORY_PAGE_SIZE messages load up front — the widget loads more as the
+// user scrolls toward the top, via ?before=<created_at of oldest loaded>.
+// Returns messages oldest-first within the page (ready to render/prepend
+// directly) plus hasMore so the client knows whether to keep listening for
+// scroll-up.
+export async function GET(request: NextRequest) {
   try {
     const supabase = createClient();
 
@@ -29,12 +34,20 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data, error } = await supabase
+    const before = request.nextUrl.searchParams.get('before');
+
+    let query = supabase
       .from('ai_chat_messages')
       .select('*')
       .eq('profile_id', user.id)
       .order('created_at', { ascending: false })
-      .limit(HISTORY_LIMIT);
+      .limit(HISTORY_PAGE_SIZE + 1);
+
+    if (before) {
+      query = query.lt('created_at', before);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching chat history:', error);
@@ -44,7 +57,11 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({ messages: (data || []).reverse() });
+    const rows = data || [];
+    const hasMore = rows.length > HISTORY_PAGE_SIZE;
+    const page = hasMore ? rows.slice(0, HISTORY_PAGE_SIZE) : rows;
+
+    return NextResponse.json({ messages: page.reverse(), hasMore });
   } catch (error) {
     console.error('Unexpected error:', error);
     return NextResponse.json(

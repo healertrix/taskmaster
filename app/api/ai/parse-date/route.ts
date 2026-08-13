@@ -1,15 +1,13 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveClientForUser } from '@/utils/ai/client';
-import { parseDueDate } from '@/utils/parseDueDate';
+import { resolveDueDatePhrase } from '@/utils/ai/resolveDate';
 
 // POST /api/ai/parse-date - fallback for date phrases the deterministic
-// parser (utils/parseDueDate.ts) doesn't recognize. That parser covers the
-// common shapes cheaply with no network call; this only runs when it
-// returns null, asking the active LLM to normalize the phrase into a
-// plain YYYY-MM-DD first, then still running that through parseDueDate
-// (which trivially handles that format) rather than trusting the model's
-// own date math.
+// parser (utils/parseDueDate.ts) doesn't recognize, used by the
+// post-creation date picker's free-text field. See utils/ai/resolveDate.ts
+// for the shared "deterministic parser first, LLM normalization as
+// fallback" logic — the skeleton generation route uses the same helper.
 //
 // Body: { phrase: string }
 export async function POST(request: NextRequest) {
@@ -40,30 +38,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const today = new Date().toISOString().slice(0, 10);
-
-    let normalized: string | null = null;
-    try {
-      const completion = await activeClient.client.chat.completions.create({
-        model: activeClient.model,
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'system',
-            content: `Today's date is ${today}. Convert the given phrase into an absolute calendar date. Respond ONLY with JSON {"date": "YYYY-MM-DD"} — or {"date": null} if the phrase genuinely doesn't describe a date. Do not explain, just the JSON.`,
-          },
-          { role: 'user', content: phrase },
-        ],
-      });
-      const raw = JSON.parse(completion.choices[0]?.message?.content || '{}');
-      if (typeof raw.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date)) {
-        normalized = raw.date;
-      }
-    } catch (err) {
-      console.error('AI date normalization failed:', err);
-    }
-
-    const resolved = normalized ? parseDueDate(normalized) : null;
+    const resolved = await resolveDueDatePhrase(activeClient.client, activeClient.model, phrase);
 
     if (!resolved) {
       return NextResponse.json(

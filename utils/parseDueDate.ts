@@ -45,11 +45,14 @@ export function parseDueDate(phrase: string, now: Date = new Date()): string | n
 
   if (p === 'today') return today.toISOString();
   if (p === 'tomorrow') return addDays(today, 1).toISOString();
+  if (p === 'next week') return addWeeks(today, 1).toISOString();
+  if (p === 'next month') return addMonths(today, 1).toISOString();
 
-  // "in N days/weeks/months" or "N days/weeks/months from now"
-  let m = p.match(/^(?:in\s+)?(\d+)\s*(day|week|month)s?(?:\s+from\s+now)?$/);
+  // "in N days/weeks/months", "N days/weeks/months from now", or the same
+  // with "a"/"an" standing in for 1 ("a week from now", "in a month").
+  let m = p.match(/^(?:in\s+)?(\d+|an?)\s*(day|week|month)s?(?:\s+from\s+now)?$/);
   if (m) {
-    const n = parseInt(m[1], 10);
+    const n = /^\d+$/.test(m[1]) ? parseInt(m[1], 10) : 1;
     const unit = m[2];
     if (unit === 'day') return addDays(today, n).toISOString();
     if (unit === 'week') return addWeeks(today, n).toISOString();

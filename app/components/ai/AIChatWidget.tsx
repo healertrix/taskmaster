@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useParams } from 'next/navigation';
 import {
@@ -118,6 +118,8 @@ export function AIChatWidget() {
     setMessages,
     historyLoaded,
     setHistoryLoaded,
+    hasMoreHistory,
+    setHasMoreHistory,
     selected,
     setSelected,
     hasActiveKey,
@@ -126,53 +128,66 @@ export function AIChatWidget() {
     setMentionItems,
     mentionItemsLoaded,
     setMentionItemsLoaded,
+    input,
+    setInput,
+    isSending,
+    setIsSending,
+    isCreatingSkeleton,
+    setIsCreatingSkeleton,
+    isDiscarding,
+    setIsDiscarding,
+    confirmingId,
+    setConfirmingId,
+    editingSkeletonId,
+    setEditingSkeletonId,
+    skeletonEdits,
+    setSkeletonEdits,
+    dismissedSkeletonIds,
+    setDismissedSkeletonIds,
+    expandedAssignId,
+    setExpandedAssignId,
+    cardMembers,
+    setCardMembers,
+    assigningKey,
+    setAssigningKey,
+    memberError,
+    setMemberError,
+    completedAssignIds,
+    setCompletedAssignIds,
+    prefetchedMembers,
+    setPrefetchedMembers,
+    expandedDateCardId,
+    setExpandedDateCardId,
+    dateDrafts,
+    setDateDrafts,
+    dueDatesByCard,
+    setDueDatesByCard,
+    settingDateKey,
+    setSettingDateKey,
+    dateErrorByCard,
+    setDateErrorByCard,
+    openPickerKind,
+    setOpenPickerKind,
+    workspaceSearch,
+    setWorkspaceSearch,
+    boardSearch,
+    setBoardSearch,
   } = useAIChatStore();
 
+  // Everything above lives in the shared store, not local state — this
+  // widget is mounted twice inside DashboardHeader (mobile row + desktop
+  // row, CSS-hidden depending on viewport), and any piece of state that
+  // affects what's rendered has to be identical between both copies or
+  // they can show genuinely different UI for the same messages (this is
+  // what caused the date picker to appear to open twice — expand state
+  // used to be local per-instance). Only the history fetch's own
+  // loading/error flags stay local: harmless if they briefly differ, and
+  // historyLoaded (shared) already prevents a redundant second fetch.
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
-  const [input, setInput] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const [isCreatingSkeleton, setIsCreatingSkeleton] = useState(false);
-  const [isDiscarding, setIsDiscarding] = useState(false);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
-
-  // Due dates: which card's date picker is expanded, any free-text phrase
-  // being typed ("30 days from now"), the last known date per card (so the
-  // pill and the post-creation actions block agree), and a loading flag.
-  const [expandedDateCardId, setExpandedDateCardId] = useState<string | null>(null);
-  const [dateDrafts, setDateDrafts] = useState<Record<string, string>>({});
-  const [dueDatesByCard, setDueDatesByCard] = useState<Record<string, string | null>>({});
-  const [settingDateKey, setSettingDateKey] = useState<string | null>(null);
-  const [dateErrorByCard, setDateErrorByCard] = useState<Record<string, string | null>>({});
-
-  // Skeleton approval: which one is being edited, and its (possibly
-  // edited) values — keyed by message id so re-opening an old skeleton
-  // after scrolling back still shows the right draft.
-  const [editingSkeletonId, setEditingSkeletonId] = useState<string | null>(null);
-  const [skeletonEdits, setSkeletonEdits] = useState<
-    Record<string, { title: string; description: string; dueDate: string | null; startDate: string | null }>
-  >({});
-  // Cancel is client-only — dismisses the buttons on that skeleton without
-  // touching the server; the underlying draft messages stay intact so
-  // "Create task" can be clicked again to regenerate.
-  const [dismissedSkeletonIds, setDismissedSkeletonIds] = useState<Set<string>>(new Set());
-
-  // Assigning members happens inline in the chat, not a modal — an earlier
-  // version reused the board's CardMemberPicker modal here, but its
-  // internal effect keys off an `onClose` callback identity
-  // ([isOpen, onClose] deps); passing an inline arrow function meant that
-  // effect (which calls window.history.pushState) re-ran on every re-render
-  // of this widget, hammering browser history and freezing/crashing the
-  // tab. An inline list has no modal, no portal, no history manipulation —
-  // that whole class of bug can't happen here.
-  const [expandedAssignId, setExpandedAssignId] = useState<string | null>(null);
-  const [addedMemberIds, setAddedMemberIds] = useState<Record<string, Set<string>>>({});
-  const [assigningKey, setAssigningKey] = useState<string | null>(null);
-  const [completedAssignIds, setCompletedAssignIds] = useState<Set<string>>(new Set());
-  // Fetched in the background the moment a task is created (while the user
-  // is still reading the confirmation), so expanding "Add member" a few
-  // seconds later shows the list instantly instead of waiting on a fetch.
-  const [prefetchedMembers, setPrefetchedMembers] = useState<Record<string, any[]>>({});
+  // Search within the member picker — purely transient typing state,
+  // reset each time the picker opens.
+  const [memberSearch, setMemberSearch] = useState('');
 
   const prefetchMembers = useCallback(
     (workspaceId: string, boardId: string) => {
@@ -186,39 +201,99 @@ export function AIChatWidget() {
         })
         .catch((err) => console.error('Error prefetching members:', err));
     },
-    [prefetchedMembers]
+    [prefetchedMembers, setPrefetchedMembers]
   );
 
-  const addMemberToCard = async (messageId: string, cardId: string, profileId: string) => {
-    const key = `${messageId}-${profileId}`;
+  // Real card members, fetched fresh from the DB — this is the source of
+  // truth the member panel renders from, not a locally-tracked "what did I
+  // click this session" set. That distinction is what actually fixes
+  // "add someone, then can't remove them": a member added in an earlier
+  // session (or before a refresh) is genuinely on the card, but a
+  // click-only local Set never knew about it, so no removable chip ever
+  // rendered for them.
+  const fetchCardMembers = useCallback(
+    (cardId: string) => {
+      fetchJson(`/api/cards/${cardId}/members`)
+        .then((data) => setCardMembers((prev) => ({ ...prev, [cardId]: data.members || [] })))
+        .catch((err) => console.error('Error fetching card members:', err));
+    },
+    [setCardMembers]
+  );
+
+  const addMemberToCard = async (cardId: string, profileId: string) => {
+    const key = `${cardId}-${profileId}`;
     setAssigningKey(key);
+    setMemberError((prev) => ({ ...prev, [cardId]: null }));
     try {
       const res = await fetch(`/api/cards/${cardId}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profile_id: profileId }),
       });
-      if (!res.ok) throw new Error('Failed to add member');
-      setAddedMemberIds((prev) => {
-        const next = new Set(prev[messageId] || []);
-        next.add(profileId);
-        return { ...prev, [messageId]: next };
-      });
-    } catch (err) {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to add member.');
+      fetchCardMembers(cardId);
+    } catch (err: any) {
       console.error('Error assigning member:', err);
+      setMemberError((prev) => ({ ...prev, [cardId]: err.message || 'Failed to add member.' }));
     } finally {
       setAssigningKey(null);
     }
   };
 
-  // Workspace and board pickers — independent, each with its own search.
-  const [openPickerKind, setOpenPickerKind] = useState<'workspace' | 'board' | null>(null);
-  const [workspaceSearch, setWorkspaceSearch] = useState('');
-  const [boardSearch, setBoardSearch] = useState('');
+  // Click an already-added member's chip to remove them. Always shows a
+  // visible error on failure now — previously a failed removal only
+  // logged to the console, so from the user's side it just silently did
+  // nothing with no indication why.
+  const removeMemberFromCard = async (cardId: string, profileId: string) => {
+    const key = `${cardId}-${profileId}`;
+    setAssigningKey(key);
+    setMemberError((prev) => ({ ...prev, [cardId]: null }));
+    try {
+      const res = await fetch(`/api/cards/${cardId}/members/${profileId}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to remove member.');
+      fetchCardMembers(cardId);
+    } catch (err: any) {
+      console.error('Error removing member:', err);
+      setMemberError((prev) => ({ ...prev, [cardId]: err.message || 'Failed to remove member.' }));
+    } finally {
+      setAssigningKey(null);
+    }
+  };
+
+  // Member list and date picker are mutually exclusive (opening one closes
+  // the other) — showing both at once was the "too cluttered" complaint.
+  // Clicking the same toggle again collapses it, independent of Done.
+  // Keyed by card id (not message id) — one card has exactly one
+  // post_create_actions message here, so this lines up with cardMembers.
+  const toggleMemberExpand = (cardId: string, workspaceId: string, boardId: string) => {
+    setExpandedDateCardId(null);
+    setMemberSearch('');
+    setExpandedAssignId((prev) => {
+      const next = prev === cardId ? null : cardId;
+      if (next) {
+        prefetchMembers(workspaceId, boardId);
+        fetchCardMembers(cardId);
+      }
+      return next;
+    });
+  };
+
+  const toggleDateExpand = (cardId: string) => {
+    setExpandedAssignId(null);
+    setExpandedDateCardId((prev) => (prev === cardId ? null : cardId));
+  };
 
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composeRef = useRef<HTMLTextAreaElement>(null);
+  // Set right before loadMoreHistory prepends older messages — tells the
+  // auto-scroll-to-bottom effect below to skip that one update instead of
+  // yanking the view back down the moment the user scrolled up to load
+  // more history.
+  const skipAutoScrollRef = useRef(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Disabling a focused textarea (e.g. while `disabled={isSending}`) makes
   // the browser force-blur it, and that focus never comes back on its own
@@ -261,26 +336,44 @@ export function AIChatWidget() {
   }, []);
 
   // Auto-scroll to the bottom whenever new content lands — new messages,
-  // the panel opening, or the typing/creating indicator appearing.
-  // requestAnimationFrame (not a plain sync read) because scrollHeight
-  // read immediately on commit can still lag one frame behind the actual
-  // painted layout, especially right after a taller skeleton card or the
-  // board picker's search box collapses.
-  useEffect(() => {
+  // the panel opening, history finishing its load, or the typing/creating
+  // indicator appearing. A conversation opens on its latest message, not
+  // its first. Writing scrollTop directly (useLayoutEffect, before paint)
+  // rather than scrollIntoView — scrollIntoView scrolls whatever it
+  // decides is the nearest scrollable ancestor, which was unreliable while
+  // the panel's own entrance animation/transform was still resolving right
+  // after opening; a direct assignment on the known container has no such
+  // ambiguity. Runs twice (immediately, then next frame) to also cover
+  // content that's still settling (avatar images, a taller skeleton card).
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    if (skipAutoScrollRef.current) {
+      // This update was an older page getting prepended by
+      // loadMoreHistory, which already restored the right scroll offset
+      // itself — jumping to the bottom here would undo that.
+      skipAutoScrollRef.current = false;
+      return;
+    }
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
     const frame = requestAnimationFrame(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
+      if (el) el.scrollTop = el.scrollHeight;
     });
     return () => cancelAnimationFrame(frame);
-  }, [messages, isOpen, isSending, isCreatingSkeleton]);
+  }, [messages, isOpen, isSending, isCreatingSkeleton, isLoadingHistory]);
 
+  // Loads only the most recent page (last 5 messages) — a conversation
+  // that's been going for a while shouldn't fetch and render its entire
+  // history just to open the panel. Older messages load on demand as the
+  // user scrolls up, via loadMoreHistory below.
   const loadHistory = useCallback(() => {
     setIsLoadingHistory(true);
     setHistoryError(null);
     fetchJson('/api/ai/chat')
       .then((data) => {
         setMessages(data.messages || []);
+        setHasMoreHistory(!!data.hasMore);
         setHistoryLoaded(true);
       })
       .catch((err) => {
@@ -288,7 +381,38 @@ export function AIChatWidget() {
         setHistoryError(err.message || "Couldn't load your chat history.");
       })
       .finally(() => setIsLoadingHistory(false));
-  }, [setMessages, setHistoryLoaded]);
+  }, [setMessages, setHistoryLoaded, setHasMoreHistory]);
+
+  // Scrolling near the top of the loaded messages fetches the next older
+  // page and prepends it, preserving the reader's scroll position (so the
+  // message they were looking at doesn't jump).
+  const loadMoreHistory = useCallback(() => {
+    if (isLoadingMore || !hasMoreHistory || messages.length === 0) return;
+    const oldest = messages[0];
+    const container = scrollRef.current;
+    const prevScrollHeight = container?.scrollHeight ?? 0;
+    const prevScrollTop = container?.scrollTop ?? 0;
+    setIsLoadingMore(true);
+    fetchJson(`/api/ai/chat?before=${encodeURIComponent(oldest.created_at)}`)
+      .then((data) => {
+        skipAutoScrollRef.current = true;
+        setMessages((prev) => [...(data.messages || []), ...prev]);
+        setHasMoreHistory(!!data.hasMore);
+        requestAnimationFrame(() => {
+          if (container) {
+            container.scrollTop = container.scrollHeight - prevScrollHeight + prevScrollTop;
+          }
+        });
+      })
+      .catch((err) => console.error('Error loading more chat history:', err))
+      .finally(() => setIsLoadingMore(false));
+  }, [isLoadingMore, hasMoreHistory, messages, setMessages, setHasMoreHistory]);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (el.scrollTop < 80) loadMoreHistory();
+  };
 
   const loadKeyState = useCallback(() => {
     fetchJson('/api/ai/keys')
@@ -478,6 +602,29 @@ export function AIChatWidget() {
     return count;
   }, [messages]);
 
+  // The most recent post_create_actions message, if it hasn't been marked
+  // Done yet — drives the docked actions bar (Add member / Set due date /
+  // Done) above the compose box, always reachable regardless of scroll
+  // position, the same treatment as the Create task bar.
+  const pendingPostCreateMessage = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.metadata?.kind === 'post_create_actions') {
+        return completedAssignIds.has(m.id) ? null : m;
+      }
+    }
+    return null;
+  }, [messages, completedAssignIds]);
+
+  // Keeps the "N added" badge on the docked bar accurate without requiring
+  // the panel to be expanded first — e.g. right after creating the task,
+  // or reopening the chat on a still-pending task from an earlier session.
+  useEffect(() => {
+    if (pendingPostCreateMessage?.metadata?.card_id) {
+      fetchCardMembers(pendingPostCreateMessage.metadata.card_id);
+    }
+  }, [pendingPostCreateMessage?.metadata?.card_id, fetchCardMembers]);
+
   const sendMessage = async () => {
     const content = input;
     if (!content.trim() || isSending) return;
@@ -568,12 +715,15 @@ export function AIChatWidget() {
     }
   };
 
+  // Any due date came from what was said in chat (extracted by the
+  // skeleton endpoint) — there's no in-preview date field to edit
+  // anymore, so this is the only source. Changing/adding a date after
+  // creation happens in exactly one place: the docked date panel below.
   const approveSkeleton = async (m: ChatMessage) => {
     const edit = skeletonEdits[m.id];
     const title = edit?.title ?? m.metadata?.title;
     const description = edit?.description ?? m.metadata?.description;
-    const dueDate = edit?.dueDate ?? m.metadata?.due_date ?? null;
-    const startDate = edit?.startDate ?? null;
+    const dueDate = m.metadata?.due_date ?? null;
     if (!title?.trim()) return;
 
     setConfirmingId(m.id);
@@ -585,7 +735,6 @@ export function AIChatWidget() {
           title,
           description,
           dueDate,
-          startDate,
           boardId: m.metadata.board_id,
           workspaceId: m.metadata.workspace_id,
           listId: m.metadata.list_id,
@@ -629,7 +778,7 @@ export function AIChatWidget() {
   // Sets/changes a due date on an already-created card — used by both the
   // confirmation pill's calendar icon and the post-creation actions block,
   // keyed by card id so both stay in sync.
-  const applyDueDate = async (cardId: string, iso: string) => {
+  const applyDueDate = async (cardId: string, iso: string | null) => {
     setSettingDateKey(cardId);
     setDateErrorByCard((prev) => ({ ...prev, [cardId]: null }));
     try {
@@ -642,7 +791,7 @@ export function AIChatWidget() {
       });
       if (!res.ok) throw new Error('Failed to save the date — try again.');
       setDueDatesByCard((prev) => ({ ...prev, [cardId]: iso }));
-      setExpandedDateCardId(null);
+      if (iso) setExpandedDateCardId(null);
     } catch (err: any) {
       console.error('Error setting due date:', err);
       setDateErrorByCard((prev) => ({ ...prev, [cardId]: err.message || 'Failed to save the date.' }));
@@ -684,55 +833,180 @@ export function AIChatWidget() {
     }
   };
 
-  const renderDueDatePicker = (cardId: string) => (
-    <div className='mt-2 space-y-2 bg-background/60 border border-border/60 rounded-lg p-2'>
-      <div className='flex flex-wrap gap-1.5'>
-        {dueDateQuickOptions().map((opt) => (
-          <button
-            key={opt.label}
+  // Click a member row to add them; click their chip above to remove them.
+  // Added members (top chips) come from cardMembers — the real, fetched
+  // card_members rows — not a local "what did I click" set, so a member
+  // who's genuinely on the card always shows up as removable, regardless
+  // of when or in what session they were added.
+  const renderMemberList = (cardId: string, workspaceId: string) => {
+    const workspaceMembers = prefetchedMembers[workspaceId] || [];
+    const addedMembers = cardMembers[cardId] || [];
+    const addedIds = new Set(addedMembers.map((cm: any) => cm.profiles?.id));
+
+    const q = memberSearch.trim().toLowerCase();
+    const available = workspaceMembers.filter((mem: any) => {
+      if (addedIds.has(mem.profiles.id)) return false;
+      if (!q) return true;
+      const name = (mem.profiles.full_name || '').toLowerCase();
+      const email = (mem.profiles.email || '').toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+
+    const initials = (person: any) => (person.full_name || person.email || '?').charAt(0).toUpperCase();
+
+    return (
+      <div className='mt-2 bg-background/60 border border-border/60 rounded-lg p-2.5 space-y-2'>
+        {addedMembers.length > 0 && (
+          <div className='flex flex-wrap gap-1.5'>
+            {addedMembers.map((cm: any) => {
+              const person = cm.profiles;
+              const key = `${cardId}-${person.id}`;
+              const isBusy = assigningKey === key;
+              return (
+                <button
+                  key={person.id}
+                  disabled={isBusy}
+                  onClick={() => removeMemberFromCard(cardId, person.id)}
+                  title='Click to remove'
+                  className='group flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-full bg-primary/10 hover:bg-destructive/10 transition-colors disabled:opacity-60'
+                >
+                  {person.avatar_url ? (
+                    <img src={person.avatar_url} alt='' className='w-5 h-5 rounded-full object-cover flex-shrink-0' />
+                  ) : (
+                    <div className='w-5 h-5 rounded-full bg-primary flex items-center justify-center text-[9px] font-bold text-primary-foreground flex-shrink-0'>
+                      {initials(person)}
+                    </div>
+                  )}
+                  <span className='text-xs font-medium text-foreground group-hover:text-destructive transition-colors'>
+                    {person.full_name || person.email}
+                  </span>
+                  {isBusy ? (
+                    <Loader2 className='w-3 h-3 animate-spin text-muted-foreground flex-shrink-0' />
+                  ) : (
+                    <X className='w-3 h-3 text-muted-foreground group-hover:text-destructive flex-shrink-0' />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className='flex items-center gap-2 px-2 py-1.5 bg-background border border-border rounded-md'>
+          <Search className='w-3.5 h-3.5 text-muted-foreground flex-shrink-0' />
+          <input
+            value={memberSearch}
+            onChange={(e) => setMemberSearch(e.target.value)}
+            placeholder='Search people...'
+            className='flex-1 min-w-0 text-xs bg-transparent focus:outline-none placeholder:text-muted-foreground'
+          />
+        </div>
+
+        <div className='max-h-36 overflow-y-auto space-y-0.5'>
+          {workspaceMembers.length === 0 ? (
+            <p className='text-xs text-muted-foreground text-center py-2'>Loading members...</p>
+          ) : available.length === 0 ? (
+            <p className='text-xs text-muted-foreground text-center py-2'>
+              {q ? 'No matches.' : 'Everyone available is already added.'}
+            </p>
+          ) : (
+            available.map((mem: any) => {
+              const key = `${cardId}-${mem.profiles.id}`;
+              const isBusy = assigningKey === key;
+              return (
+                <button
+                  key={mem.profiles.id}
+                  disabled={isBusy}
+                  onClick={() => addMemberToCard(cardId, mem.profiles.id)}
+                  className='w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-xs hover:bg-muted/60 transition-colors disabled:opacity-70'
+                >
+                  {mem.profiles.avatar_url ? (
+                    <img src={mem.profiles.avatar_url} alt='' className='w-5 h-5 rounded-full object-cover flex-shrink-0' />
+                  ) : (
+                    <div className='w-5 h-5 rounded-full bg-primary flex items-center justify-center text-[9px] font-bold text-primary-foreground flex-shrink-0'>
+                      {initials(mem.profiles)}
+                    </div>
+                  )}
+                  <span className='truncate flex-1'>{mem.profiles.full_name || mem.profiles.email}</span>
+                  {isBusy && <Loader2 className='w-3.5 h-3.5 animate-spin flex-shrink-0' />}
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        {memberError[cardId] && <p className='text-[11px] text-destructive'>{memberError[cardId]}</p>}
+      </div>
+    );
+  };
+
+  const renderDueDatePicker = (cardId: string) => {
+    const current = dueDatesByCard[cardId];
+    return (
+      <div className='mt-2 space-y-2.5 bg-background/60 border border-border/60 rounded-lg p-3'>
+        {current && (
+          <div className='flex items-center justify-between'>
+            <span className='text-xs font-medium text-foreground'>Due {formatDueDate(current)}</span>
+            <button
+              onClick={() => applyDueDate(cardId, null)}
+              disabled={settingDateKey === cardId}
+              className='text-[11px] text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50'
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        <p className='text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'>Quick pick</p>
+        <div className='flex flex-wrap gap-1.5'>
+          {dueDateQuickOptions().map((opt) => (
+            <button
+              key={opt.label}
+              disabled={settingDateKey === cardId}
+              onClick={() => applyDueDate(cardId, opt.iso)}
+              className='text-xs font-medium px-2.5 py-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50'
+            >
+              {opt.label}
+            </button>
+          ))}
+          <input
+            type='date'
             disabled={settingDateKey === cardId}
-            onClick={() => applyDueDate(cardId, opt.iso)}
-            className='text-xs font-medium px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50'
+            onChange={(e) => e.target.value && applyDueDate(cardId, new Date(e.target.value).toISOString())}
+            className='text-xs bg-background border border-border rounded-md px-2 py-1.5 text-foreground focus:outline-none focus:border-primary'
+          />
+        </div>
+
+        <p className='text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'>
+          Or describe it
+        </p>
+        <div className='flex items-center gap-2'>
+          <input
+            value={dateDrafts[cardId] || ''}
+            disabled={settingDateKey === cardId}
+            onChange={(e) => {
+              setDateDrafts((prev) => ({ ...prev, [cardId]: e.target.value }));
+              setDateErrorByCard((prev) => ({ ...prev, [cardId]: null }));
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitDateDraft(cardId);
+            }}
+            placeholder='"30 days from now", "6th oct"...'
+            className='flex-1 min-w-0 text-sm bg-background border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/30 placeholder:text-muted-foreground'
+          />
+          <button
+            onClick={() => submitDateDraft(cardId)}
+            disabled={settingDateKey === cardId || !dateDrafts[cardId]?.trim()}
+            className='flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 flex-shrink-0'
           >
-            {opt.label}
+            {settingDateKey === cardId ? <Loader2 className='w-3.5 h-3.5 animate-spin' /> : 'Set'}
           </button>
-        ))}
+        </div>
+        {dateErrorByCard[cardId] && (
+          <p className='text-[11px] text-destructive'>{dateErrorByCard[cardId]}</p>
+        )}
       </div>
-      <div className='flex items-center gap-1.5'>
-        <input
-          type='date'
-          disabled={settingDateKey === cardId}
-          onChange={(e) => e.target.value && applyDueDate(cardId, new Date(e.target.value).toISOString())}
-          className='text-xs bg-background border border-border rounded-md px-2 py-1 text-foreground focus:outline-none focus:border-primary'
-        />
-        <span className='text-[10px] text-muted-foreground flex-shrink-0'>or type it</span>
-        <input
-          value={dateDrafts[cardId] || ''}
-          disabled={settingDateKey === cardId}
-          onChange={(e) => {
-            setDateDrafts((prev) => ({ ...prev, [cardId]: e.target.value }));
-            setDateErrorByCard((prev) => ({ ...prev, [cardId]: null }));
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') submitDateDraft(cardId);
-          }}
-          placeholder='"30 days from now", "6th oct"...'
-          className='flex-1 min-w-0 text-xs bg-background border border-border rounded-md px-2 py-1 text-foreground focus:outline-none focus:border-primary placeholder:text-muted-foreground'
-        />
-        <button
-          onClick={() => submitDateDraft(cardId)}
-          disabled={settingDateKey === cardId || !dateDrafts[cardId]?.trim()}
-          className='text-xs font-medium px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 flex-shrink-0'
-        >
-          Set
-        </button>
-        {settingDateKey === cardId && <Loader2 className='w-3.5 h-3.5 animate-spin text-muted-foreground flex-shrink-0' />}
-      </div>
-      {dateErrorByCard[cardId] && (
-        <p className='text-[11px] text-destructive'>{dateErrorByCard[cardId]}</p>
-      )}
-    </div>
-  );
+    );
+  };
 
   if (!user) return null;
 
@@ -863,7 +1137,7 @@ export function AIChatWidget() {
             </div>
           </div>
 
-          <div ref={scrollRef} className='flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0'>
+          <div ref={scrollRef} onScroll={handleScroll} className='flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0'>
             {isLoadingHistory ? (
               <div className='flex justify-center py-10'>
                 <Loader2 className='w-5 h-5 animate-spin text-muted-foreground' />
@@ -884,7 +1158,13 @@ export function AIChatWidget() {
                 <span className='text-foreground font-medium'>Create task</span> when you're ready.
               </p>
             ) : (
-              messages.map((m, idx) => {
+              <>
+                {isLoadingMore && (
+                  <div className='flex justify-center py-2'>
+                    <Loader2 className='w-4 h-4 animate-spin text-muted-foreground' />
+                  </div>
+                )}
+                {messages.map((m, idx) => {
                 const isLatest = idx === messages.length - 1;
 
                 // Boundary markers render as centered dividers, not bubbles
@@ -892,46 +1172,38 @@ export function AIChatWidget() {
                 if (m.message_type === 'confirmation') {
                   const cardId: string | undefined = m.metadata?.card_id;
                   const currentDue = cardId ? dueDatesByCard[cardId] ?? m.metadata?.due_date ?? null : null;
-                  const dateExpanded = !!cardId && expandedDateCardId === cardId;
 
+                  // Just a link — no controls of its own. While the task
+                  // is still fresh, the docked bar below (see
+                  // pendingPostCreateMessage) is the one place to add
+                  // members or set a date; two independent controls for
+                  // the same card was exactly what caused the date picker
+                  // to open twice at once. Once you're done with it, use
+                  // the card itself (this link) for further changes.
                   return (
-                    <div key={m.id} className='space-y-2'>
-                      <div className='flex items-center gap-2 py-1'>
-                        <div className='flex-1 h-px bg-border/60' />
-                        <div className='flex items-center gap-1.5'>
-                          {m.metadata?.board_id ? (
-                            <Link
-                              href={`/board/${m.metadata.board_id}?card=${m.metadata.card_id}`}
-                              className='group flex items-center gap-2 max-w-[20rem] bg-success/10 hover:bg-success/15 border border-success/25 rounded-full pl-3 pr-3 py-1.5 transition-colors'
-                            >
-                              <CheckCircle2 className='w-4 h-4 text-success flex-shrink-0' />
-                              <span className='text-sm font-medium text-foreground truncate'>{m.metadata.title}</span>
-                              {currentDue && (
-                                <span className='text-xs text-success/80 flex-shrink-0'>
-                                  · {formatDueDate(currentDue)}
-                                </span>
-                              )}
-                              <ArrowUpRight className='w-3.5 h-3.5 text-success flex-shrink-0 opacity-70 group-hover:opacity-100 transition-opacity' />
-                            </Link>
-                          ) : (
-                            <div className='flex items-center gap-1.5 text-sm text-success font-medium px-2'>
-                              <CheckCircle2 className='w-4 h-4 flex-shrink-0' />
-                              Created "{m.metadata?.title}"
-                            </div>
+                    <div key={m.id} className='flex items-center gap-2 py-1'>
+                      <div className='flex-1 h-px bg-border/60' />
+                      {m.metadata?.board_id ? (
+                        <Link
+                          href={`/board/${m.metadata.board_id}?card=${m.metadata.card_id}`}
+                          className='group flex items-center gap-2 max-w-[20rem] bg-success/10 hover:bg-success/15 border border-success/25 rounded-full pl-3 pr-3 py-1.5 transition-colors'
+                        >
+                          <CheckCircle2 className='w-4 h-4 text-success flex-shrink-0' />
+                          <span className='text-sm font-medium text-foreground truncate'>{m.metadata.title}</span>
+                          {currentDue && (
+                            <span className='text-xs text-success/80 flex-shrink-0'>
+                              · {formatDueDate(currentDue)}
+                            </span>
                           )}
-                          {cardId && (
-                            <button
-                              onClick={() => setExpandedDateCardId(dateExpanded ? null : cardId)}
-                              title='Set due date'
-                              className='p-1.5 rounded-full bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0'
-                            >
-                              <Calendar className='w-3.5 h-3.5' />
-                            </button>
-                          )}
+                          <ArrowUpRight className='w-3.5 h-3.5 text-success flex-shrink-0 opacity-70 group-hover:opacity-100 transition-opacity' />
+                        </Link>
+                      ) : (
+                        <div className='flex items-center gap-1.5 text-sm text-success font-medium px-2'>
+                          <CheckCircle2 className='w-4 h-4 flex-shrink-0' />
+                          Created "{m.metadata?.title}"
                         </div>
-                        <div className='flex-1 h-px bg-border/60' />
-                      </div>
-                      {dateExpanded && cardId && renderDueDatePicker(cardId)}
+                      )}
+                      <div className='flex-1 h-px bg-border/60' />
                     </div>
                   );
                 }
@@ -953,19 +1225,26 @@ export function AIChatWidget() {
                   const edit = skeletonEdits[m.id] ?? {
                     title: m.metadata.title,
                     description: m.metadata.description,
-                    dueDate: m.metadata.due_date ?? null,
-                    startDate: null,
                   };
 
                   if (dismissed) return null;
 
+                  // Once approved, this card is a historical record, not
+                  // something to act on — the confirmation pill (and the
+                  // docked actions bar) are the live, interactive versions
+                  // now. Muting it visually makes that distinction obvious
+                  // instead of it still looking like an active form.
                   return (
                     <div
                       key={m.id}
-                      className='bg-muted/40 border border-border/60 rounded-xl p-3 space-y-2 max-w-[92%]'
+                      className={`border rounded-xl p-3 space-y-2 max-w-[92%] transition-colors ${
+                        showActions
+                          ? 'bg-muted/40 border-border/60'
+                          : 'bg-muted/10 border-border/30 opacity-60'
+                      }`}
                     >
                       <p className='text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'>
-                        Task preview
+                        {showActions ? 'Task preview' : 'Created from this draft'}
                       </p>
                       {isEditing ? (
                         <div className='space-y-2'>
@@ -1000,47 +1279,20 @@ export function AIChatWidget() {
                           )}
                         </div>
                       )}
-                      <div className='flex flex-wrap items-center gap-x-4 gap-y-1.5'>
-                        <div className='flex items-center gap-1.5'>
-                          <span className='text-[11px] text-muted-foreground w-9 flex-shrink-0'>Start</span>
-                          <input
-                            type='date'
-                            value={edit.startDate ? edit.startDate.slice(0, 10) : ''}
-                            onChange={(e) =>
-                              setSkeletonEdits((prev) => ({
-                                ...prev,
-                                [m.id]: {
-                                  ...edit,
-                                  startDate: e.target.value ? new Date(e.target.value).toISOString() : null,
-                                },
-                              }))
-                            }
-                            className='text-xs bg-background border border-border rounded-md px-2 py-1 text-foreground focus:outline-none focus:border-primary'
-                          />
-                        </div>
-                        <div className='flex items-center gap-1.5'>
-                          <Calendar className='w-3.5 h-3.5 text-muted-foreground flex-shrink-0' />
-                          <span className='text-[11px] text-muted-foreground w-9 flex-shrink-0'>Due</span>
-                          <input
-                            type='date'
-                            value={edit.dueDate ? edit.dueDate.slice(0, 10) : ''}
-                            onChange={(e) =>
-                              setSkeletonEdits((prev) => ({
-                                ...prev,
-                                [m.id]: {
-                                  ...edit,
-                                  dueDate: e.target.value ? new Date(e.target.value).toISOString() : null,
-                                },
-                              }))
-                            }
-                            className='text-xs bg-background border border-border rounded-md px-2 py-1 text-foreground focus:outline-none focus:border-primary'
-                          />
-                        </div>
-                      </div>
-                      {!edit.dueDate && m.metadata.due_date_phrase && (
-                        <p className='text-[11px] text-amber-500'>
-                          Mentioned "{m.metadata.due_date_phrase}" but couldn't resolve it to a date — set it above.
+                      {/* Read-only — whatever date was mentioned in chat,
+                          nothing editable here. Setting or changing a date
+                          happens in exactly one place, after creation: the
+                          docked date panel (see pendingPostCreateMessage). */}
+                      {m.metadata.due_date ? (
+                        <p className='text-[11px] text-muted-foreground flex items-center gap-1'>
+                          <Calendar className='w-3 h-3 flex-shrink-0' /> Due {formatDueDate(m.metadata.due_date)}
                         </p>
+                      ) : (
+                        m.metadata.due_date_phrase && (
+                          <p className='text-[11px] text-amber-500'>
+                            Mentioned "{m.metadata.due_date_phrase}" but couldn't resolve it — you can set a date after creating the task.
+                          </p>
+                        )
                       )}
                       <p className='text-[11px] text-muted-foreground'>
                         into {m.metadata.board_name}
@@ -1095,100 +1347,26 @@ export function AIChatWidget() {
                 // expands inline into a member list, no modal.
                 if (m.metadata?.kind === 'post_create_actions') {
                   const cardId = m.metadata.card_id;
-                  const isMemberExpanded = expandedAssignId === m.id;
-                  const isDateExpanded = expandedDateCardId === cardId;
-                  const members = prefetchedMembers[m.metadata.workspace_id] || [];
-                  const added = addedMemberIds[m.id] || new Set<string>();
+                  const added = cardMembers[cardId] || [];
                   const currentDue = dueDatesByCard[cardId] ?? m.metadata.due_date ?? null;
                   const isCompleted = completedAssignIds.has(m.id);
 
-                  if (isCompleted) {
-                    return (
-                      <div key={m.id} className='flex items-center gap-1.5 text-xs text-muted-foreground px-1'>
-                        <Check className='w-3.5 h-3.5 text-success flex-shrink-0' />
-                        {added.size > 0
-                          ? `Assigned ${added.size} ${added.size === 1 ? 'person' : 'people'}${
-                              currentDue ? `, due ${formatDueDate(currentDue)}` : ''
-                            }.`
-                          : currentDue
-                          ? `Due ${formatDueDate(currentDue)}.`
-                          : 'Moving on.'}
-                      </div>
-                    );
-                  }
+                  // While pending, the interactive controls live in the
+                  // docked bar above the compose box (see below) — always
+                  // reachable regardless of scroll position, same as
+                  // Create task. Nothing to render here until it's done.
+                  if (!isCompleted) return null;
 
                   return (
-                    <div key={m.id} className='bg-muted/50 text-foreground text-sm rounded-xl px-3 py-2 max-w-[90%]'>
-                      <p>{m.content}</p>
-                      <div className='mt-1.5 flex flex-wrap items-center gap-1.5'>
-                        <button
-                          onClick={() => {
-                            setExpandedAssignId(isMemberExpanded ? null : m.id);
-                            prefetchMembers(m.metadata.workspace_id, m.metadata.board_id);
-                          }}
-                          className='flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors'
-                        >
-                          <UserPlus className='w-3 h-3' /> Add member
-                        </button>
-                        <button
-                          onClick={() => setExpandedDateCardId(isDateExpanded ? null : cardId)}
-                          className='flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors'
-                        >
-                          <Calendar className='w-3 h-3' />
-                          {currentDue ? formatDueDate(currentDue) : 'Set due date'}
-                        </button>
-                        <button
-                          onClick={() => completeAssign(m.id)}
-                          className='flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors'
-                        >
-                          <Check className='w-3 h-3' /> Done with this task
-                        </button>
-                      </div>
-
-                      {isMemberExpanded && (
-                        <div className='mt-2 space-y-0.5 max-h-40 overflow-y-auto'>
-                          {members.length === 0 ? (
-                            <p className='text-xs text-muted-foreground py-1'>Loading members...</p>
-                          ) : (
-                            members.map((mem: any) => {
-                              const isAdded = added.has(mem.profiles.id);
-                              const key = `${m.id}-${mem.profiles.id}`;
-                              return (
-                                <button
-                                  key={mem.profiles.id}
-                                  disabled={isAdded || assigningKey === key}
-                                  onClick={() => addMemberToCard(m.id, cardId, mem.profiles.id)}
-                                  className='w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-xs hover:bg-muted/60 transition-colors disabled:opacity-70'
-                                >
-                                  {mem.profiles.avatar_url ? (
-                                    <img
-                                      src={mem.profiles.avatar_url}
-                                      alt=''
-                                      className='w-5 h-5 rounded-full object-cover flex-shrink-0'
-                                    />
-                                  ) : (
-                                    <div className='w-5 h-5 rounded-full bg-primary flex items-center justify-center text-[9px] font-bold text-primary-foreground flex-shrink-0'>
-                                      {(mem.profiles.full_name || mem.profiles.email || '?').charAt(0).toUpperCase()}
-                                    </div>
-                                  )}
-                                  <span className='truncate flex-1'>
-                                    {mem.profiles.full_name || mem.profiles.email}
-                                  </span>
-                                  {isAdded ? (
-                                    <Check className='w-3.5 h-3.5 text-success flex-shrink-0' />
-                                  ) : (
-                                    assigningKey === key && (
-                                      <Loader2 className='w-3.5 h-3.5 animate-spin flex-shrink-0' />
-                                    )
-                                  )}
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
-
-                      {isDateExpanded && renderDueDatePicker(cardId)}
+                    <div key={m.id} className='flex items-center gap-1.5 text-xs text-muted-foreground px-1'>
+                      <Check className='w-3.5 h-3.5 text-success flex-shrink-0' />
+                      {added.length > 0
+                        ? `Assigned ${added.length} ${added.length === 1 ? 'person' : 'people'}${
+                            currentDue ? `, due ${formatDueDate(currentDue)}` : ''
+                          }.`
+                        : currentDue
+                        ? `Due ${formatDueDate(currentDue)}.`
+                        : 'Moving on.'}
                     </div>
                   );
                 }
@@ -1227,7 +1405,8 @@ export function AIChatWidget() {
                     )}
                   </div>
                 );
-              })
+                })}
+              </>
             )}
             {(isSending || isCreatingSkeleton) && (
               <div className='flex items-center gap-1.5 text-xs text-muted-foreground px-1'>
@@ -1238,6 +1417,69 @@ export function AIChatWidget() {
           </div>
 
           <div className='p-4 border-t border-border flex-shrink-0 space-y-2'>
+            {/* Docked, not buried in the scrolling chat — same treatment
+                as the Create task bar, so it's always reachable. Doesn't
+                need an AI key: assigning members and setting dates are
+                plain bot actions, not LLM calls. */}
+            {pendingPostCreateMessage && (
+              <div className='bg-muted/40 border border-border/60 rounded-xl p-3 space-y-2'>
+                <p className='text-sm text-foreground'>{pendingPostCreateMessage.content}</p>
+                <div className='flex flex-wrap items-center gap-1.5'>
+                  <button
+                    onClick={() =>
+                      toggleMemberExpand(
+                        pendingPostCreateMessage.metadata.card_id,
+                        pendingPostCreateMessage.metadata.workspace_id,
+                        pendingPostCreateMessage.metadata.board_id
+                      )
+                    }
+                    className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors ${
+                      expandedAssignId === pendingPostCreateMessage.metadata.card_id
+                        ? 'bg-primary/20 text-primary'
+                        : 'bg-primary/10 text-primary hover:bg-primary/20'
+                    }`}
+                  >
+                    <UserPlus className='w-3 h-3' />
+                    {(() => {
+                      const count = (cardMembers[pendingPostCreateMessage.metadata.card_id] || []).length;
+                      return count > 0 ? `${count} added` : 'Add member';
+                    })()}
+                  </button>
+                  <button
+                    onClick={() => toggleDateExpand(pendingPostCreateMessage.metadata.card_id)}
+                    className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors ${
+                      expandedDateCardId === pendingPostCreateMessage.metadata.card_id
+                        ? 'bg-primary/20 text-primary'
+                        : 'bg-primary/10 text-primary hover:bg-primary/20'
+                    }`}
+                  >
+                    <Calendar className='w-3 h-3' />
+                    {(() => {
+                      const due =
+                        dueDatesByCard[pendingPostCreateMessage.metadata.card_id] ??
+                        pendingPostCreateMessage.metadata.due_date ??
+                        null;
+                      return due ? formatDueDate(due) : 'Set due date';
+                    })()}
+                  </button>
+                  <button
+                    onClick={() => completeAssign(pendingPostCreateMessage.id)}
+                    className='ml-auto flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors'
+                  >
+                    <Check className='w-3.5 h-3.5' /> Done with this task
+                  </button>
+                </div>
+
+                {expandedAssignId === pendingPostCreateMessage.metadata.card_id &&
+                  renderMemberList(
+                    pendingPostCreateMessage.metadata.card_id,
+                    pendingPostCreateMessage.metadata.workspace_id
+                  )}
+                {expandedDateCardId === pendingPostCreateMessage.metadata.card_id &&
+                  renderDueDatePicker(pendingPostCreateMessage.metadata.card_id)}
+              </div>
+            )}
+
             {hasActiveKey === false ? (
               <p className='text-xs text-muted-foreground text-center py-1'>
                 Add an API key in{' '}
