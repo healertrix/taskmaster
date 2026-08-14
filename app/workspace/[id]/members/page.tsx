@@ -391,7 +391,7 @@ export default function WorkspaceMembersPage() {
     return (
       <div className='min-h-screen'>
         <DashboardHeader />
-        <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+        <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-20 sm:pt-24 pb-8 sm:pb-16'>
           <div className='flex items-center justify-center h-64'>
             <div className='text-destructive text-center text-sm sm:text-base px-4'>
               {error || 'An error occurred'}
@@ -406,7 +406,7 @@ export default function WorkspaceMembersPage() {
     <div className='min-h-screen'>
       <DashboardHeader />
 
-      <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+      <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-20 sm:pt-24 pb-8 sm:pb-16'>
         {/* Header */}
         <div className='flex items-center gap-3 mb-6'>
           <button

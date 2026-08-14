@@ -69,7 +69,7 @@ SearchResultsSkeleton.displayName = 'SearchResultsSkeleton';
 export const PageLoadingSkeleton = React.memo(() => (
   <div className='min-h-screen dot-pattern-dark'>
     <div className='h-16 bg-background/80 backdrop-blur-sm border-b border-border sticky top-0 z-40' />
-    <main className='container mx-auto max-w-4xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+    <main className='container mx-auto max-w-4xl px-3 sm:px-4 pt-20 sm:pt-24 pb-8 sm:pb-16'>
       {/* Header skeleton */}
       <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8'>
         <div className='flex flex-col gap-3 sm:hidden min-w-0'>

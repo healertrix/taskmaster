@@ -473,7 +473,7 @@ export default function WorkspaceSettingsPage() {
   const PageLoadingSkeleton = () => (
     <div className='min-h-screen'>
       <DashboardHeader />
-      <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+      <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-20 sm:pt-24 pb-8 sm:pb-16'>
         <div className='space-y-4'>
           <div className='flex items-center gap-4 mb-6'>
             <div className='w-8 h-8 bg-muted/50 rounded-lg animate-pulse'></div>
@@ -550,7 +550,7 @@ export default function WorkspaceSettingsPage() {
     return (
       <div className='min-h-screen'>
         <DashboardHeader />
-        <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+        <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-20 sm:pt-24 pb-8 sm:pb-16'>
           <div className='flex items-center justify-center h-64'>
             <div className='text-center'>
               <div className='text-foreground font-medium mb-1'>
@@ -574,7 +574,7 @@ export default function WorkspaceSettingsPage() {
     return (
       <div className='min-h-screen'>
         <DashboardHeader />
-        <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+        <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-20 sm:pt-24 pb-8 sm:pb-16'>
           <div className='flex items-center justify-center h-64'>
             <div className='text-destructive'>
               {error || 'Workspace not found'}
@@ -589,7 +589,7 @@ export default function WorkspaceSettingsPage() {
     return (
       <div className='min-h-screen'>
         <DashboardHeader />
-        <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+        <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-20 sm:pt-24 pb-8 sm:pb-16'>
           <div className='flex items-center justify-center min-h-[60vh]'>
             <div className='text-center max-w-sm sm:max-w-md mx-auto px-4'>
               <div className='bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl p-6 sm:p-8'>
@@ -647,7 +647,7 @@ export default function WorkspaceSettingsPage() {
     <div className='min-h-screen'>
       <DashboardHeader />
 
-      <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+      <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-20 sm:pt-24 pb-8 sm:pb-16'>
         {/* Header */}
         <div className='flex items-center gap-3 mb-6'>
           <Link

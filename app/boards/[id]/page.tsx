@@ -445,7 +445,10 @@ export default function WorkspaceBoardsPage() {
     return (
       <div className='min-h-screen dot-pattern-dark'>
         <DashboardHeader />
-        <main className='container mx-auto max-w-7xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+        {/* pt-20, not pt-16 — see the matching comment below; kept in
+            sync so there's no layout jump between this state and the
+            loaded page. */}
+        <main className='container mx-auto max-w-7xl px-3 sm:px-4 pt-20 sm:pt-24 pb-8 sm:pb-16'>
           <div className='flex items-center justify-center h-64'>
             <div className='text-red-500 text-center text-sm sm:text-base px-4'>
               {error || 'Workspace not found'}
@@ -474,7 +477,11 @@ export default function WorkspaceBoardsPage() {
     <div className='min-h-screen dot-pattern-dark'>
       <DashboardHeader />
 
-      <main className='container mx-auto max-w-7xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+      {/* pt-20, not pt-16 — the fixed header (icon buttons + w-9 h-9
+          avatar + border-b) runs close enough to 64px on real devices
+          that this row was getting clipped under it. Same fix as the
+          board detail page and the starred page. */}
+      <main className='container mx-auto max-w-7xl px-3 sm:px-4 pt-20 sm:pt-24 pb-8 sm:pb-16'>
         {/* Header */}
         <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8'>
           {/* Mobile: Workspace name first, then breadcrumb */}

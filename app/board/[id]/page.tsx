@@ -1322,7 +1322,11 @@ export default function BoardPage({ params }: { params: { id: string } }) {
       <DashboardHeader />
 
       {/* Board Header */}
-      <div className='flex-shrink-0 container mx-auto max-w-full px-3 sm:px-4 pt-16 sm:pt-24 pb-3 sm:pb-8'>
+      {/* pt-20, not pt-16 — the fixed header (icon buttons + w-9 h-9
+          avatar + border-b) runs close enough to 64px on real devices
+          that this row was getting clipped under it. The starred page
+          already made this exact bump for the same reason. */}
+      <div className='flex-shrink-0 container mx-auto max-w-full px-3 sm:px-4 pt-20 sm:pt-24 pb-3 sm:pb-8'>
         <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 group'>
           {/* Mobile: Board name first, then breadcrumb */}
           <div className='flex flex-col gap-2 sm:hidden min-w-0'>
