@@ -83,7 +83,6 @@ export async function DELETE(
       activities: 0,
       members: 0,
       settings: 0,
-      invitations: 0,
     };
 
     if (boardIds.length > 0) {
@@ -122,13 +121,6 @@ export async function DELETE(
       .select('*', { count: 'exact', head: true })
       .eq('workspace_id', workspaceId);
     deletionStats.settings = settingsCount || 0;
-
-    // Count invitations
-    const { count: invitationCount } = await supabase
-      .from('invitations')
-      .select('*', { count: 'exact', head: true })
-      .eq('workspace_id', workspaceId);
-    deletionStats.invitations = invitationCount || 0;
 
     // 3. Start deletion process (order matters to respect foreign key constraints)
 
@@ -236,16 +228,6 @@ export async function DELETE(
         console.error('Error deleting boards:', boardsError);
         throw new Error('Failed to delete boards');
       }
-    }
-
-    // Delete workspace invitations
-    const { error: invitationsError } = await supabase
-      .from('invitations')
-      .delete()
-      .eq('workspace_id', workspaceId);
-
-    if (invitationsError) {
-      console.error('Error deleting invitations:', invitationsError);
     }
 
     // Delete workspace members

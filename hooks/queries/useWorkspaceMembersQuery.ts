@@ -31,16 +31,6 @@ export type Workspace = {
   settings?: WorkspaceSettings;
 };
 
-export type Invitation = {
-  id: string;
-  workspace_id: string;
-  email: string;
-  role: 'admin' | 'member';
-  invited_by: string;
-  created_at: string;
-  status: 'pending' | 'accepted' | 'declined';
-};
-
 // Fetch workspace data
 export const useWorkspace = (workspaceId: string) => {
   return useQuery({
@@ -194,29 +184,6 @@ export const useWorkspaceMembers = (workspaceId: string) => {
       return allMembers;
     },
     enabled: !!workspaceId,
-  });
-};
-
-// Fetch pending invitations
-export const useWorkspaceInvitations = (
-  workspaceId: string,
-  userRole: string
-) => {
-  return useQuery({
-    queryKey: ['workspace-invitations', workspaceId],
-    queryFn: async (): Promise<Invitation[]> => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('invitations')
-        .select('*')
-        .eq('workspace_id', workspaceId)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!workspaceId && (userRole === 'owner' || userRole === 'admin'),
   });
 };
 
