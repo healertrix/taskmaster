@@ -37,7 +37,7 @@ import {
   BoardSkeleton,
   BoardListViewSkeleton,
 } from '../../components/ui/skeletons';
-import { colorForNumber, colorForKey } from '@/utils/idColor';
+import { colorForNumber, colorForKey, colorForEntity } from '@/utils/idColor';
 import { AISummaryModal } from '@/app/components/ai/AISummaryModal';
 import {
   Star,
@@ -1371,7 +1371,12 @@ export default function BoardPage({ params }: { params: { id: string } }) {
             <div className='flex items-center gap-2 ml-7'>
               <div
                 className='w-4 h-4 rounded text-white flex items-center justify-center text-xs font-bold flex-shrink-0'
-                style={{ backgroundColor: colorForKey(board.workspace.id) }}
+                style={{
+                  backgroundColor: colorForEntity(
+                    board.workspace.id,
+                    board.workspace.number
+                  ),
+                }}
               >
                 {board.workspace.name.charAt(0).toUpperCase()}
               </div>
@@ -1400,7 +1405,12 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               <div className='flex items-center gap-2 min-w-0'>
                 <div
                   className='w-8 h-8 rounded-lg text-white flex items-center justify-center text-sm font-bold shadow-md flex-shrink-0'
-                  style={{ backgroundColor: colorForKey(board.workspace.id) }}
+                  style={{
+                    backgroundColor: colorForEntity(
+                      board.workspace.id,
+                      board.workspace.number
+                    ),
+                  }}
                 >
                   {board.workspace.name.charAt(0).toUpperCase()}
                 </div>

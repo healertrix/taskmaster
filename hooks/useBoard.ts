@@ -27,6 +27,14 @@ export interface BoardData {
     id: string;
     name: string;
     color: string;
+    // Feeds colorForEntity() for the guaranteed-spread workspace color —
+    // see supabase/supabase/migrations/20260812100000_add_workspace_number.sql.
+    // Without this, the board page's workspace badge was falling back to
+    // colorForKey(id) alone, which for a small set of real workspace ids
+    // has no guaranteed spread (documented in utils/idColor.ts as the "all
+    // my workspaces look green" problem) — same color everywhere the
+    // number wasn't threaded through, like this page.
+    number?: number | null;
   };
   is_starred: boolean;
 }
@@ -108,7 +116,8 @@ export const useBoard = (boardId: string) => {
           workspaces (
             id,
             name,
-            color
+            color,
+            number
           )
         `
         )
