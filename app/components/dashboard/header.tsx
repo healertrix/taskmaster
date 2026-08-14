@@ -20,7 +20,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { UserProfileMenu } from './UserProfileMenu';
 import { NotificationBell } from './NotificationBell';
 import { AIChatWidget } from '../ai/AIChatWidget';
@@ -106,6 +106,7 @@ export function DashboardHeader() {
   const createDropdownRef = useRef<HTMLDivElement>(null);
   const mobileCreateDropdownRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const router = useRouter();
   const isSearchPage = pathname === '/search';
 
   useEffect(() => {
@@ -1133,6 +1134,18 @@ export function DashboardHeader() {
       <CreateWorkspaceModal
         isOpen={isCreateWorkspaceModalOpen}
         onClose={() => setIsCreateWorkspaceModalOpen(false)}
+        // This header is mounted on every page, independently of
+        // whatever page-specific "create workspace" trigger/modal might
+        // also exist (e.g. app/page.tsx's own copy, which refreshes its
+        // sidebar via its own onSuccess). Unlike CreateBoardModal — which
+        // always router.push()es into the new board regardless of
+        // onSuccess — this modal had no fallback at all when onSuccess
+        // wasn't provided: it just closed, leaving whatever page you were
+        // on (e.g. the homepage sidebar) not knowing the workspace now
+        // exists until a manual reload. Navigating into it fixes that the
+        // same way CreateBoardModal already does, and is arguably better
+        // UX than silently refreshing a list out from under you anyway.
+        onSuccess={(workspaceId) => router.push(`/boards/${workspaceId}`)}
       />
 
       <CreateBoardModal
