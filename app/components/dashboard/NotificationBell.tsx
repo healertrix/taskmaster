@@ -10,9 +10,9 @@ import {
   Calendar,
   ArrowRightLeft,
   Users,
-  X,
+  Check,
 } from 'lucide-react';
-import { useMarkReadOnView } from '@/hooks/useMarkReadOnView';
+import { useNotificationsStore } from '@/lib/stores/useNotificationsStore';
 
 interface NotificationItem {
   id: string;
@@ -61,13 +61,6 @@ const POLL_INTERVAL_MS = 45_000;
 // Dropdown preview count — the full, paginated history lives at
 // /notifications.
 const DROPDOWN_LIMIT = 5;
-
-// Unread rows sort above read ones (each group keeps its own created_at-desc
-// order — Array.sort is stable) — applied whenever a fresh list comes back
-// from the server, not live, so marking something read mid-session doesn't
-// make it jump position while the dropdown's still open.
-const sortByReadState = (list: NotificationItem[]) =>
-  [...list].sort((a, b) => Number(a.is_read) - Number(b.is_read));
 
 const LAST_SEEN_STORAGE_KEY = 'notif_last_seen_at';
 // Cap how many OS popups fire from a single poll tick — if a user was
@@ -150,7 +143,15 @@ function NotificationAvatar({ n }: { n: NotificationItem }) {
 
 export function NotificationBell() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  // Shared, not local — this component is mounted twice (mobile + desktop
+  // copies, see DashboardHeader), and the badge count also has to reflect
+  // what happens on the /notifications page. See
+  // lib/stores/useNotificationsStore.ts.
+  const unreadCount = useNotificationsStore((s) => s.unreadCount);
+  const setUnreadCount = useNotificationsStore((s) => s.setUnreadCount);
+  const markReadShared = useNotificationsStore((s) => s.markRead);
+  const markAllReadShared = useNotificationsStore((s) => s.markAllRead);
+  const lastReadEvent = useNotificationsStore((s) => s.lastReadEvent);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission | null>(
@@ -171,10 +172,20 @@ export function NotificationBell() {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch(`/api/notifications?limit=${DROPDOWN_LIMIT}`);
+      // Unread only — same filter as the /notifications page's Unread tab.
+      // Previously this fetched the 5 most recent regardless of read
+      // state, so a notification you'd already read (clicked through,
+      // auto-marked from being on screen, or hit the checkmark on) just
+      // sat there greyed out on every reopen/poll instead of actually
+      // going away — reading as "this isn't really being marked read"
+      // even though it was. Anything already handled lives in Archive on
+      // the full /notifications page now, not here.
+      const res = await fetch(
+        `/api/notifications?limit=${DROPDOWN_LIMIT}&unread=true`
+      );
       if (!res.ok) return;
       const data = await res.json();
-      const fresh: NotificationItem[] = sortByReadState(data.notifications || []);
+      const fresh: NotificationItem[] = data.notifications || [];
       setNotifications(fresh);
       setUnreadCount(data.unreadCount || 0);
 
@@ -200,11 +211,7 @@ export function NotificationBell() {
           popup.onclick = () => {
             window.focus();
             window.location.href = notificationHref(n);
-            fetch('/api/notifications', {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ids: [n.id] }),
-            }).catch(() => {});
+            markReadShared([n.id]);
             popup.close();
           };
         });
@@ -250,66 +257,30 @@ export function NotificationBell() {
     setPermission(result);
   };
 
-  const markRead = async (ids: string[]) => {
-    // Only ids that were actually still unread count toward the badge — the
-    // click handler and the auto-mark-on-view timer can both target the
-    // same row (e.g. it auto-read while the user was already clicking it),
-    // so this guards against double-decrementing.
-    let actuallyUnreadIds: string[] = [];
-    setNotifications((prev) => {
-      actuallyUnreadIds = ids.filter(
-        (id) => prev.find((n) => n.id === id && !n.is_read)
-      );
-      return prev.map((n) => (ids.includes(n.id) ? { ...n, is_read: true } : n));
-    });
-    if (actuallyUnreadIds.length > 0) {
-      setUnreadCount((prev) => Math.max(0, prev - actuallyUnreadIds.length));
-    }
-    try {
-      await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids }),
-      });
-    } catch (error) {
-      console.error('Error marking notification read:', error);
-    }
+  // Both delegate to the shared store, which does the actual PATCH and
+  // then broadcasts lastReadEvent — the effect below (and the equivalent
+  // one in every other mounted view: the other bell copy, the
+  // /notifications page) reacts to that to remove the same rows from its
+  // own local list. This component doesn't need to know or care whether
+  // the read event it's reacting to originated from itself or elsewhere.
+  const markRead = (ids: string[]) => markReadShared(ids);
+  const markAllRead = () => {
+    if (notifications.length === 0) return;
+    markAllReadShared();
   };
 
-  // Auto-mark-as-read: an unread row that's been visibly on screen for a
-  // beat gets marked read even if it's never clicked — see
-  // hooks/useMarkReadOnView.ts for why. Only greys it out in place; sort
-  // order is only recomputed on the next fetch (see sortByReadState above).
-  const registerReadOnViewRef = useMarkReadOnView((id) => markRead([id]));
-
-  const markAllRead = async () => {
-    const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
-    if (unreadIds.length === 0) return;
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    setUnreadCount(0);
-    try {
-      await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markAllRead: true }),
-      });
-    } catch (error) {
-      console.error('Error marking all notifications read:', error);
-    }
-  };
-
-  // Dismiss deletes it outright — read or not — as opposed to markRead,
-  // which just clears the unread dot and keeps it in the list.
-  const dismiss = async (id: string) => {
-    const wasUnread = notifications.find((n) => n.id === id)?.is_read === false;
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-    if (wasUnread) setUnreadCount((prev) => Math.max(0, prev - 1));
-    try {
-      await fetch(`/api/notifications/${id}`, { method: 'DELETE' });
-    } catch (error) {
-      console.error('Error dismissing notification:', error);
-    }
-  };
+  // Reacts to a read event from ANY mounted view — including this
+  // component's own markRead/markAllRead calls above, which also flow
+  // through here rather than updating local state directly, so there's
+  // exactly one code path instead of two that could drift apart.
+  useEffect(() => {
+    if (!lastReadEvent) return;
+    setNotifications((prev) =>
+      lastReadEvent.ids === 'all'
+        ? []
+        : prev.filter((n) => !(lastReadEvent.ids as string[]).includes(n.id))
+    );
+  }, [lastReadEvent]);
 
   const handleToggle = () => {
     const next = !isOpen;
@@ -375,7 +346,7 @@ export function NotificationBell() {
               </div>
             ) : notifications.length === 0 ? (
               <div className='p-6 text-center text-sm text-muted-foreground'>
-                No notifications yet.
+                You&apos;re all caught up.
               </div>
             ) : (
               notifications.map((n) => {
@@ -385,7 +356,6 @@ export function NotificationBell() {
                 return (
                   <Link
                     key={n.id}
-                    ref={n.is_read ? undefined : registerReadOnViewRef(n.id)}
                     href={href}
                     onClick={() => {
                       if (!n.is_read) markRead([n.id]);
@@ -420,20 +390,22 @@ export function NotificationBell() {
                       </p>
                     </div>
                     {!n.is_read && (
-                      <div className='w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1.5' />
+                      <>
+                        <div className='w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1.5' />
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            markRead([n.id]);
+                          }}
+                          title='Mark as read'
+                          aria-label='Mark as read'
+                          className='opacity-0 group-hover:opacity-100 p-1 -m-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-opacity flex-shrink-0'
+                        >
+                          <Check className='w-3.5 h-3.5' />
+                        </button>
+                      </>
                     )}
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        dismiss(n.id);
-                      }}
-                      title='Dismiss'
-                      aria-label='Dismiss notification'
-                      className='opacity-0 group-hover:opacity-100 p-1 -m-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-opacity flex-shrink-0'
-                    >
-                      <X className='w-3.5 h-3.5' />
-                    </button>
                   </Link>
                 );
               })

@@ -8,19 +8,46 @@ import { NextRequest, NextResponse } from 'next/server';
 // Column names (related_card_id/related_board_id/related_comment_id) match
 // the REAL pre-existing `notifications` table — see utils/notifications.ts
 // for the full story of how that was discovered. `actor_id` was added in
-// 20260814100000_notification_actor_and_preferences.sql. `dismissed_at` was
-// added in 20260815100000_notifications_soft_dismiss.sql — every list here
-// excludes dismissed rows (they still exist, just soft-deleted; see
-// DELETE /api/notifications/[id]).
+// 20260814100000_notification_actor_and_preferences.sql.
+//
+// There used to be a dismissed_at soft-delete, separate from is_read —
+// removed in 20260815110000_remove_notification_dismiss.sql. Only two
+// states now: Unread (is_read = false) and Archive (is_read = true,
+// permanent — nothing removes something from Archive once it's read).
 //
 // Query params:
-//   limit    - page size (default 30, used as 8 by the dropdown / 20 by
+//   limit    - page size (default 30, used as 5 by the dropdown / 20 by
 //              the /notifications page's infinite scroll)
 //   offset   - for pagination past the first page (default 0)
 //   unread   - 'true' to only return unread rows (the /notifications page's
 //              Unread tab)
 //   read     - 'true' to only return already-read rows (the /notifications
-//              page's Read tab). Ignored if `unread` is also 'true'.
+//              page's Archive tab). Ignored if `unread` is also 'true'.
+//   q        - if this looks like a ticket number ("34", "#34", "12-34",
+//              "#12-34" — board_number-number, same format shown on the
+//              card itself), returns only notifications about that exact
+//              card, or nothing if no such card exists. Otherwise, plain
+//              case-insensitive substring search against content.
+//   type     - comma-separated notification `type` values to filter to,
+//              e.g. 'comment,comment_on_watched_card' for the page's
+//              "Comments" filter (mention/comment/comment_on_watched_card/
+//              due_date_changed/moved_list/workspace_member_added)
+// Parses "34", "#34", "12-34", "#12-34" into { cardNumber, boardNumber }.
+// Anything else (real text, or a mix of letters and digits) isn't a
+// ticket-number search at all — returns nulls, and the caller just does
+// the plain content search.
+function parseTicketQuery(q: string): {
+  cardNumber: number | null;
+  boardNumber: number | null;
+} {
+  const m = q.trim().match(/^#?(?:(\d+)-)?(\d+)$/);
+  if (!m) return { cardNumber: null, boardNumber: null };
+  return {
+    boardNumber: m[1] ? parseInt(m[1], 10) : null,
+    cardNumber: parseInt(m[2], 10),
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = createClient();
@@ -39,6 +66,12 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
     const unreadOnly = searchParams.get('unread') === 'true';
     const readOnly = !unreadOnly && searchParams.get('read') === 'true';
+    const search = searchParams.get('q')?.trim();
+    const types = searchParams
+      .get('type')
+      ?.split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
 
     let query = supabase
       .from('notifications')
@@ -63,12 +96,38 @@ export async function GET(request: NextRequest) {
         workspaces:related_workspace_id (name)
       `
       )
-      .is('dismissed_at', null)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (unreadOnly) query = query.eq('is_read', false);
     else if (readOnly) query = query.eq('is_read', true);
+
+    if (search) {
+      const { cardNumber, boardNumber } = parseTicketQuery(search);
+
+      if (cardNumber != null) {
+        // Ticket search: find that card, show only notifications about
+        // it. Not found → empty results, no fallback to text search.
+        let cardsQuery = supabase
+          .from('cards')
+          .select('id, boards!inner(number)')
+          .eq('number', cardNumber);
+        if (boardNumber != null) {
+          cardsQuery = cardsQuery.eq('boards.number', boardNumber);
+        }
+        const { data: matchingCards } = await cardsQuery;
+        const cardIds = (matchingCards || []).map((c: any) => c.id);
+        query =
+          cardIds.length > 0
+            ? query.in('related_card_id', cardIds)
+            : query.eq('id', '00000000-0000-0000-0000-000000000000'); // no match, no rows
+      } else {
+        // Plain text search.
+        query = query.ilike('content', `%${search}%`);
+      }
+    }
+
+    if (types && types.length > 0) query = query.in('type', types);
 
     const [{ data: notifications, error }, { count: unreadCount }] =
       await Promise.all([
@@ -76,8 +135,7 @@ export async function GET(request: NextRequest) {
         supabase
           .from('notifications')
           .select('id', { count: 'exact', head: true })
-          .eq('is_read', false)
-          .is('dismissed_at', null),
+          .eq('is_read', false),
       ]);
 
     if (error) {

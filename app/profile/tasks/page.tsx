@@ -1,18 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardHeader } from '../../components/dashboard/header';
 import { useAuth } from '@/context/AuthContext';
 import { colorForNumber } from '@/utils/idColor';
 import {
   ArrowLeft,
+  ArrowRight,
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
   Loader2,
   Circle,
+  Search,
+  X,
+  LayoutGrid,
 } from 'lucide-react';
 
 interface MyTask {
@@ -59,6 +63,24 @@ const STATUS_CONFIG: Record<
   },
 };
 
+const STATUSES: Status[] = ['upcoming', 'overdue', 'completed'];
+
+// Matches title/board name as substrings, same as before, but also the
+// task's own ticket number — "34", "#34", "12-34", or "#12-34" all match
+// a task numbered 34 on board 12 (board_number-number, the same format
+// shown next to the title and in the URL when you open a card).
+const matchesQuery = (t: MyTask, q: string) => {
+  if (t.title.toLowerCase().includes(q)) return true;
+  if (t.board_name.toLowerCase().includes(q)) return true;
+  const ticket =
+    t.board_number != null && t.number != null
+      ? `${t.board_number}-${t.number}`
+      : t.number != null
+      ? `${t.number}`
+      : '';
+  return ticket.length > 0 && ticket.includes(q.replace(/^#/, ''));
+};
+
 const formatDue = (dueDate: string | null) => {
   if (!dueDate) return null;
   const date = new Date(dueDate);
@@ -72,12 +94,21 @@ const formatDue = (dueDate: string | null) => {
 
 export default function MyTasksByStatusPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const status = (searchParams?.get('status') as Status) || 'upcoming';
-  const config = STATUS_CONFIG[status] || STATUS_CONFIG.upcoming;
+  const initialStatus = (searchParams?.get('status') as Status) || 'upcoming';
 
+  const [status, setStatus] = useState<Status>(
+    STATUSES.includes(initialStatus) ? initialStatus : 'upcoming'
+  );
   const [tasksData, setTasksData] = useState<MyTasksResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const config = STATUS_CONFIG[status];
+  const Icon = config.icon;
 
   useEffect(() => {
     if (!user) return;
@@ -99,117 +130,223 @@ export default function MyTasksByStatusPage() {
     };
   }, [user]);
 
-  if (!user) return null;
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
 
-  const tasks = tasksData?.[status] || [];
-  const Icon = config.icon;
+  // Switching tabs updates the URL too (shallow, no reload) — the status
+  // it opens on can still be shared/bookmarked/linked to (see
+  // HomeOverview's "View all" links), it just isn't locked to only that
+  // one status anymore once you're here.
+  const selectStatus = (next: Status) => {
+    setStatus(next);
+    router.replace(`/profile/tasks?status=${next}`, { scroll: false });
+  };
+
+  const allTasks = tasksData?.[status] || [];
+  const query = search.trim().toLowerCase();
+  const tasks = useMemo(
+    () => (query ? allTasks.filter((t) => matchesQuery(t, query)) : allTasks),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allTasks, query]
+  );
+
+  if (!user) return null;
 
   return (
     <div className='min-h-screen'>
       <DashboardHeader />
 
-      <main className='container mx-auto max-w-3xl px-4 pt-24 pb-16'>
+      <main className='container mx-auto max-w-4xl px-4 pt-24 pb-16'>
         <Link
           href='/profile'
-          className='inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4'
+          className='inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6'
         >
           <ArrowLeft className='w-4 h-4' />
           Back to profile
         </Link>
 
-        <div className='flex items-center gap-3 mb-6'>
-          <div
-            className={`w-10 h-10 rounded-xl ${config.bg} flex items-center justify-center flex-shrink-0`}
-          >
-            <Icon className={`w-5 h-5 ${config.accent}`} />
+        <div className='flex items-center justify-between gap-4 mb-6'>
+          <div className='flex items-center gap-4'>
+            <div
+              className={`w-12 h-12 rounded-2xl ${config.bg} flex items-center justify-center flex-shrink-0`}
+            >
+              <Icon className={`w-6 h-6 ${config.accent}`} />
+            </div>
+            <div>
+              <h1 className='text-2xl font-bold text-foreground heading-enter'>
+                My tasks
+              </h1>
+              <p className='text-sm text-muted-foreground'>
+                {tasksData
+                  ? `${allTasks.length} ${config.label.toLowerCase()} task${allTasks.length === 1 ? '' : 's'}`
+                  : '—'}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className='text-xl font-bold text-foreground heading-enter'>
-              {config.label} tasks
-            </h1>
-            <p className='text-sm text-muted-foreground'>
-              {tasksData ? `${tasks.length} task${tasks.length === 1 ? '' : 's'}` : '—'}
-            </p>
+
+          {/* Same growing-icon search as the homepage widget and the
+              notifications page — one input, animates open instead of
+              swapping elements. */}
+          <div className='relative flex items-center h-10 flex-shrink-0'>
+            <input
+              ref={searchInputRef}
+              type='text'
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onFocus={() => setSearchOpen(true)}
+              onBlur={() => {
+                if (!search) setSearchOpen(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setSearch('');
+                  setSearchOpen(false);
+                  searchInputRef.current?.blur();
+                }
+              }}
+              placeholder={searchOpen ? 'Search my tasks...' : ''}
+              className={`h-10 pl-9 pr-8 text-sm rounded-lg bg-muted/30 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-[width,opacity,border-color] duration-300 ease-out ${
+                searchOpen
+                  ? 'w-56 sm:w-64 border border-border/50 opacity-100 focus:border-primary/50'
+                  : 'w-10 border border-transparent opacity-0'
+              }`}
+            />
+            <button
+              onClick={() => setSearchOpen(true)}
+              aria-label='Search my tasks'
+              tabIndex={searchOpen ? -1 : 0}
+              className={`absolute left-0 top-0 w-10 h-10 flex items-center justify-center rounded-lg text-muted-foreground transition-colors ${
+                searchOpen
+                  ? 'pointer-events-none'
+                  : 'hover:text-foreground hover:bg-muted/50'
+              }`}
+            >
+              <Search className='w-4 h-4' />
+            </button>
+            {searchOpen && search && (
+              <button
+                onClick={() => {
+                  setSearch('');
+                  searchInputRef.current?.focus();
+                }}
+                aria-label='Clear search'
+                className='absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground rounded-full transition-colors'
+              >
+                <X className='w-3.5 h-3.5' />
+              </button>
+            )}
           </div>
         </div>
 
-        <div className='bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl p-3 sm:p-4'>
-          {isLoading ? (
-            <div className='flex items-center justify-center py-16 text-muted-foreground'>
-              <Loader2 className='w-5 h-5 animate-spin' />
-            </div>
-          ) : tasks.length === 0 ? (
-            <div className='flex flex-col items-center justify-center py-16 text-center'>
-              {status === 'completed' ? (
-                <CheckCircle2 className='w-9 h-9 text-muted-foreground/50 mb-3' />
-              ) : (
-                <Circle className='w-9 h-9 text-muted-foreground/50 mb-3' />
-              )}
-              <p className='text-sm text-muted-foreground'>
-                {status === 'upcoming' && "No upcoming tasks. You're all caught up."}
-                {status === 'overdue' && 'Nothing overdue — nice work.'}
-                {status === 'completed' && 'Nothing completed yet.'}
-              </p>
-            </div>
-          ) : (
-            <div className='space-y-0.5'>
-              {tasks.map((task) => (
-                <div
-                  key={task.id}
-                  className='flex items-center gap-3 px-2.5 py-2.5 rounded-lg hover:bg-muted/30 transition-colors'
-                >
-                  <Link
-                    href={`/board/${task.board_id}?card=${task.id}`}
-                    className='flex items-center gap-2 flex-1 min-w-0 group'
-                    title='Open card'
-                  >
-                    {task.number != null && (
-                      <span
-                        className='w-1.5 h-1.5 rounded-full flex-shrink-0'
-                        style={{ backgroundColor: colorForNumber(task.number) }}
-                      />
-                    )}
-                    <span className='text-sm text-foreground truncate min-w-0 group-hover:text-primary transition-colors'>
-                      {task.title}
-                      {task.board_number != null && task.number != null && (
-                        <span
-                          className='ml-1.5 text-xs font-normal text-muted-foreground'
-                          title='Card id'
-                        >
-                          #{task.board_number}-{task.number}
-                        </span>
-                      )}
-                    </span>
-                  </Link>
-                  <Link
-                    href={`/board/${task.board_id}`}
-                    className='text-xs text-muted-foreground hover:text-primary transition-colors truncate max-w-[35%] flex-shrink-0'
-                    title={
-                      task.workspace_name
-                        ? `${task.board_name} · ${task.workspace_name}`
-                        : task.board_name
-                    }
-                  >
-                    {task.board_name}
-                    {task.board_number != null && ` #${task.board_number}`}
-                    {task.workspace_name && ` · ${task.workspace_name}`}
-                  </Link>
-                  {task.due_date && (
-                    <span
-                      className={`text-xs flex-shrink-0 ${
-                        status === 'overdue'
-                          ? 'text-destructive'
-                          : 'text-muted-foreground'
-                      }`}
-                    >
-                      {formatDue(task.due_date)}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+        {/* Status tabs — this page used to be locked to whichever status
+            you clicked in from, a dead end that sent you all the way back
+            to the homepage to check a different one. */}
+        <div className='flex items-center gap-1 p-1 bg-muted rounded-lg w-fit mb-6'>
+          {STATUSES.map((s) => {
+            const sConfig = STATUS_CONFIG[s];
+            const count = tasksData?.[s].length ?? 0;
+            return (
+              <button
+                key={s}
+                onClick={() => selectStatus(s)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-md transition-colors ${
+                  status === s
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {sConfig.label}
+                {count > 0 && (
+                  <span className='text-xs text-muted-foreground'>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
+
+        {isLoading ? (
+          <div className='flex items-center justify-center py-24 text-muted-foreground'>
+            <Loader2 className='w-6 h-6 animate-spin' />
+          </div>
+        ) : tasks.length === 0 ? (
+          <div className='flex flex-col items-center justify-center py-24 text-center bg-card/40 border border-border/50 rounded-2xl'>
+            {query ? (
+              <>
+                <Search className='w-10 h-10 text-muted-foreground/50 mb-4' />
+                <p className='text-sm text-muted-foreground'>
+                  No tasks match &ldquo;{search}&rdquo;.
+                </p>
+              </>
+            ) : (
+              <>
+                {status === 'completed' ? (
+                  <CheckCircle2 className='w-10 h-10 text-muted-foreground/50 mb-4' />
+                ) : (
+                  <Circle className='w-10 h-10 text-muted-foreground/50 mb-4' />
+                )}
+                <p className='text-sm text-muted-foreground'>
+                  {status === 'upcoming' && "No upcoming tasks. You're all caught up."}
+                  {status === 'overdue' && 'Nothing overdue — nice work.'}
+                  {status === 'completed' && 'Nothing completed yet.'}
+                </p>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className='space-y-2.5'>
+            {tasks.map((task) => (
+              <Link
+                key={task.id}
+                href={`/board/${task.board_id}?card=${task.id}`}
+                className='group flex items-center gap-4 p-4 bg-card/50 hover:bg-card border border-border/50 hover:border-border rounded-2xl transition-all'
+              >
+                {task.number != null && (
+                  <div
+                    className='w-2.5 h-2.5 rounded-full flex-shrink-0'
+                    style={{ backgroundColor: colorForNumber(task.number) }}
+                  />
+                )}
+
+                <div className='flex-1 min-w-0'>
+                  <p className='text-base font-medium text-foreground group-hover:text-primary transition-colors truncate'>
+                    {task.title}
+                  </p>
+                  <div className='flex items-center flex-wrap gap-x-2 gap-y-1 mt-1.5'>
+                    <span className='inline-flex items-center gap-1 text-xs text-muted-foreground'>
+                      <LayoutGrid className='w-3 h-3 flex-shrink-0' />
+                      {task.board_name}
+                      {task.board_number != null &&
+                        task.number != null &&
+                        ` #${task.board_number}-${task.number}`}
+                    </span>
+                    {task.workspace_name && (
+                      <span className='text-xs text-muted-foreground'>
+                        · {task.workspace_name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {task.due_date && (
+                  <span
+                    className={`flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${
+                      status === 'overdue'
+                        ? 'bg-destructive/10 text-destructive'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {formatDue(task.due_date)}
+                  </span>
+                )}
+
+                <ArrowRight className='w-4 h-4 text-muted-foreground/0 group-hover:text-muted-foreground flex-shrink-0 transition-colors' />
+              </Link>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );

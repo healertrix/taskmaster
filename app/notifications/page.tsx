@@ -10,9 +10,11 @@ import {
   Calendar,
   ArrowRightLeft,
   Users,
+  Check,
+  Search,
   X,
 } from 'lucide-react';
-import { useMarkReadOnView } from '@/hooks/useMarkReadOnView';
+import { useNotificationsStore } from '@/lib/stores/useNotificationsStore';
 
 interface NotificationItem {
   id: string;
@@ -67,6 +69,9 @@ const TYPE_ICON: Record<string, typeof Bell> = {
   moved_list: ArrowRightLeft,
   workspace_member_added: Users,
 };
+
+// Debounce the search box so every keystroke doesn't fire its own request.
+const SEARCH_DEBOUNCE_MS = 350;
 
 const timeAgo = (iso: string) => {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -130,9 +135,26 @@ function NotificationAvatar({ n }: { n: NotificationItem }) {
 }
 
 export default function NotificationsPage() {
-  const [tab, setTab] = useState<'all' | 'unread' | 'read'>('all');
+  // Two states only — Unread (the default/main view) and Archive
+  // (everything already read, permanent). No "All" — dismissing used to
+  // mean "hide everywhere" and made things vanish; now dismissing IS
+  // marking read, so Unread and Archive between them already cover
+  // everything without a third, redundant combined view.
+  const [tab, setTab] = useState<'unread' | 'read'>('unread');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState(''); // debounced
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  // Shared with the bell dropdown (both mounted copies) — see
+  // lib/stores/useNotificationsStore.ts. Marking something read from the
+  // dropdown while this page is open needs to show up here immediately,
+  // not just on the next fetch.
+  const unreadCount = useNotificationsStore((s) => s.unreadCount);
+  const setUnreadCount = useNotificationsStore((s) => s.setUnreadCount);
+  const markReadShared = useNotificationsStore((s) => s.markRead);
+  const markAllReadShared = useNotificationsStore((s) => s.markAllRead);
+  const lastReadEvent = useNotificationsStore((s) => s.lastReadEvent);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -149,8 +171,8 @@ export default function NotificationsPage() {
         limit: String(PAGE_SIZE),
         offset: String(offset),
       });
-      if (tab === 'unread') params.set('unread', 'true');
-      else if (tab === 'read') params.set('read', 'true');
+      params.set(tab === 'unread' ? 'unread' : 'read', 'true');
+      if (search) params.set('q', search);
 
       const res = await fetch(`/api/notifications?${params}`);
       if (!res.ok) return;
@@ -169,14 +191,28 @@ export default function NotificationsPage() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [tab]);
+  }, [tab, search]);
 
-  // Reload from scratch whenever the tab changes.
+  // Debounce the search box into `search`, which is what load() actually
+  // reads — keystrokes update searchInput instantly (so the field itself
+  // never lags), the request only fires SEARCH_DEBOUNCE_MS after typing
+  // stops.
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // Focus the box the instant it expands from icon to input.
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
+
+  // Reload from scratch whenever the tab or search changes.
   useEffect(() => {
     offsetRef.current = 0;
     load(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [tab, search]);
 
   // Infinite scroll — fetch the next page once the sentinel at the bottom
   // of the list enters the viewport.
@@ -195,94 +231,109 @@ export default function NotificationsPage() {
     return () => observer.disconnect();
   }, [hasMore, isLoadingMore, isLoading, load]);
 
-  const markRead = async (ids: string[]) => {
-    // Only ids that were actually still unread count toward the badge — the
-    // click handler and the auto-mark-on-view timer can both target the
-    // same row, so this guards against double-decrementing.
-    let actuallyUnreadIds: string[] = [];
-    setNotifications((prev) => {
-      actuallyUnreadIds = ids.filter(
-        (id) => prev.find((n) => n.id === id && !n.is_read)
-      );
-      return prev.map((n) => (ids.includes(n.id) ? { ...n, is_read: true } : n));
-    });
-    if (actuallyUnreadIds.length > 0) {
-      setUnreadCount((prev) => Math.max(0, prev - actuallyUnreadIds.length));
-    }
-    try {
-      await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids }),
-      });
-    } catch (error) {
-      console.error('Error marking notification read:', error);
-    }
+  // Both delegate to the shared store, which does the actual PATCH and
+  // broadcasts lastReadEvent — the effect below (and the equivalent one
+  // in both mounted bell-dropdown copies) reacts to that to remove the
+  // same rows from its own local list, regardless of which view the
+  // action started in. See lib/stores/useNotificationsStore.ts.
+  const markRead = (ids: string[]) => markReadShared(ids);
+  const markAllRead = () => {
+    if (notifications.filter((n) => !n.is_read).length === 0) return;
+    markAllReadShared();
   };
 
-  // Auto-mark-as-read: an unread row that's been visibly on screen for a
-  // beat gets marked read even if it's never clicked — see
-  // hooks/useMarkReadOnView.ts for why. Only greys it out in place; sort
-  // order is only recomputed on the next fetch (see sortByReadState above).
-  const registerReadOnViewRef = useMarkReadOnView((id) => markRead([id]));
-
-  const markAllRead = async () => {
-    const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    setUnreadCount(0);
-    try {
-      await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ markAllRead: true }),
-      });
-    } catch (error) {
-      console.error('Error marking all notifications read:', error);
-    }
-    if (tab === 'unread') {
-      setNotifications((prev) => prev.filter((n) => !unreadIds.includes(n.id)));
-    }
-  };
-
-  const dismiss = async (id: string) => {
-    const wasUnread = notifications.find((n) => n.id === id)?.is_read === false;
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-    if (wasUnread) setUnreadCount((prev) => Math.max(0, prev - 1));
-    try {
-      await fetch(`/api/notifications/${id}`, { method: 'DELETE' });
-    } catch (error) {
-      console.error('Error dismissing notification:', error);
-    }
-  };
+  // Reacts to a read event from ANY mounted view, including this page's
+  // own markRead/markAllRead calls above. On the Unread tab a now-read row
+  // no longer belongs here, so it's removed outright rather than left
+  // sitting there greyed out. On Archive nothing was ever unread to match,
+  // so this is a no-op there — it'll show up next time Archive is fetched
+  // (switching to it, or the next reload), not injected live mid-scroll.
+  useEffect(() => {
+    if (!lastReadEvent) return;
+    setNotifications((prev) =>
+      lastReadEvent.ids === 'all'
+        ? tab === 'unread'
+          ? []
+          : prev
+        : prev.filter((n) => !(lastReadEvent.ids as string[]).includes(n.id))
+    );
+  }, [lastReadEvent, tab]);
 
   return (
     <div className='min-h-screen dot-pattern-dark'>
       <DashboardHeader />
 
       <main className='container mx-auto max-w-5xl pt-24 pb-16 px-4'>
-        <div className='flex items-center justify-between mb-4'>
+        <div className='flex items-center justify-between mb-4 gap-3'>
           <h1 className='text-xl font-semibold text-foreground'>Notifications</h1>
-          {unreadCount > 0 && (
-            <button
-              onClick={markAllRead}
-              className='text-sm text-primary hover:text-primary/80 transition-colors'
-            >
-              Mark all read
-            </button>
-          )}
+          <div className='flex items-center gap-3'>
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllRead}
+                className='text-sm text-primary hover:text-primary/80 transition-colors whitespace-nowrap'
+              >
+                Mark all read
+              </button>
+            )}
+            {/* One element growing into an input, not two elements
+                swapping — the icon button stays mounted the whole time
+                (just becomes visually decorative and click-through once
+                expanded) and the input's own width/opacity/border
+                transition together, so this reads as the icon *becoming*
+                a search box instead of popping between two states. */}
+            <div className='relative flex items-center h-9'>
+              <input
+                ref={searchInputRef}
+                type='text'
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onFocus={() => setSearchOpen(true)}
+                onBlur={() => {
+                  if (!searchInput) setSearchOpen(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setSearchInput('');
+                    setSearchOpen(false);
+                    searchInputRef.current?.blur();
+                  }
+                }}
+                placeholder={searchOpen ? 'Search notifications...' : ''}
+                className={`h-9 pl-9 pr-8 text-sm rounded-lg bg-muted/30 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-[width,opacity,border-color] duration-300 ease-out ${
+                  searchOpen
+                    ? 'w-56 border border-border/50 opacity-100 focus:border-primary/50'
+                    : 'w-9 border border-transparent opacity-0'
+                }`}
+              />
+              <button
+                onClick={() => setSearchOpen(true)}
+                aria-label='Search notifications'
+                tabIndex={searchOpen ? -1 : 0}
+                className={`absolute left-0 top-0 w-9 h-9 flex items-center justify-center rounded-lg text-muted-foreground transition-colors ${
+                  searchOpen
+                    ? 'pointer-events-none'
+                    : 'hover:text-foreground hover:bg-muted/50'
+                }`}
+              >
+                <Search className='w-4 h-4' />
+              </button>
+              {searchOpen && searchInput && (
+                <button
+                  onClick={() => {
+                    setSearchInput('');
+                    searchInputRef.current?.focus();
+                  }}
+                  aria-label='Clear search'
+                  className='absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground rounded-full transition-colors'
+                >
+                  <X className='w-3.5 h-3.5' />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className='flex items-center gap-1 p-1 bg-muted rounded-lg w-fit mb-4'>
-          <button
-            onClick={() => setTab('all')}
-            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-              tab === 'all'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            All
-          </button>
           <button
             onClick={() => setTab('unread')}
             className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
@@ -302,7 +353,7 @@ export default function NotificationsPage() {
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            Read
+            Archive
           </button>
         </div>
 
@@ -313,11 +364,11 @@ export default function NotificationsPage() {
             </div>
           ) : notifications.length === 0 ? (
             <div className='p-10 text-center text-sm text-muted-foreground'>
-              {tab === 'unread'
+              {search
+                ? 'No notifications match your search.'
+                : tab === 'unread'
                 ? "You're all caught up."
-                : tab === 'read'
-                ? 'Nothing read yet.'
-                : 'No notifications yet.'}
+                : 'Nothing archived yet.'}
             </div>
           ) : (
             notifications.map((n) => {
@@ -326,7 +377,6 @@ export default function NotificationsPage() {
               return (
                 <Link
                   key={n.id}
-                  ref={n.is_read ? undefined : registerReadOnViewRef(n.id)}
                   href={href}
                   onClick={() => {
                     if (!n.is_read) markRead([n.id]);
@@ -359,20 +409,26 @@ export default function NotificationsPage() {
                     </p>
                   </div>
                   {!n.is_read && (
-                    <div className='w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1.5' />
+                    <>
+                      <div className='w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1.5' />
+                      {/* Same action as clicking through — just without
+                          leaving this page. Archive has no equivalent
+                          button: everything there is already read, so
+                          there'd be nothing for it to do. */}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          markRead([n.id]);
+                        }}
+                        title='Mark as read'
+                        aria-label='Mark as read'
+                        className='opacity-0 group-hover:opacity-100 p-1 -m-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-opacity flex-shrink-0'
+                      >
+                        <Check className='w-4 h-4' />
+                      </button>
+                    </>
                   )}
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      dismiss(n.id);
-                    }}
-                    title='Dismiss'
-                    aria-label='Dismiss notification'
-                    className='opacity-0 group-hover:opacity-100 p-1 -m-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-opacity flex-shrink-0'
-                  >
-                    <X className='w-4 h-4' />
-                  </button>
                 </Link>
               );
             })
