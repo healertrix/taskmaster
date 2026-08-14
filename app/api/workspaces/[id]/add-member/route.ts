@@ -114,12 +114,40 @@ export async function POST(
       );
     }
 
-    // Check if profile exists
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, email, full_name')
-      .eq('id', profile_id)
-      .single();
+    // canAddMembers only checked whether the caller may add someone at
+    // all — it says nothing about which role they're allowed to hand out.
+    // Without this, a plain 'member' (in a workspace where the 'anyone'
+    // setting lets any member add people) could send { role: 'admin' } in
+    // the request body and grant admin through this route directly,
+    // bypassing the promote/demote route's owner/admin-only check
+    // entirely. Reject unknown roles, and only let an existing
+    // owner/admin grant 'admin'.
+    if (!['admin', 'member'].includes(role)) {
+      return NextResponse.json(
+        { error: 'Invalid role' },
+        { status: 400 }
+      );
+    }
+    if (role === 'admin' && !['owner', 'admin'].includes(membership.role)) {
+      return NextResponse.json(
+        {
+          error: 'Only workspace owners and admins can add members as admin',
+        },
+        { status: 403 }
+      );
+    }
+
+    // Check if profile exists. Goes through get_profile_by_id() (a
+    // SECURITY DEFINER function — see
+    // 20260814220000_fix_add_member_profile_lookup.sql) rather than
+    // querying `profiles` directly: the person being added is, by
+    // definition, someone the caller doesn't share a workspace/board with
+    // yet, which the RLS-scoped table read wouldn't return.
+    const { data: profileRows, error: profileError } = await supabase.rpc(
+      'get_profile_by_id',
+      { p_profile_id: profile_id }
+    );
+    const profile = profileRows?.[0];
 
     if (profileError || !profile) {
       return NextResponse.json(

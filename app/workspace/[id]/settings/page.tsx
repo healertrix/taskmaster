@@ -177,6 +177,7 @@ export default function WorkspaceSettingsPage() {
   const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
   const [deletionStats, setDeletionStats] = useState<any>(null);
   const [showDeletionDetails, setShowDeletionDetails] = useState(false);
+  const [isDeleted, setIsDeleted] = useState(false);
 
   // Notification states
   const [showSuccessToast, setShowSuccessToast] = useState(false);
@@ -522,13 +523,16 @@ export default function WorkspaceSettingsPage() {
         throw new Error(data.error || 'Failed to delete workspace');
       }
 
-      // Clear cached workspace & settings so UI reflects deletion immediately
-      refetch();
-
+      // Don't refetch() here — the workspace is gone, so refetching just
+      // re-queries a row that no longer exists, which flips the hook's
+      // `error` state to "Workspace not found" and makes the generic
+      // error screen below render instead of the deleted-confirmation
+      // screen. `isDeleted` short-circuits all of that.
       setDeletionStats(data.deletionStats);
-      showSuccess('Workspace deleted successfully');
+      setIsDeleted(true);
 
-      // Redirect to home page after a short delay
+      // Redirect to home page after a short delay so the confirmation is
+      // visible first.
       setTimeout(() => {
         router.push('/');
       }, 2000);
@@ -541,6 +545,26 @@ export default function WorkspaceSettingsPage() {
       setIsDeletingWorkspace(false);
     }
   };
+
+  if (isDeleted) {
+    return (
+      <div className='min-h-screen'>
+        <DashboardHeader />
+        <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-16 sm:pt-24 pb-8 sm:pb-16'>
+          <div className='flex items-center justify-center h-64'>
+            <div className='text-center'>
+              <div className='text-foreground font-medium mb-1'>
+                Workspace deleted
+              </div>
+              <div className='text-sm text-muted-foreground'>
+                Taking you back to the home page…
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (loading && !workspace) {
     return <PageLoadingSkeleton />;

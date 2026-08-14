@@ -505,6 +505,7 @@ export default function WorkspaceMembersPage() {
       {/* Add Member Modal */}
       <AddMemberModal
         workspaceId={workspaceId}
+        canGrantAdmin={canManageMembers}
         onSuccess={(message) => {
           showSuccess(message);
           // The modal's own add-member mutation only invalidates the
@@ -663,67 +664,76 @@ export default function WorkspaceMembersPage() {
                     {memberToChangeRole.profile.full_name ||
                       memberToChangeRole.profile.email}
                   </div>
-                  <div className='text-xs text-muted-foreground truncate'>
-                    Currently{' '}
-                    {memberToChangeRole.role === 'owner'
-                      ? 'Owner'
-                      : memberToChangeRole.role === 'admin'
-                      ? 'Admin'
-                      : 'Member'}
-                  </div>
                 </div>
               </div>
 
-              {/* Role Selection */}
+              {/* Role Selection — the current role is shown but disabled
+                  (there's nothing to do with it, it's just context for
+                  which one is the "before"); the other one is the only
+                  real choice, and it's what newRole is already
+                  initialized to when this modal opens, so there's no
+                  separate "pick a role" step before this reads as a
+                  straight before/after. */}
               <div className='space-y-2'>
-                {(['admin', 'member'] as const).map((role) => (
-                  <label
-                    key={role}
-                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                      newRole === role
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border/50 hover:bg-muted/40'
-                    }`}
-                  >
-                    <input
-                      type='radio'
-                      name='role'
-                      value={role}
-                      checked={newRole === role}
-                      onChange={(e) =>
-                        setNewRole(e.target.value as 'admin' | 'member')
-                      }
-                      className='w-4 h-4 text-primary flex-shrink-0'
-                    />
-                    {role === 'admin' ? (
-                      <Shield className='w-4 h-4 text-accent flex-shrink-0' />
-                    ) : (
-                      <User className='w-4 h-4 text-muted-foreground flex-shrink-0' />
-                    )}
-                    <div className='min-w-0 flex-1'>
-                      <span className='font-medium text-foreground text-sm block'>
-                        {role === 'admin' ? 'Admin' : 'Member'}
-                      </span>
-                      <span className='text-xs text-muted-foreground'>
-                        {role === 'admin'
-                          ? 'Can manage members and boards'
-                          : 'Can view and edit boards'}
-                      </span>
-                    </div>
-                  </label>
-                ))}
+                {(['admin', 'member'] as const).map((role) => {
+                  const isCurrent = memberToChangeRole.role === role;
+                  return (
+                    <label
+                      key={role}
+                      className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                        isCurrent
+                          ? 'border-border/30 opacity-50 cursor-not-allowed'
+                          : newRole === role
+                          ? 'border-primary bg-primary/5 cursor-pointer'
+                          : 'border-border/50 hover:bg-muted/40 cursor-pointer'
+                      }`}
+                    >
+                      <input
+                        type='radio'
+                        name='role'
+                        value={role}
+                        checked={newRole === role}
+                        disabled={isCurrent}
+                        onChange={(e) =>
+                          setNewRole(e.target.value as 'admin' | 'member')
+                        }
+                        className='w-4 h-4 text-primary flex-shrink-0'
+                      />
+                      {role === 'admin' ? (
+                        <Shield className='w-4 h-4 text-accent flex-shrink-0' />
+                      ) : (
+                        <User className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+                      )}
+                      <div className='min-w-0 flex-1'>
+                        <span className='font-medium text-foreground text-sm block'>
+                          {role === 'admin' ? 'Admin' : 'Member'}
+                          {isCurrent && (
+                            <span className='ml-2 text-xs font-normal text-muted-foreground'>
+                              Current
+                            </span>
+                          )}
+                        </span>
+                        <span className='text-xs text-muted-foreground'>
+                          {role === 'admin'
+                            ? 'Can manage members and boards'
+                            : 'Can view and edit boards'}
+                        </span>
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
 
-              {/* Warning if changing to admin */}
-              {newRole === 'admin' && memberToChangeRole.role === 'member' && (
-                <div className='flex items-start gap-2.5 p-3 bg-accent/10 border border-accent/30 rounded-lg'>
-                  <Shield className='w-4 h-4 text-accent flex-shrink-0 mt-0.5' />
-                  <p className='text-xs text-muted-foreground'>
-                    This user will be able to add/remove members and manage
-                    workspace settings.
-                  </p>
-                </div>
-              )}
+              {/* Consequence of the change — always shown, since newRole
+                  is always "the other role" the moment this modal opens. */}
+              <div className='flex items-start gap-2.5 p-3 bg-accent/10 border border-accent/30 rounded-lg'>
+                <Shield className='w-4 h-4 text-accent flex-shrink-0 mt-0.5' />
+                <p className='text-xs text-muted-foreground'>
+                  {newRole === 'admin'
+                    ? 'This user will be able to add/remove members and manage workspace settings.'
+                    : 'This user will lose the ability to add/remove members and manage workspace settings.'}
+                </p>
+              </div>
             </div>
 
             {/* Footer */}

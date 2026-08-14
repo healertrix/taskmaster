@@ -316,11 +316,12 @@ export default function HomePage() {
     };
   }, [userWorkspaces.length]);
 
+  // Accordion, not independent toggles — opening one workspace's
+  // Boards/Members/Settings sub-list closes whichever other one was open,
+  // instead of letting the sidebar grow unbounded with every workspace
+  // ever clicked still expanded underneath it.
   const toggleWorkspace = useCallback((id: string) => {
-    setExpandedWorkspaces((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+    setExpandedWorkspaces((prev) => (prev[id] ? {} : { [id]: true }));
   }, []);
 
   const handleCreateWorkspaceClick = useCallback(() => {

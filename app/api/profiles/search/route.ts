@@ -119,12 +119,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Search profiles by email and name using OR query
-    const { data: allProfiles, error: searchError } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, avatar_url')
-      .or(`full_name.ilike.%${query}%,email.ilike.%${query}%`)
-      .limit(10);
+    // Search profiles by email and name. Goes through search_profiles()
+    // (a SECURITY DEFINER function — see 20260814210000_scope_profiles_visibility.sql)
+    // rather than querying `profiles` directly: this route already checked
+    // the caller has permission to invite above, but the underlying table
+    // is now scoped to "your own profile or someone you share a
+    // workspace/board with," which wouldn't include the very people
+    // you're trying to invite. The function intentionally sees past that
+    // boundary; a direct table read from a client cannot.
+    type SearchedProfile = {
+      id: string;
+      full_name: string | null;
+      email: string;
+      avatar_url: string | null;
+    };
+
+    const { data: allProfiles, error: searchError } = await supabase.rpc(
+      'search_profiles',
+      { p_query: query, p_limit: 10 }
+    ) as { data: SearchedProfile[] | null; error: any };
 
     if (searchError) {
       console.error('Search error:', searchError);

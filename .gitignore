@@ -45,3 +45,5 @@ next-env.d.ts
 /inspiration
 
 .vercel
+DATABASE_AND_RLS.md
+supabase
