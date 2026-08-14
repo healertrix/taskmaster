@@ -293,9 +293,30 @@ export function NotificationBell() {
 
   return (
     <div className='relative' ref={containerRef}>
+      {/* Mobile: straight to the full /notifications page instead of the
+          dropdown below — that dropdown is a fixed w-80 with no responsive
+          width of its own, positioned relative to this button rather than
+          the true viewport edge, so on a narrow screen it could run off
+          one side. A full page has no such sizing to get wrong, and it's
+          already got everything the dropdown does (search, read/unread)
+          plus more room to actually use it. */}
+      <Link
+        href='/notifications'
+        className='relative p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors sm:hidden'
+        aria-label='Notifications'
+        title='Notifications'
+      >
+        <Bell className='w-5 h-5' />
+        {unreadCount > 0 && (
+          <span className='absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center'>
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </Link>
+
       <button
         onClick={handleToggle}
-        className='relative p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+        className='relative p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors hidden sm:block'
         aria-label='Notifications'
         title='Notifications'
       >

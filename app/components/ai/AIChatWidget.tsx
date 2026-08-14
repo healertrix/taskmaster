@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useParams } from 'next/navigation';
 import {
@@ -290,6 +291,28 @@ export function AIChatWidget() {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composeRef = useRef<HTMLTextAreaElement>(null);
+  // The header this widget lives in is `backdrop-blur-lg` (see
+  // .superhero-header in globals.css) — backdrop-filter, like transform,
+  // makes an element a new containing block for `position: fixed`
+  // descendants. That silently confined the mobile panel's `fixed inset-0`
+  // backdrop to the header's own ~64px-tall box instead of the true
+  // viewport: the panel itself still rendered at full size (dvh units size
+  // against the real viewport regardless of containing block), but the
+  // backdrop only darkened that thin strip, leaving the rest of the page
+  // showing through undimmed below it. Portaling to document.body escapes
+  // the header's DOM subtree entirely, sidestepping the containing-block
+  // rule altogether. On desktop the panel isn't full-bleed — it's a small
+  // dropdown anchored to the trigger button via `absolute` — so it portals
+  // into containerRef itself, which is a no-op positionally (same DOM
+  // parent it would've had anyway) while keeping the anchor intact.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
   // Set right before loadMoreHistory prepends older messages — tells the
   // auto-scroll-to-bottom effect below to skip that one update instead of
   // yanking the view back down the moment the user scrolled up to load
@@ -1172,8 +1195,32 @@ export function AIChatWidget() {
         <Sparkles className='w-5 h-5' />
       </button>
 
-      {isOpen && (
-        <div className='absolute top-full right-0 mt-2 w-[calc(100vw-2rem)] sm:w-[28rem] md:w-[36rem] h-[80vh] max-h-[48rem] flex flex-col bg-popover text-popover-foreground border border-border rounded-2xl shadow-2xl overflow-hidden z-[60] animate-in fade-in-0 zoom-in-95 duration-150'>
+      {isOpen && createPortal(
+        // Centered modal on mobile, anchored dropdown at md: and up. An
+        // earlier edge-to-edge `fixed inset-0` attempt (w-full h-dvh)
+        // fixed the collapsed-height bug but was still getting cut off
+        // on one side on real devices — some phones report a CSS
+        // viewport width past Tailwind's old `sm:` split (640px), so
+        // they silently fell back to the *desktop* anchored-dropdown
+        // styles instead: a panel pinned below the header, sized to a
+        // fixed 28rem anchored to a button that isn't flush with the
+        // screen edge, spilling off the side. Rather than chase the
+        // exact breakpoint, this drops "flush with the edges" entirely
+        // below md: — a plain centered dialog (backdrop + flex
+        // centering + a width capped with margin on both sides) can't
+        // run off an edge regardless of viewport width.
+        <div
+          className='fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 md:block md:bg-transparent md:p-0 md:absolute md:inset-auto md:top-full md:right-0 md:mt-2'
+          // The mobile backdrop sits inside containerRef (same wrapper as
+          // the trigger button), so the existing outside-click listener
+          // below never sees a click on it as "outside" — it needs its
+          // own handler. Guarded to the backdrop itself so clicks inside
+          // the panel (which bubble up through this div) don't close it.
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsOpen(false);
+          }}
+        >
+        <div className='w-full max-w-md h-[85dvh] md:h-[80vh] md:max-h-[48rem] md:w-[28rem] lg:w-[36rem] flex flex-col bg-popover text-popover-foreground border border-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150'>
           <div className='flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0'>
             <h3 className='text-sm font-semibold flex items-center gap-2'>
               <Sparkles className='w-4 h-4 text-primary' />
@@ -1838,6 +1885,8 @@ export function AIChatWidget() {
             )}
           </div>
         </div>
+        </div>,
+        isMobile ? document.body : (containerRef.current ?? document.body)
       )}
     </div>
   );

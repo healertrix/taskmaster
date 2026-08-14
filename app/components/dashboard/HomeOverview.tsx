@@ -245,13 +245,21 @@ export function HomeOverview({ displayName }: { displayName: string }) {
           ) : (
             <div className='space-y-0.5'>
               {visibleTasks.map((task) => (
+                // Title, board, and due date used to fight for space on
+                // one line always — fine on desktop, but on a narrow phone
+                // the board link (locked to 35% width) and due date (never
+                // shrinking) left almost nothing for the title. Stacks into
+                // two lines below sm: instead; sm:contents on the second
+                // row's wrapper below removes it from layout at that
+                // breakpoint so its children rejoin the single-line flow
+                // exactly as before.
                 <div
                   key={task.id}
-                  className='flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-muted/30 transition-colors'
+                  className='flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 px-2 py-2 rounded-lg hover:bg-muted/30 transition-colors'
                 >
                   <Link
                     href={`/board/${task.board_id}?card=${task.id}`}
-                    className='flex items-center gap-2 flex-1 min-w-0 group'
+                    className='flex items-center gap-2 min-w-0 group sm:flex-1'
                   >
                     {task.number != null && (
                       <span
@@ -271,30 +279,32 @@ export function HomeOverview({ displayName }: { displayName: string }) {
                       )}
                     </span>
                   </Link>
-                  <Link
-                    href={`/board/${task.board_id}`}
-                    className='text-xs text-muted-foreground hover:text-primary transition-colors truncate max-w-[35%] flex-shrink-0'
-                    title={
-                      task.workspace_name
-                        ? `${task.board_name} · ${task.workspace_name}`
-                        : task.board_name
-                    }
-                  >
-                    {task.board_name}
-                    {task.board_number != null && ` #${task.board_number}`}
-                    {task.workspace_name && ` · ${task.workspace_name}`}
-                  </Link>
-                  {task.due_date && (
-                    <span
-                      className={`text-xs flex-shrink-0 ${
-                        activeTab === 'overdue'
-                          ? 'text-destructive'
-                          : 'text-muted-foreground'
-                      }`}
+                  <div className='flex items-center justify-between gap-2 pl-3.5 sm:pl-0 sm:contents'>
+                    <Link
+                      href={`/board/${task.board_id}`}
+                      className='text-xs text-muted-foreground hover:text-primary transition-colors truncate min-w-0 sm:max-w-[35%] flex-shrink-0'
+                      title={
+                        task.workspace_name
+                          ? `${task.board_name} · ${task.workspace_name}`
+                          : task.board_name
+                      }
                     >
-                      {formatDue(task.due_date)}
-                    </span>
-                  )}
+                      {task.board_name}
+                      {task.board_number != null && ` #${task.board_number}`}
+                      {task.workspace_name && ` · ${task.workspace_name}`}
+                    </Link>
+                    {task.due_date && (
+                      <span
+                        className={`text-xs flex-shrink-0 ${
+                          activeTab === 'overdue'
+                            ? 'text-destructive'
+                            : 'text-muted-foreground'
+                        }`}
+                      >
+                        {formatDue(task.due_date)}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
               {hasMore && (

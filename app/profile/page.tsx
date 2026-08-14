@@ -145,17 +145,22 @@ function BoardTag({
   boardName,
   boardNumber,
   workspaceName,
+  className,
 }: {
   boardId: string;
   boardName: string;
   boardNumber?: number | null;
   workspaceName?: string | null;
+  className?: string;
 }) {
   return (
     <Link
       href={`/board/${boardId}`}
       onClick={(e) => e.stopPropagation()}
-      className='text-xs text-muted-foreground hover:text-primary transition-colors truncate max-w-[45%] flex-shrink-0'
+      className={
+        className ??
+        'text-xs text-muted-foreground hover:text-primary transition-colors truncate max-w-[45%] flex-shrink-0'
+      }
       title={workspaceName ? `${boardName} · ${workspaceName}` : boardName}
     >
       {boardName}
@@ -437,13 +442,20 @@ export default function ProfilePage() {
           ) : (
             <div className='space-y-0.5'>
               {activeTasks.slice(0, 8).map((task) => (
+                // Same stacking fix as the homepage widget (HomeOverview) —
+                // title, board tag, and due date used to fight for one
+                // line always, which left almost nothing for the title on
+                // a narrow phone. Stacks into two lines below sm:;
+                // sm:contents on the second row's wrapper removes it from
+                // layout at that breakpoint so its children rejoin the
+                // single-line flow exactly as before.
                 <div
                   key={task.id}
-                  className='flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-muted/30 transition-colors'
+                  className='flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 px-2 py-2 rounded-lg hover:bg-muted/30 transition-colors'
                 >
                   <Link
                     href={`/board/${task.board_id}?card=${task.id}`}
-                    className='flex items-center gap-2 flex-1 min-w-0 group'
+                    className='flex items-center gap-2 min-w-0 group sm:flex-1'
                   >
                     {task.number != null && (
                       <span
@@ -463,23 +475,26 @@ export default function ProfilePage() {
                       )}
                     </span>
                   </Link>
-                  <BoardTag
-                    boardId={task.board_id}
-                    boardName={task.board_name}
-                    boardNumber={task.board_number}
-                    workspaceName={task.workspace_name}
-                  />
-                  {task.due_date && (
-                    <span
-                      className={`text-xs flex-shrink-0 ${
-                        tasksTab === 'overdue'
-                          ? 'text-destructive'
-                          : 'text-muted-foreground'
-                      }`}
-                    >
-                      {formatDue(task.due_date)}
-                    </span>
-                  )}
+                  <div className='flex items-center justify-between gap-2 pl-3.5 sm:pl-0 sm:contents'>
+                    <BoardTag
+                      boardId={task.board_id}
+                      boardName={task.board_name}
+                      boardNumber={task.board_number}
+                      workspaceName={task.workspace_name}
+                      className='text-xs text-muted-foreground hover:text-primary transition-colors truncate min-w-0 sm:max-w-[35%] flex-shrink-0'
+                    />
+                    {task.due_date && (
+                      <span
+                        className={`text-xs flex-shrink-0 ${
+                          tasksTab === 'overdue'
+                            ? 'text-destructive'
+                            : 'text-muted-foreground'
+                        }`}
+                      >
+                        {formatDue(task.due_date)}
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
