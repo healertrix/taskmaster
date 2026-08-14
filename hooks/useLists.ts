@@ -55,6 +55,14 @@ export interface Card {
       color: string;
     };
   }>;
+  // Custom field values, joined in the same query — same reasoning as
+  // card_labels/card_members: by the time a card modal opens, its values
+  // are already in memory, no dedicated per-card round trip needed.
+  card_custom_field_values?: Array<{
+    id: string;
+    field_id: string;
+    value: unknown;
+  }>;
   // Only set by the API when > 0 (see app/api/lists/route.ts) — absent,
   // not 0, when a card has none.
   attachments?: number;

@@ -32,7 +32,11 @@ interface CardLabel {
 interface LabelModalProps {
   isOpen: boolean;
   onClose: () => void;
-  cardId: string;
+  // Omit cardId to open in card-less "manage" mode — board settings'
+  // "Manage labels" entry point uses this: create/edit/delete labels for
+  // the board without a specific card's assignment checkboxes, since
+  // there's no card in context.
+  cardId?: string;
   boardId: string;
   onLabelsUpdated?: (labelId?: string, labelData?: any) => void;
   // Optimized cached data
@@ -130,15 +134,18 @@ export default function LabelModal({
     if (isOpen) {
       setIsLoadingLabels(true);
 
-      // Use cached data if available, otherwise fallback to API calls
-      if (cachedBoardLabels && cachedCardLabels) {
+      // Use cached data if available, otherwise fallback to API calls.
+      // Card labels only apply when a cardId is given at all.
+      if (cachedBoardLabels && (cachedCardLabels || !cardId)) {
         setBoardLabels(cachedBoardLabels);
-        setCardLabels(cachedCardLabels);
+        setCardLabels(cachedCardLabels || []);
         setIsLoadingLabels(false);
       } else {
-        Promise.all([fetchLabels(), fetchCardLabels()]).finally(() => {
-          setIsLoadingLabels(false);
-        });
+        Promise.all([fetchLabels(), cardId ? fetchCardLabels() : null]).finally(
+          () => {
+            setIsLoadingLabels(false);
+          }
+        );
       }
     }
   }, [isOpen, cardId, boardId, cachedBoardLabels, cachedCardLabels]);
@@ -204,6 +211,7 @@ export default function LabelModal({
   };
 
   const fetchCardLabels = async () => {
+    if (!cardId) return;
     try {
       const response = await fetch(`/api/cards/${cardId}/labels`);
       if (response.ok) {
@@ -331,6 +339,7 @@ export default function LabelModal({
   };
 
   const toggleCardLabel = async (labelId: string) => {
+    if (!cardId) return;
     const isAssigned = cardLabels.some(
       (cardLabel) => cardLabel.labels.id === labelId
     );
@@ -466,34 +475,52 @@ export default function LabelModal({
                               key={label.id}
                               className='group flex items-center gap-3'
                             >
-                              {/* Label Display */}
-                              <button
-                                onClick={() => toggleCardLabel(label.id)}
-                                disabled={isLoading}
-                                className={`flex-1 relative flex items-center justify-between px-4 py-3 rounded-xl transition-all disabled:opacity-50 hover:scale-[1.02] shadow-sm min-h-[44px] ${
-                                  isAssigned
-                                    ? 'ring-2 ring-primary ring-offset-2 ring-offset-background shadow-lg'
-                                    : 'hover:shadow-md'
-                                }`}
-                                style={{ backgroundColor: label.color }}
-                              >
-                                <span
-                                  className={`font-medium text-sm ${
-                                    isLight ? 'text-black' : 'text-white'
+                              {/* Label Display — a toggle button when
+                                  there's a card to assign it to; a plain
+                                  swatch in card-less "manage" mode, since
+                                  there's nothing to assign it to here. */}
+                              {cardId ? (
+                                <button
+                                  onClick={() => toggleCardLabel(label.id)}
+                                  disabled={isLoading}
+                                  className={`flex-1 relative flex items-center justify-between px-4 py-3 rounded-xl transition-all disabled:opacity-50 hover:scale-[1.02] shadow-sm min-h-[44px] ${
+                                    isAssigned
+                                      ? 'ring-2 ring-primary ring-offset-2 ring-offset-background shadow-lg'
+                                      : 'hover:shadow-md'
                                   }`}
+                                  style={{ backgroundColor: label.color }}
                                 >
-                                  {label.name || ''}
-                                </span>
-                                {isAssigned && (
-                                  <div className='flex items-center justify-center w-6 h-6 bg-white/20 backdrop-blur-sm rounded-full'>
-                                    <Check
-                                      className={`w-4 h-4 ${
-                                        isLight ? 'text-black' : 'text-white'
-                                      } drop-shadow-md`}
-                                    />
-                                  </div>
-                                )}
-                              </button>
+                                  <span
+                                    className={`font-medium text-sm ${
+                                      isLight ? 'text-black' : 'text-white'
+                                    }`}
+                                  >
+                                    {label.name || ''}
+                                  </span>
+                                  {isAssigned && (
+                                    <div className='flex items-center justify-center w-6 h-6 bg-white/20 backdrop-blur-sm rounded-full'>
+                                      <Check
+                                        className={`w-4 h-4 ${
+                                          isLight ? 'text-black' : 'text-white'
+                                        } drop-shadow-md`}
+                                      />
+                                    </div>
+                                  )}
+                                </button>
+                              ) : (
+                                <div
+                                  className='flex-1 flex items-center px-4 py-3 rounded-xl shadow-sm min-h-[44px]'
+                                  style={{ backgroundColor: label.color }}
+                                >
+                                  <span
+                                    className={`font-medium text-sm ${
+                                      isLight ? 'text-black' : 'text-white'
+                                    }`}
+                                  >
+                                    {label.name || ''}
+                                  </span>
+                                </div>
+                              )}
 
                               {/* Action Buttons */}
                               <div className='flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>

@@ -68,7 +68,12 @@ import {
   Trash2,
   LayoutGrid,
   List,
+  Tag,
+  ListChecks,
 } from 'lucide-react';
+import LabelModal from '../../components/board/LabelModal';
+import ManageCustomFieldsModal from '../../components/board/ManageCustomFieldsModal';
+import { useBoardCustomFields } from '@/hooks/useBoardCustomFields';
 
 // Define card/task type
 interface Task {
@@ -239,6 +244,9 @@ export default function BoardPage({ params }: { params: { id: string } }) {
 
   // Board settings and deletion states
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
+  const [showManageLabelsModal, setShowManageLabelsModal] = useState(false);
+  const [showManageCustomFieldsModal, setShowManageCustomFieldsModal] =
+    useState(false);
   const [showBoardDeletionModal, setShowBoardDeletionModal] = useState(false);
   const [deletionConfirmName, setDeletionConfirmName] = useState('');
   const [isDeletingBoard, setIsDeletingBoard] = useState(false);
@@ -291,6 +299,12 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     updateBoardDescription,
   } = useBoard(params.id);
 
+  const {
+    fields: customFields,
+    isLoading: isLoadingCustomFields,
+    refetch: refetchCustomFields,
+  } = useBoardCustomFields(params.id);
+
   const { removeBoardFromCache } = useAppStore();
 
   // Use the board store hook for real-time data management
@@ -311,6 +325,10 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     updateCardLabels,
     updateCardMembers,
     refetch,
+    getBoardLabels,
+    getCardLabels,
+    getWorkspaceMembers,
+    getCardMembers,
   } = useBoardStore(params.id);
 
   // Local UI state for columns (needed for optimistic updates)
@@ -1570,8 +1588,39 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                       from the board's own display number (see
                       utils/idColor.ts), same everywhere it's shown. */}
 
-                  {/* Delete Board Option */}
+                  {/* Manage Labels / Custom Fields — the only entry points
+                      for these outside opening a card and clicking its
+                      label/field icons. */}
                   <div className='p-2 border-b border-border'>
+                    <button
+                      onClick={() => {
+                        setShowManageLabelsModal(true);
+                        setShowSettingsDropdown(false);
+                      }}
+                      className='w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted/50 rounded-lg transition-colors'
+                    >
+                      <Tag className='w-4 h-4 text-muted-foreground' />
+                      <div className='font-medium text-sm'>Manage labels</div>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowManageCustomFieldsModal(true);
+                        setShowSettingsDropdown(false);
+                      }}
+                      className='w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted/50 rounded-lg transition-colors'
+                    >
+                      <ListChecks className='w-4 h-4 text-muted-foreground' />
+                      <div className='font-medium text-sm'>
+                        Manage custom fields
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Delete Board Option — same single-line size as
+                      Manage labels/custom fields above; the two-line
+                      title+description version stood out as visibly
+                      bigger than everything else in this menu. */}
+                  <div className='p-2'>
                     <button
                       onClick={() => {
                         setDeletionConfirmName('');
@@ -1579,15 +1628,11 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                         setShowBoardDeletionModal(true);
                         setShowSettingsDropdown(false);
                       }}
+                      title='Permanently delete this board and all its content'
                       className='w-full flex items-center gap-3 px-3 py-2 text-left text-destructive hover:bg-destructive/10 rounded-lg transition-colors'
                     >
                       <Trash2 className='w-4 h-4' />
-                      <div>
-                        <div className='font-medium'>Delete board</div>
-                        <div className='text-sm text-muted-foreground'>
-                          Permanently delete this board and all its content
-                        </div>
-                      </div>
+                      <div className='font-medium text-sm'>Delete board</div>
                     </button>
                   </div>
                 </div>
@@ -1723,6 +1768,23 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           onClose={() => setIsSummaryModalOpen(false)}
         />
       )}
+
+      {/* Manage Labels — card-less mode, opened from the settings
+          dropdown rather than a card's label icon. */}
+      <LabelModal
+        isOpen={showManageLabelsModal}
+        onClose={() => setShowManageLabelsModal(false)}
+        boardId={board.id}
+      />
+
+      <ManageCustomFieldsModal
+        isOpen={showManageCustomFieldsModal}
+        onClose={() => setShowManageCustomFieldsModal(false)}
+        boardId={board.id}
+        fields={customFields}
+        isLoading={isLoadingCustomFields}
+        onFieldsChanged={refetchCustomFields}
+      />
 
       {/* Board Deletion Confirmation Modal */}
       {showBoardDeletionModal && board && (
@@ -1892,6 +1954,14 @@ export default function BoardPage({ params }: { params: { id: string } }) {
               onMoveSuccess={handleCardMoveSuccess}
               moveCard={moveCard}
               lists={lists}
+              // All four already sit in the shared cache/embedded card
+              // data — wiring them in is what actually makes labels and
+              // members load instantly instead of cold-fetching on every
+              // card open, same as custom fields' initialValues fix.
+              cachedBoardLabels={getBoardLabels()}
+              cachedCardLabels={getCardLabels(selectedCard.id)}
+              cachedWorkspaceMembers={getWorkspaceMembers()}
+              cachedCardMembers={getCardMembers(selectedCard.id)}
             />
           ) : null;
         })()}

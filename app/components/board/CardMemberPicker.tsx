@@ -318,11 +318,17 @@ export function CardMemberPicker({
               </p>
             </div>
           </div>
+          {/* Not disabled while a member add/remove is in flight — the
+              backdrop click and Escape key right below already close
+              unconditionally, so this was just an inconsistent block on
+              the one visible control. The request itself isn't tied to
+              this component's lifecycle (a plain fetch keeps running
+              after unmount), so closing mid-save doesn't lose anything —
+              same reasoning as the custom fields save-tracking fix. */}
           <button
             onClick={onClose}
             className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
             title='Close'
-            disabled={isLoading || addingMemberIds.size > 0}
           >
             <X className='w-4 h-4' />
           </button>

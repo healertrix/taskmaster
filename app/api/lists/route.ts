@@ -282,6 +282,37 @@ export async function GET(request: NextRequest) {
           }
         });
       });
+
+      // Custom field values, same flat-query-then-merge shape as the
+      // counts above — NOT a nested embed on the cards select. cards
+      // already embeds card_members and card_labels there; a third
+      // one-to-many embed made Postgres build a combinatorial join per
+      // card and timed out board loads entirely (see the reverted attempt
+      // in git history). A separate indexed `IN (card_id)` query has none
+      // of that risk — it's a flat select, not a join. This is what
+      // finally gives CardCustomFields the same "already loaded by the
+      // time you open a card" instant paint that card_labels/card_members
+      // get, without repeating that mistake.
+      const { data: customFieldValues } = await supabase
+        .from('card_custom_field_values')
+        .select('id, card_id, field_id, value')
+        .in('card_id', allCardIds);
+
+      if (customFieldValues && customFieldValues.length > 0) {
+        const valuesByCardId = new Map<string, typeof customFieldValues>();
+        customFieldValues.forEach((v) => {
+          const existing = valuesByCardId.get(v.card_id) || [];
+          existing.push(v);
+          valuesByCardId.set(v.card_id, existing);
+        });
+
+        listsWithSortedCards.forEach((list) => {
+          list.cards.forEach((card) => {
+            const values = valuesByCardId.get(card.id);
+            if (values) (card as any).card_custom_field_values = values;
+          });
+        });
+      }
     }
 
     return NextResponse.json({ lists: listsWithSortedCards });

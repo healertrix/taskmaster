@@ -55,6 +55,7 @@ import { DescriptionEditor } from '@/components/ui/DescriptionEditor';
 import { renderDescription } from '@/components/ui/DescriptionText';
 import { AttachmentModal } from './AttachmentModal';
 import LabelModal from './LabelModal';
+import { CardCustomFields } from './CardCustomFields';
 import CardLabels from './CardLabels';
 import { CardMemberPicker } from './CardMemberPicker';
 import {
@@ -102,6 +103,22 @@ interface Card {
     avatar_url?: string;
   };
   attachments?: number;
+  // NOT currently populated — app/api/lists/route.ts briefly joined this
+  // in the same nested select as card_members/card_labels, but a THIRD
+  // one-to-many embed on top of those two made Postgres build a
+  // combinatorial join per card and timed out board loads entirely. That
+  // join was reverted; CardCustomFields always fetches its own values via
+  // the dedicated /api/cards/[id]/custom-fields endpoint instead. Left
+  // typed here (rather than removed) so CardCustomFields' initialValues
+  // prop still compiles — it just never receives real data right now. Do
+  // not re-add this join without a real fix for the row explosion (e.g.
+  // a single separate query keyed by board/list of card ids, not another
+  // nested embed alongside the existing two).
+  card_custom_field_values?: Array<{
+    id: string;
+    field_id: string;
+    value: unknown;
+  }>;
 }
 
 interface Comment {
@@ -433,6 +450,7 @@ export function CardModal({
   const [showMemberPicker, setShowMemberPicker] = useState(false);
   const [workspaceId, setWorkspaceId] = useState<string>('');
   const [isSavingMember, setIsSavingMember] = useState(false);
+  const [isSavingCustomField, setIsSavingCustomField] = useState(false);
   const [showDetailedMembers, setShowDetailedMembers] = useState(false);
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [showMemberSearch, setShowMemberSearch] = useState(false);
@@ -475,7 +493,8 @@ export function CardModal({
       pendingChecklistItemDeletes > 0 || // Checklist item(s) being deleted
       isAddingAttachment || // Attachment being added
       isDeletingAttachment || // Attachment being deleted
-      isSavingMember // Member being added/removed
+      isSavingMember || // Member being added/removed
+      isSavingCustomField // Custom field value being saved/cleared
     );
   };
 
@@ -2454,11 +2473,11 @@ export function CardModal({
                     title={
                       isLoadingMembers
                         ? 'Loading current members…'
-                        : 'Add member'
+                        : 'Add or remove members'
                     }
                   >
                     <Plus className='w-3 h-3' />
-                    Add
+                    Manage
                   </button>
                 </div>
 
@@ -2816,6 +2835,13 @@ export function CardModal({
                     )}
                   </div>
                 </div>
+
+              <CardCustomFields
+                boardId={card.board_id}
+                cardId={card.id}
+                initialValues={card.card_custom_field_values}
+                onSavingChange={setIsSavingCustomField}
+              />
 
               {/* Checklists Section */}
               <div className='mb-6'>

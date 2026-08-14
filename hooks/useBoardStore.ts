@@ -16,6 +16,8 @@ export const useBoardStore = (boardId: string) => {
     removeBoardLabelFromCache,
     setWorkspaceMembersForBoardCache,
     getWorkspaceMembersForBoardCache,
+    setBoardCustomFieldsCache,
+    getBoardCustomFieldsCache,
   } = useAppStore();
 
   const [workspaceId, setWorkspaceId] = useState<string>('');
@@ -53,6 +55,35 @@ export const useBoardStore = (boardId: string) => {
 
     fetchBoardLabels();
   }, [boardId, setBoardLabelsCache, getBoardLabelsCache]);
+
+  // Fetch board custom field definitions once when board loads — same
+  // reasoning as labels above. Without this, useBoardCustomFields (used by
+  // the card modal's Custom Fields section) had no head start: it only
+  // began fetching once a card was actually opened, well after every
+  // other section (which all get cached/prefetched data passed down from
+  // this hook) had already rendered — visible as custom fields being the
+  // one section that "starts loading" after everything else already has.
+  useEffect(() => {
+    const fetchBoardCustomFields = async () => {
+      if (!boardId) return;
+
+      const cached = getBoardCustomFieldsCache(boardId);
+      if (cached) return;
+
+      try {
+        const response = await fetch(`/api/boards/${boardId}/custom-fields`);
+        const data = await response.json();
+
+        if (response.ok) {
+          setBoardCustomFieldsCache(boardId, data.fields || []);
+        }
+      } catch (error) {
+        console.error('Error fetching board custom fields:', error);
+      }
+    };
+
+    fetchBoardCustomFields();
+  }, [boardId, setBoardCustomFieldsCache, getBoardCustomFieldsCache]);
 
   // Fetch workspace ID and members once when board loads
   useEffect(() => {

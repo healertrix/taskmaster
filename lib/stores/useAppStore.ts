@@ -67,6 +67,18 @@ interface AppState {
     };
   };
 
+  // Board custom field *definitions* cache - shared across all cards in a
+  // board, same reasoning as boardLabelsCache. Per-card *values* aren't
+  // cached here — they're small, card-specific, and already refetched each
+  // time a card modal opens.
+  boardCustomFieldsCache: {
+    [boardId: string]: {
+      fields: any[];
+      timestamp: number;
+      ttl: number;
+    };
+  };
+
   // Workspace members cache - shared across all cards in a workspace
   workspaceMembersForBoardCache: {
     [workspaceId: string]: {
@@ -169,6 +181,11 @@ interface AppState {
   removeBoardLabelFromCache: (boardId: string, labelId: string) => void;
   clearBoardLabelsCache: (boardId?: string) => void;
 
+  // Board custom fields cache actions
+  setBoardCustomFieldsCache: (boardId: string, fields: any[]) => void;
+  getBoardCustomFieldsCache: (boardId: string) => any[] | null;
+  clearBoardCustomFieldsCache: (boardId?: string) => void;
+
   // Workspace members for board cache actions
   setWorkspaceMembersForBoardCache: (
     workspaceId: string,
@@ -203,6 +220,7 @@ export const useAppStore = create<AppState>()(
         workspaceSettingsCache: {},
         boardListsCache: {},
         boardLabelsCache: {},
+        boardCustomFieldsCache: {},
         workspaceMembersForBoardCache: {},
         userPreferences: {
           theme: 'system',
@@ -844,6 +862,45 @@ export const useAppStore = create<AppState>()(
               return { boardLabelsCache: rest };
             }
             return { boardLabelsCache: {} };
+          });
+        },
+
+        // Board custom fields cache actions
+        setBoardCustomFieldsCache: (boardId: string, fields: any[]) => {
+          set((state) => ({
+            boardCustomFieldsCache: {
+              ...state.boardCustomFieldsCache,
+              [boardId]: {
+                fields,
+                timestamp: Date.now(),
+                ttl: DEFAULT_TTL,
+              },
+            },
+          }));
+        },
+
+        getBoardCustomFieldsCache: (boardId: string) => {
+          const state = get();
+          const entry = state.boardCustomFieldsCache[boardId];
+
+          if (!entry) return null;
+
+          const isExpired = Date.now() - entry.timestamp > entry.ttl;
+          if (isExpired) {
+            get().clearBoardCustomFieldsCache(boardId);
+            return null;
+          }
+
+          return entry.fields;
+        },
+
+        clearBoardCustomFieldsCache: (boardId?: string) => {
+          set((state) => {
+            if (boardId) {
+              const { [boardId]: _, ...rest } = state.boardCustomFieldsCache;
+              return { boardCustomFieldsCache: rest };
+            }
+            return { boardCustomFieldsCache: {} };
           });
         },
 
