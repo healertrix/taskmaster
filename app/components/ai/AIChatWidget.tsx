@@ -145,6 +145,10 @@ export function AIChatWidget() {
     setSkeletonEdits,
     dismissedSkeletonIds,
     setDismissedSkeletonIds,
+    dismissedListSetupIds,
+    setDismissedListSetupIds,
+    listSetupEdits,
+    setListSetupEdits,
     expandedAssignId,
     setExpandedAssignId,
     cardMembers,
@@ -328,6 +332,9 @@ export function AIChatWidget() {
   // `await`, so the second call sees it immediately regardless of render
   // timing.
   const approvingSkeletonIdsRef = useRef<Set<string>>(new Set());
+  // Same double-fire guard as approvingSkeletonIdsRef above, for
+  // approveListSetup instead of approveSkeleton.
+  const approvingListSetupIdsRef = useRef<Set<string>>(new Set());
 
   // Disabling a focused textarea (e.g. while `disabled={isSending}`) makes
   // the browser force-blur it, and that focus never comes back on its own
@@ -701,12 +708,60 @@ export function AIChatWidget() {
     return result;
   }, [messages, dismissedSkeletonIds]);
 
+  // Same derivation as skeletonResolution above, for list_setup_proposal
+  // cards — approved once a later list_setup_created message exists (the
+  // real record that the lists were actually made), superseded if
+  // dismissed or overtaken by a newer nudge/proposal.
+  const listSetupResolution = useMemo(() => {
+    const result = new Map<string, 'approved' | 'superseded' | 'pending'>();
+    messages.forEach((msg, i) => {
+      if (msg.metadata?.kind !== 'list_setup_proposal') return;
+      if (dismissedListSetupIds.has(msg.id)) {
+        result.set(msg.id, 'superseded');
+        return;
+      }
+      const later = messages.slice(i + 1);
+      const approved = later.some((x) => x.metadata?.kind === 'list_setup_created');
+      if (approved) {
+        result.set(msg.id, 'approved');
+        return;
+      }
+      const superseded = later.some(
+        (x) => x.metadata?.kind === 'list_setup_proposal' || x.metadata?.kind === 'list_setup_nudge'
+      );
+      result.set(msg.id, superseded ? 'superseded' : 'pending');
+    });
+    return result;
+  }, [messages, dismissedListSetupIds]);
+
+  // The nudge itself just needs to know whether it's already been
+  // answered, so its quick-accept button can stop rendering once a
+  // proposal/decline exists — it isn't itself approvable/dismissable.
+  const listSetupNudgeAnswered = useMemo(() => {
+    const result = new Set<string>();
+    messages.forEach((msg, i) => {
+      if (msg.metadata?.kind !== 'list_setup_nudge') return;
+      const later = messages.slice(i + 1);
+      const answered = later.some(
+        (x) =>
+          x.metadata?.kind === 'list_setup_proposal' || x.metadata?.kind === 'list_setup_declined'
+      );
+      if (answered) result.add(msg.id);
+    });
+    return result;
+  }, [messages]);
+
   // Whether a live, still-actionable preview exists right now — drives
   // hiding the compose-area "Create task" button entirely (see Regenerate,
   // below, which lives on the card itself instead of relabeling this one).
+  // Also true while a list_setup_proposal is pending — there's no point
+  // offering "Create task" while the board still doesn't have anywhere
+  // for it to land; that gets sorted out first.
   const hasPendingSkeleton = useMemo(
-    () => Array.from(skeletonResolution.values()).some((status) => status === 'pending'),
-    [skeletonResolution]
+    () =>
+      Array.from(skeletonResolution.values()).some((status) => status === 'pending') ||
+      Array.from(listSetupResolution.values()).some((status) => status === 'pending'),
+    [skeletonResolution, listSetupResolution]
   );
 
   // Keeps the "N added" badge on the docked bar accurate without requiring
@@ -757,6 +812,35 @@ export function AIChatWidget() {
       setMessages((prev) => [...prev, ...(data.messages || [])]);
     } catch (err: any) {
       console.error('Error sending AI chat message:', err);
+      setMessages((prev) => [...prev, localErrorMessage(err.message || 'Something went wrong. Try again.')]);
+    } finally {
+      setIsSending(false);
+      refocusCompose();
+    }
+  };
+
+  // A fixed-text send, for the list-setup nudge's quick-accept button —
+  // kept separate from sendMessage rather than adding an optional param
+  // to it, since sendMessage is bound directly as onSubmit/onClick in two
+  // places and would otherwise receive the DOM event as that argument.
+  const sendQuickReply = async (text: string) => {
+    if (isSending) return;
+    setIsSending(true);
+    try {
+      const data = await fetchJson('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'message',
+          content: text,
+          workspaceId: effectiveContext.workspaceId,
+          boardId: effectiveContext.boardId,
+        }),
+      });
+      dismissStalePendingSkeletons();
+      setMessages((prev) => [...prev, ...(data.messages || [])]);
+    } catch (err: any) {
+      console.error('Error sending quick reply:', err);
       setMessages((prev) => [...prev, localErrorMessage(err.message || 'Something went wrong. Try again.')]);
     } finally {
       setIsSending(false);
@@ -900,6 +984,46 @@ export function AIChatWidget() {
       // once approved, this id should never be approvable again (belt and
       // suspenders alongside skeletonResolution making the button vanish).
       approvingSkeletonIdsRef.current.delete(m.id);
+    } finally {
+      setConfirmingId(null);
+      refocusCompose();
+    }
+  };
+
+  // Approves a list_setup_proposal — creates the lists for real via
+  // /api/ai/chat/confirm-lists. Same shared confirmingId as approveSkeleton
+  // (only one of these is realistically in flight at a time) so the same
+  // per-message disabled-button check works for both.
+  const approveListSetup = async (m: ChatMessage) => {
+    if (approvingListSetupIdsRef.current.has(m.id)) return;
+    approvingListSetupIdsRef.current.add(m.id);
+
+    // Edited names win if the user touched any of them, same as
+    // skeletonEdits winning over the original title/description.
+    const listNames = (listSetupEdits[m.id] ?? m.metadata.list_names).filter(
+      (name: string) => name.trim()
+    );
+    if (listNames.length === 0) {
+      approvingListSetupIdsRef.current.delete(m.id);
+      return;
+    }
+
+    setConfirmingId(m.id);
+    try {
+      const data = await fetchJson('/api/ai/chat/confirm-lists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          boardId: m.metadata.board_id,
+          workspaceId: m.metadata.workspace_id,
+          listNames,
+        }),
+      });
+      setMessages((prev) => [...prev, ...(data.messages || [])]);
+    } catch (err: any) {
+      console.error('Error creating lists:', err);
+      setMessages((prev) => [...prev, localErrorMessage(err.message || 'Something went wrong. Try again.')]);
+      approvingListSetupIdsRef.current.delete(m.id);
     } finally {
       setConfirmingId(null);
       refocusCompose();
@@ -1657,6 +1781,101 @@ export function AIChatWidget() {
                   );
                 }
 
+                // List setup proposal — a locked preview, not an editable
+                // one (skeleton_proposal is editable because a wrong
+                // title/description guess is common and annoying to redo;
+                // list names here are either the fixed default or exactly
+                // what the user just said a message ago, so there's
+                // nothing worth editing inline — just approve or cancel).
+                if (m.metadata?.kind === 'list_setup_proposal') {
+                  const resolution = listSetupResolution.get(m.id) ?? 'pending';
+                  if (resolution === 'superseded') return null;
+                  const showActions = resolution === 'pending';
+                  const listNames: string[] = listSetupEdits[m.id] ?? m.metadata.list_names ?? [];
+
+                  const updateListName = (index: number, value: string) => {
+                    const next = [...listNames];
+                    next[index] = value;
+                    setListSetupEdits((prev) => ({ ...prev, [m.id]: next }));
+                  };
+
+                  return (
+                    <div
+                      key={m.id}
+                      className={`border rounded-xl p-3 space-y-2 max-w-[92%] transition-colors ${
+                        showActions
+                          ? 'bg-muted/40 border-border/60'
+                          : 'bg-muted/10 border-border/30 opacity-60'
+                      }`}
+                    >
+                      <p className='text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'>
+                        {showActions ? 'Lists to create' : 'Created from this draft'}
+                      </p>
+                      {showActions ? (
+                        // Editable while still pending — unlike the
+                        // skeleton preview these aren't behind a separate
+                        // "Edit" toggle, since there's no long-form content
+                        // here to protect from accidental edits, just short
+                        // names. Locks the moment this stops being pending
+                        // (see the read-only branch below), same as
+                        // skeleton_proposal's fields do.
+                        <div className='flex flex-wrap gap-1.5'>
+                          {listNames.map((name, i) => (
+                            <div
+                              key={i}
+                              className='flex items-center gap-1 pl-1.5 rounded-md bg-background border border-border/60 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30'
+                            >
+                              <span className='text-[10px] font-medium text-muted-foreground'>
+                                {i + 1}
+                              </span>
+                              <input
+                                value={name}
+                                onChange={(e) => updateListName(i, e.target.value)}
+                                className='text-xs font-medium pl-0.5 pr-2 py-1 bg-transparent focus:outline-none w-24'
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className='flex flex-wrap gap-1.5'>
+                          {listNames.map((name, i) => (
+                            <span
+                              key={i}
+                              className='flex items-center gap-1 text-xs font-medium pl-2 pr-2 py-1 rounded-md bg-background border border-border/60'
+                            >
+                              <span className='text-[10px] text-muted-foreground'>{i + 1}</span>
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {showActions && (
+                        <div className='flex items-center gap-1.5 pt-1'>
+                          <button
+                            onClick={() => approveListSetup(m)}
+                            disabled={confirmingId === m.id}
+                            className='flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50'
+                          >
+                            {confirmingId === m.id ? (
+                              <Loader2 className='w-3 h-3 animate-spin' />
+                            ) : (
+                              <Check className='w-3 h-3' />
+                            )}
+                            Create these lists
+                          </button>
+                          <button
+                            onClick={() => setDismissedListSetupIds((prev) => new Set(prev).add(m.id))}
+                            disabled={confirmingId === m.id}
+                            className='text-xs font-medium px-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50'
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
                 return (
                   <div
                     key={m.id}
@@ -1687,6 +1906,32 @@ export function AIChatWidget() {
                             )}
                           </button>
                         ))}
+                      </div>
+                    )}
+
+                    {/* Empty-board nudge — a quick-accept for the default
+                        Todo/Doing/Done, and a link to the board for anyone
+                        who'd rather set it up by hand. The next chat
+                        message (if the quick button isn't used) is read as
+                        the answer to this — see the nudge_pending branch
+                        in /api/ai/chat/route.ts. */}
+                    {m.metadata?.kind === 'list_setup_nudge' && !listSetupNudgeAnswered.has(m.id) && (
+                      <div className='mt-2 flex flex-wrap items-center gap-1.5'>
+                        <button
+                          onClick={() => sendQuickReply('Yes, use the default Todo, Doing, Done lists.')}
+                          disabled={isSending}
+                          className='flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50'
+                        >
+                          <Check className='w-3 h-3' />
+                          Use Todo / Doing / Done
+                        </button>
+                        <Link
+                          href={m.metadata.board_url}
+                          className='flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-muted/60 text-foreground hover:bg-muted transition-colors'
+                        >
+                          <ArrowUpRight className='w-3 h-3' />
+                          Open board
+                        </Link>
                       </div>
                     )}
                   </div>

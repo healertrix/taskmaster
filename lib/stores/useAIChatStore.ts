@@ -87,6 +87,18 @@ interface AIChatState {
   setSkeletonEdits: (updater: (prev: Record<string, SkeletonEdit>) => Record<string, SkeletonEdit>) => void;
   dismissedSkeletonIds: Set<string>;
   setDismissedSkeletonIds: (updater: (prev: Set<string>) => Set<string>) => void;
+
+  // Same "Cancel never calls an API, just hides it locally" pattern, for
+  // list_setup_proposal cards instead of skeleton_proposal ones.
+  dismissedListSetupIds: Set<string>;
+  setDismissedListSetupIds: (updater: (prev: Set<string>) => Set<string>) => void;
+  // Edited list names for a still-pending list_setup_proposal — same
+  // "edits live separately from the message until approved" shape as
+  // skeletonEdits above.
+  listSetupEdits: Record<string, string[]>;
+  setListSetupEdits: (
+    updater: (prev: Record<string, string[]>) => Record<string, string[]>
+  ) => void;
   // Set once approveSkeleton succeeds for a given skeleton message — a
   // skeleton stays actionable (editable/approvable) until it's explicitly
   // approved or dismissed, regardless of what's said in chat after it.
@@ -190,6 +202,10 @@ export const useAIChatStore = create<AIChatState>()(
     setSkeletonEdits: (updater) => set((state) => ({ skeletonEdits: updater(state.skeletonEdits) })),
     dismissedSkeletonIds: new Set(),
     setDismissedSkeletonIds: (updater) => set((state) => ({ dismissedSkeletonIds: updater(state.dismissedSkeletonIds) })),
+    dismissedListSetupIds: new Set(),
+    setDismissedListSetupIds: (updater) => set((state) => ({ dismissedListSetupIds: updater(state.dismissedListSetupIds) })),
+    listSetupEdits: {},
+    setListSetupEdits: (updater) => set((state) => ({ listSetupEdits: updater(state.listSetupEdits) })),
     approvedSkeletonIds: new Set(),
     setApprovedSkeletonIds: (updater) => set((state) => ({ approvedSkeletonIds: updater(state.approvedSkeletonIds) })),
 

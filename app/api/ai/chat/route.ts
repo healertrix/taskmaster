@@ -3,8 +3,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getActiveClientForUser } from '@/utils/ai/client';
 import { getDraftMessages } from '@/utils/ai/chatDraft';
 import { getBoardSuggestions } from '@/utils/ai/boardSuggestions';
+import { getListSetupState, isBoardEmpty } from '@/utils/ai/listSetup';
 
 const HISTORY_PAGE_SIZE = 5;
+
+// Used only once a "want default lists?" nudge has already been sent for
+// this board and the user has just replied — decides what they meant.
+const LIST_NAMES_SYSTEM_PROMPT = `The user was just asked whether an empty board should get default lists (Todo, Doing, Done) set up, or their own custom list names instead. Read their reply and decide what to do.
+
+Respond ONLY with JSON of this exact shape: {"declined": boolean, "listNames": string[]}.
+- If they're declining / saying no / not now / skip it / maybe later: {"declined": true, "listNames": []}.
+- If they accept the default (yes, sounds good, continue, use the default, sure, etc.): {"declined": false, "listNames": ["Todo", "Doing", "Done"]}.
+- If they name their own lists (e.g. "make it Doing, QA and Archive"): {"declined": false, "listNames": [...]} with those exact names, in the order given, capitalized naturally. Always at least one name when not declining.`;
 
 const CONVERSATION_SYSTEM_PROMPT = `You're the reply voice of a chat widget whose only purpose is helping someone describe ONE task before they click a separate "Create task" button — you never create anything yourself, you just talk with them while they describe it.
 
@@ -141,6 +151,112 @@ export async function POST(request: NextRequest) {
     if (error || !userMessage) {
       console.error('Error inserting user chat message:', error);
       return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
+    }
+
+    // Empty-board list setup — checked before the normal conversational
+    // reply, so an empty board interrupts here rather than after a whole
+    // task has already been drafted with nowhere to land (skeleton
+    // generation checks emptiness too, but only after title/description
+    // work has already happened).
+    if (boardId) {
+      const listSetupState = await getListSetupState(supabase, user.id, boardId);
+
+      if (listSetupState.kind === 'nudge_pending') {
+        // The nudge was already sent — this message is the user's answer,
+        // not more task content. Decipher it instead of replying normally.
+        const activeClient = await getActiveClientForUser(supabase, user.id);
+        let declined = false;
+        let listNames: string[] = ['Todo', 'Doing', 'Done'];
+        if (activeClient) {
+          try {
+            const completion = await activeClient.client.chat.completions.create({
+              model: activeClient.model,
+              response_format: { type: 'json_object' },
+              messages: [
+                { role: 'system', content: LIST_NAMES_SYSTEM_PROMPT },
+                { role: 'user', content: content.trim() },
+              ],
+            });
+            const raw = JSON.parse(completion.choices[0]?.message?.content || '{}');
+            declined = raw.declined === true;
+            if (Array.isArray(raw.listNames) && raw.listNames.length > 0) {
+              listNames = raw.listNames
+                .filter((n: unknown) => typeof n === 'string' && n.trim())
+                .map((n: string) => n.trim());
+            }
+          } catch (err) {
+            console.error(
+              'AI list-name deciphering failed, defaulting to Todo/Doing/Done:',
+              err
+            );
+          }
+        }
+
+        if (declined) {
+          const { data: declineMessage } = await supabase
+            .from('ai_chat_messages')
+            .insert({
+              profile_id: user.id,
+              role: 'assistant',
+              message_type: 'text',
+              content:
+                "No problem — just say the word whenever you're ready to set up lists, or open the board and do it yourself.",
+              metadata: { kind: 'list_setup_declined', board_id: boardId },
+              resolved_workspace_id: workspaceId || null,
+              resolved_board_id: boardId,
+            })
+            .select('*')
+            .single();
+          return NextResponse.json({ messages: [userMessage, declineMessage] });
+        }
+
+        const { data: proposalMessage } = await supabase
+          .from('ai_chat_messages')
+          .insert({
+            profile_id: user.id,
+            role: 'assistant',
+            message_type: 'text',
+            content: `Here's what I'll create: ${listNames.join(', ')}`,
+            metadata: {
+              kind: 'list_setup_proposal',
+              list_names: listNames,
+              board_id: boardId,
+              workspace_id: workspaceId || null,
+            },
+            resolved_workspace_id: workspaceId || null,
+            resolved_board_id: boardId,
+          })
+          .select('*')
+          .single();
+        return NextResponse.json({ messages: [userMessage, proposalMessage] });
+      }
+
+      if (listSetupState.kind === 'none') {
+        const empty = await isBoardEmpty(supabase, boardId);
+        if (empty) {
+          const { data: nudgeMessage } = await supabase
+            .from('ai_chat_messages')
+            .insert({
+              profile_id: user.id,
+              role: 'assistant',
+              message_type: 'text',
+              content:
+                "This board doesn't have any lists yet, so there's nowhere for a task to go. Want me to set up Todo / Doing / Done as a starting point? Just say yes, or tell me the list names you'd rather use — or open the board and set it up yourself.",
+              metadata: {
+                kind: 'list_setup_nudge',
+                board_id: boardId,
+                board_url: `/board/${boardId}`,
+              },
+              resolved_workspace_id: workspaceId || null,
+              resolved_board_id: boardId,
+            })
+            .select('*')
+            .single();
+          return NextResponse.json({ messages: [userMessage, nudgeMessage] });
+        }
+      }
+      // 'proposal_pending', or the board already has lists — fall through
+      // to the normal conversational reply below.
     }
 
     // A real back-and-forth needs a reply to each turn, not silence until
