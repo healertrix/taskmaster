@@ -4,7 +4,15 @@ import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { CheckSquare, Lock, Zap, AlertCircle, Loader2 } from 'lucide-react';
+import {
+  CheckSquare,
+  Lock,
+  Zap,
+  AlertCircle,
+  Loader2,
+  Sparkles,
+  Github,
+} from 'lucide-react';
 
 export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
@@ -76,20 +84,21 @@ export default function Login() {
             </div>
 
             <h2 className='text-3xl font-bold mb-2 text-foreground heading-enter'>
-              Boost Your Productivity
+              Plan to Shipped, in One Place
             </h2>
             <p className='text-muted-foreground text-center text-base leading-relaxed max-w-md mb-4'>
-              Taskmaster helps teams move work forward efficiently with
-              collaborative boards, lists, and cards
+              Taskmaster brings boards, GitHub activity, and AI assistance
+              into one place — plan the work, connect the code, and let
+              automation handle the busywork in between.
             </p>
 
             {/* Feature detail row */}
             <div className='flex items-center gap-3 text-xs text-muted-foreground mb-6'>
               <span>Kanban boards</span>
               <span className='w-1 h-1 rounded-full bg-border'></span>
-              <span>Real-time collaboration</span>
+              <span>GitHub integration</span>
               <span className='w-1 h-1 rounded-full bg-border'></span>
-              <span>Smart automation</span>
+              <span>AI-powered automation</span>
             </div>
 
             {/* Product preview */}
@@ -102,13 +111,15 @@ export default function Login() {
                 <div className='ml-3 h-3 w-32 bg-muted/30 rounded-full'></div>
 
                 {/* Tab indicator */}
-                <div className='ml-auto flex'>
+                <div className='ml-auto flex items-center'>
                   <div className='px-2 py-0.5 rounded-t-md bg-background/50 border-b-2 border-primary text-xs font-medium text-[10px]'>
-                    Dashboard
+                    Workspace
                   </div>
                   <div className='px-2 py-0.5 text-xs text-muted-foreground text-[10px]'>
-                    Projects
+                    Boards
                   </div>
+                  <Github className='w-3 h-3 text-muted-foreground ml-1.5' />
+                  <Sparkles className='w-3 h-3 text-primary ml-1.5' />
                 </div>
               </div>
 
@@ -230,10 +241,10 @@ export default function Login() {
 
           <div className='flex flex-col items-center space-y-4 text-center mb-8 heading-enter'>
             <h1 className='text-3xl font-bold leading-tight tracking-tight'>
-              Welcome Back
+              Welcome to Taskmaster
             </h1>
             <p className='text-muted-foreground max-w-sm'>
-              Sign in to your account to continue your productivity journey
+              Sign in with Google to start managing your projects
             </p>
           </div>
 
