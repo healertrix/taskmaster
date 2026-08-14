@@ -70,10 +70,12 @@ import {
   List,
   Tag,
   ListChecks,
+  LayoutTemplate,
 } from 'lucide-react';
 import LabelModal from '../../components/board/LabelModal';
 import ManageCustomFieldsModal from '../../components/board/ManageCustomFieldsModal';
 import { useBoardCustomFields } from '@/hooks/useBoardCustomFields';
+import type { TemplateStructure } from '@/utils/boardTemplates';
 
 // Define card/task type
 interface Task {
@@ -247,6 +249,10 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   const [showManageLabelsModal, setShowManageLabelsModal] = useState(false);
   const [showManageCustomFieldsModal, setShowManageCustomFieldsModal] =
     useState(false);
+  const [showSaveAsTemplateModal, setShowSaveAsTemplateModal] = useState(false);
+  const [saveAsTemplateName, setSaveAsTemplateName] = useState('');
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [saveTemplateError, setSaveTemplateError] = useState<string | null>(null);
   const [showBoardDeletionModal, setShowBoardDeletionModal] = useState(false);
   const [deletionConfirmName, setDeletionConfirmName] = useState('');
   const [isDeletingBoard, setIsDeletingBoard] = useState(false);
@@ -1614,6 +1620,17 @@ export default function BoardPage({ params }: { params: { id: string } }) {
                         Manage custom fields
                       </div>
                     </button>
+                    <button
+                      onClick={() => {
+                        setSaveAsTemplateName(board.name);
+                        setShowSaveAsTemplateModal(true);
+                        setShowSettingsDropdown(false);
+                      }}
+                      className='w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted/50 rounded-lg transition-colors'
+                    >
+                      <LayoutTemplate className='w-4 h-4 text-muted-foreground' />
+                      <div className='font-medium text-sm'>Save as template</div>
+                    </button>
                   </div>
 
                   {/* Delete Board Option — same single-line size as
@@ -1785,6 +1802,124 @@ export default function BoardPage({ params }: { params: { id: string } }) {
         isLoading={isLoadingCustomFields}
         onFieldsChanged={refetchCustomFields}
       />
+
+      {/* Save as template — snapshots this board's current lists/labels/
+          custom fields into a new template. Pure client-side assembly +
+          POST /api/templates, no dedicated endpoint needed since this
+          page already has all three loaded. */}
+      {showSaveAsTemplateModal && (
+        <div className='fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4'>
+          <div className='bg-card/90 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-sm border border-border p-6 animate-in fade-in-50 zoom-in-95 duration-200'>
+            <div className='flex items-center gap-3 mb-4'>
+              <div className='w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center'>
+                <LayoutTemplate className='w-5 h-5 text-primary' />
+              </div>
+              <div>
+                <h3 className='text-lg font-semibold text-foreground'>
+                  Save as template
+                </h3>
+                <p className='text-xs text-muted-foreground'>
+                  Copies this board's lists, labels, and custom fields
+                </p>
+              </div>
+            </div>
+
+            <input
+              type='text'
+              value={saveAsTemplateName}
+              onChange={(e) => setSaveAsTemplateName(e.target.value)}
+              placeholder='Template name'
+              autoFocus
+              className='w-full px-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors mb-2'
+            />
+            {saveTemplateError && (
+              <p className='text-sm text-destructive mb-2'>{saveTemplateError}</p>
+            )}
+
+            <div className='flex gap-3 mt-4'>
+              <button
+                onClick={() => setShowSaveAsTemplateModal(false)}
+                disabled={isSavingTemplate}
+                className='flex-1 px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!saveAsTemplateName.trim()) {
+                    setSaveTemplateError('Template name is required');
+                    return;
+                  }
+                  setIsSavingTemplate(true);
+                  setSaveTemplateError(null);
+                  try {
+                    // Fetched fresh here rather than read from
+                    // getBoardLabels() — that reads the shared label
+                    // cache, which can still be empty if this is clicked
+                    // shortly after the board page loads, before the
+                    // board's own label-prefetch request has resolved.
+                    // lists/customFields don't have this problem (they're
+                    // guaranteed loaded by the time this page renders at
+                    // all), but labels silently saved as [] when hit by
+                    // this race — confirmed in a saved template that had
+                    // real lists/fields but an empty labels array.
+                    const labelsResponse = await fetch(
+                      `/api/boards/${board.id}/labels`
+                    );
+                    const labelsData = await labelsResponse.json();
+                    const boardLabels = labelsResponse.ok
+                      ? labelsData.labels || []
+                      : [];
+
+                    const structure: TemplateStructure = {
+                      lists: lists.map((l) => ({ id: l.id, name: l.name })),
+                      labels: boardLabels.map((label: any) => ({
+                        id: label.id,
+                        name: label.name || '',
+                        color: label.color,
+                      })),
+                      customFields: customFields.map((f) => ({
+                        id: f.id,
+                        name: f.name,
+                        definition: f.definition,
+                      })),
+                    };
+                    const response = await fetch('/api/templates', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        name: saveAsTemplateName.trim(),
+                        structure,
+                      }),
+                    });
+                    if (!response.ok) {
+                      const data = await response.json();
+                      setSaveTemplateError(data.error || 'Failed to save template');
+                      return;
+                    }
+                    setShowSaveAsTemplateModal(false);
+                  } catch (err) {
+                    console.error('Failed to save template:', err);
+                    setSaveTemplateError('Failed to save template. Please try again.');
+                  } finally {
+                    setIsSavingTemplate(false);
+                  }
+                }}
+                disabled={isSavingTemplate || !saveAsTemplateName.trim()}
+                className='flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+              >
+                {isSavingTemplate ? (
+                  <>
+                    <Loader2 className='w-4 h-4 animate-spin' /> Saving...
+                  </>
+                ) : (
+                  'Save template'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Board Deletion Confirmation Modal */}
       {showBoardDeletionModal && board && (

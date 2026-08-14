@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import Image from 'next/image';
-import { User, Settings, LogOut } from 'lucide-react';
+import { User, Settings, LogOut, LayoutTemplate } from 'lucide-react';
 
 export function UserProfileMenu() {
   const { user, signOut } = useAuth();
@@ -90,6 +90,15 @@ export function UserProfileMenu() {
             >
               <User className='h-4 w-4' />
               <span>Profile</span>
+            </Link>
+
+            <Link
+              href='/templates'
+              className='flex items-center gap-3 px-4 py-2.5 hover:bg-muted/20 w-full text-left text-sm'
+              onClick={() => setIsOpen(false)}
+            >
+              <LayoutTemplate className='h-4 w-4' />
+              <span>Templates</span>
             </Link>
 
             <Link

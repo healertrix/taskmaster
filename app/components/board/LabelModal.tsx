@@ -8,7 +8,6 @@ import {
   Trash2,
   Check,
   Palette,
-  Sparkles,
   Pipette,
   AlertTriangle,
 } from 'lucide-react';
@@ -44,51 +43,17 @@ interface LabelModalProps {
   cachedCardLabels?: CardLabel[];
 }
 
-const LABEL_COLORS = [
-  // Vibrant Colors
-  { name: 'Emerald', value: '#10b981', category: 'vibrant' },
-  { name: 'Blue', value: '#3b82f6', category: 'vibrant' },
-  { name: 'Purple', value: '#8b5cf6', category: 'vibrant' },
-  { name: 'Pink', value: '#ec4899', category: 'vibrant' },
-  { name: 'Red', value: '#ef4444', category: 'vibrant' },
-  { name: 'Orange', value: '#f97316', category: 'vibrant' },
-  { name: 'Yellow', value: '#eab308', category: 'vibrant' },
-  { name: 'Lime', value: '#84cc16', category: 'vibrant' },
-
-  // Soft Colors
-  { name: 'Soft Green', value: '#6ee7b7', category: 'soft' },
-  { name: 'Soft Blue', value: '#93c5fd', category: 'soft' },
-  { name: 'Soft Purple', value: '#c4b5fd', category: 'soft' },
-  { name: 'Soft Pink', value: '#f9a8d4', category: 'soft' },
-  { name: 'Soft Red', value: '#fca5a5', category: 'soft' },
-  { name: 'Soft Orange', value: '#fed7aa', category: 'soft' },
-  { name: 'Soft Yellow', value: '#fde047', category: 'soft' },
-  { name: 'Soft Lime', value: '#bef264', category: 'soft' },
-
-  // Dark Colors
-  { name: 'Forest', value: '#065f46', category: 'dark' },
-  { name: 'Navy', value: '#1e3a8a', category: 'dark' },
-  { name: 'Indigo', value: '#3730a3', category: 'dark' },
-  { name: 'Plum', value: '#7c2d12', category: 'dark' },
-  { name: 'Crimson', value: '#991b1b', category: 'dark' },
-  { name: 'Amber', value: '#92400e', category: 'dark' },
-  { name: 'Slate', value: '#374151', category: 'dark' },
-  { name: 'Stone', value: '#57534e', category: 'dark' },
-
-  // Neutral Colors
-  { name: 'Gray', value: '#6b7280', category: 'neutral' },
-  { name: 'Cool Gray', value: '#64748b', category: 'neutral' },
-  { name: 'Zinc', value: '#71717a', category: 'neutral' },
-  { name: 'Neutral', value: '#737373', category: 'neutral' },
+// Just for picking a random starting color on "Create a new label" — the
+// curated Vibrant/Soft/Dark/Neutral palette grid + category tabs were
+// removed entirely; the color picker is now always the custom
+// swatch+hex input, nothing else to switch between.
+const VIBRANT_COLORS = [
+  '#10b981', '#3b82f6', '#8b5cf6', '#ec4899',
+  '#ef4444', '#f97316', '#eab308', '#84cc16',
 ];
 
-const COLOR_CATEGORIES = [
-  { id: 'vibrant', name: 'Vibrant', icon: Sparkles },
-  { id: 'soft', name: 'Soft', icon: Palette },
-  { id: 'dark', name: 'Dark', icon: Palette },
-  { id: 'neutral', name: 'Neutral', icon: Palette },
-  { id: 'custom', name: 'Custom', icon: Pipette },
-];
+const randomVibrantColor = () =>
+  VIBRANT_COLORS[Math.floor(Math.random() * VIBRANT_COLORS.length)];
 
 // Helper function to determine if a color is light (needs black text)
 const isColorLight = (hexColor: string): boolean => {
@@ -119,9 +84,8 @@ export default function LabelModal({
   const [editColor, setEditColor] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newColor, setNewColor] = useState(LABEL_COLORS[0].value);
-  const [selectedCategory, setSelectedCategory] = useState('vibrant');
-  const [customColor, setCustomColor] = useState('#3b82f6');
+  const [newColor, setNewColor] = useState(randomVibrantColor);
+  const [customColor, setCustomColor] = useState(newColor);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
     label: Label | null;
@@ -382,7 +346,12 @@ export default function LabelModal({
     setEditingLabel(label.id);
     setEditName(label.name || '');
     setEditColor(label.color);
-    setSelectedCategory('vibrant');
+    // The color picker is bound to customColor, not editColor directly
+    // (so partial hex typing like "#3b8" doesn't commit until it's a full
+    // 7-character value) — this was previously never synced here, so the
+    // picker could show a stale color left over from a prior session
+    // instead of what's actually saved for this label.
+    setCustomColor(label.color);
   };
 
   const cancelEdit = () => {
@@ -394,15 +363,10 @@ export default function LabelModal({
   const cancelCreate = () => {
     setIsCreating(false);
     setNewName('');
-    setNewColor(LABEL_COLORS[0].value);
-    setSelectedCategory('vibrant');
-    setCustomColor('#3b82f6');
+    const color = randomVibrantColor();
+    setNewColor(color);
+    setCustomColor(color);
   };
-
-  const filteredColors =
-    selectedCategory === 'custom'
-      ? []
-      : LABEL_COLORS.filter((color) => color.category === selectedCategory);
 
   if (!isOpen) return null;
 
@@ -584,87 +548,46 @@ export default function LabelModal({
                         className='w-full px-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors'
                       />
 
-                      {/* Color Categories */}
-                      <div className='space-y-3'>
-                        <div className='flex gap-2 flex-wrap'>
-                          {COLOR_CATEGORIES.map((category) => {
-                            const Icon = category.icon;
-                            return (
-                              <button
-                                key={category.id}
-                                onClick={() => setSelectedCategory(category.id)}
-                                className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                                  selectedCategory === category.id
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                                }`}
-                              >
-                                <Icon className='w-3 h-3' />
-                                {category.name}
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        {selectedCategory === 'custom' ? (
-                          <div className='space-y-3'>
-                            <div className='flex items-center gap-3'>
-                              <div className='relative group'>
-                                <input
-                                  type='color'
-                                  value={customColor}
-                                  onChange={(e) => {
-                                    setCustomColor(e.target.value);
-                                    setEditColor(e.target.value);
-                                  }}
-                                  className='w-12 h-12 rounded-lg border-0 cursor-pointer opacity-0 absolute inset-0 z-10'
-                                  title='Choose custom color'
-                                />
-                                <div
-                                  className='w-12 h-12 rounded-lg border-2 border-border shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-200 relative overflow-hidden pointer-events-none'
-                                  style={{ backgroundColor: customColor }}
-                                >
-                                  <div className='absolute bottom-1 right-1 w-3 h-3 bg-white/90 rounded-full flex items-center justify-center shadow-sm pointer-events-none'>
-                                    <Pipette className='w-2 h-2 text-gray-600' />
-                                  </div>
-                                </div>
-                              </div>
-                              <div className='flex-1'>
-                                <input
-                                  type='text'
-                                  value={customColor}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    if (value.match(/^#[0-9A-Fa-f]{0,6}$/)) {
-                                      setCustomColor(value);
-                                      if (value.length === 7) {
-                                        setEditColor(value);
-                                      }
-                                    }
-                                  }}
-                                  placeholder='#3b82f6'
-                                  className='w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors font-mono text-sm tracking-wider'
-                                />
-                              </div>
+                      {/* Color — just the custom swatch + hex input, no
+                          curated palette/category tabs. */}
+                      <div className='flex items-center gap-3'>
+                        <div className='relative group'>
+                          <input
+                            type='color'
+                            value={customColor}
+                            onChange={(e) => {
+                              setCustomColor(e.target.value);
+                              setEditColor(e.target.value);
+                            }}
+                            className='w-12 h-12 rounded-lg border-0 cursor-pointer opacity-0 absolute inset-0 z-10'
+                            title='Choose custom color'
+                          />
+                          <div
+                            className='w-12 h-12 rounded-lg border-2 border-border shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-200 relative overflow-hidden pointer-events-none'
+                            style={{ backgroundColor: customColor }}
+                          >
+                            <div className='absolute bottom-1 right-1 w-3 h-3 bg-white/90 rounded-full flex items-center justify-center shadow-sm pointer-events-none'>
+                              <Pipette className='w-2 h-2 text-gray-600' />
                             </div>
                           </div>
-                        ) : (
-                          <div className='grid grid-cols-8 gap-2'>
-                            {filteredColors.map((color) => (
-                              <button
-                                key={color.value}
-                                onClick={() => setEditColor(color.value)}
-                                className={`w-8 h-8 rounded-lg border-2 transition-all hover:scale-110 ${
-                                  editColor === color.value
-                                    ? 'border-white shadow-lg scale-110 ring-2 ring-primary/50'
-                                    : 'border-transparent hover:border-white/50'
-                                }`}
-                                style={{ backgroundColor: color.value }}
-                                title={color.name}
-                              />
-                            ))}
-                          </div>
-                        )}
+                        </div>
+                        <div className='flex-1'>
+                          <input
+                            type='text'
+                            value={customColor}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (value.match(/^#[0-9A-Fa-f]{0,6}$/)) {
+                                setCustomColor(value);
+                                if (value.length === 7) {
+                                  setEditColor(value);
+                                }
+                              }
+                            }}
+                            placeholder='#3b82f6'
+                            className='w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors font-mono text-sm tracking-wider'
+                          />
+                        </div>
                       </div>
 
                       <div className='flex gap-2'>
@@ -704,87 +627,49 @@ export default function LabelModal({
                       className='w-full px-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors'
                     />
 
-                    {/* Color Categories */}
-                    <div className='space-y-3'>
-                      <div className='flex gap-2 flex-wrap'>
-                        {COLOR_CATEGORIES.map((category) => {
-                          const Icon = category.icon;
-                          return (
-                            <button
-                              key={category.id}
-                              onClick={() => setSelectedCategory(category.id)}
-                              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                                selectedCategory === category.id
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                              }`}
-                            >
-                              <Icon className='w-3 h-3' />
-                              {category.name}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {selectedCategory === 'custom' ? (
-                        <div className='space-y-3'>
-                          <div className='flex items-center gap-3'>
-                            <div className='relative group'>
-                              <input
-                                type='color'
-                                value={customColor}
-                                onChange={(e) => {
-                                  setCustomColor(e.target.value);
-                                  setNewColor(e.target.value);
-                                }}
-                                className='w-16 h-16 rounded-lg border-0 cursor-pointer opacity-0 absolute inset-0 z-10'
-                                title='Choose custom color'
-                              />
-                              <div
-                                className='w-16 h-16 rounded-lg border-2 border-border shadow-xl group-hover:shadow-2xl group-hover:scale-105 transition-all duration-200 relative overflow-hidden pointer-events-none'
-                                style={{ backgroundColor: customColor }}
-                              >
-                                <div className='absolute bottom-1 right-1 w-4 h-4 bg-white/90 rounded-full flex items-center justify-center shadow-md pointer-events-none'>
-                                  <Pipette className='w-2.5 h-2.5 text-gray-600' />
-                                </div>
-                              </div>
-                            </div>
-                            <div className='flex-1'>
-                              <input
-                                type='text'
-                                value={customColor}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  if (value.match(/^#[0-9A-Fa-f]{0,6}$/)) {
-                                    setCustomColor(value);
-                                    if (value.length === 7) {
-                                      setNewColor(value);
-                                    }
-                                  }
-                                }}
-                                placeholder='#3b82f6'
-                                className='w-full px-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors font-mono text-base tracking-wider'
-                              />
-                            </div>
+                    {/* Color — just the custom swatch + hex input, no
+                        curated palette/category tabs. Random starting
+                        color each time (set when this section is opened,
+                        see cancelCreate/the "Create a new label" button),
+                        pick your own from there. */}
+                    <div className='flex items-center gap-3'>
+                      <div className='relative group'>
+                        <input
+                          type='color'
+                          value={customColor}
+                          onChange={(e) => {
+                            setCustomColor(e.target.value);
+                            setNewColor(e.target.value);
+                          }}
+                          className='w-16 h-16 rounded-lg border-0 cursor-pointer opacity-0 absolute inset-0 z-10'
+                          title='Choose custom color'
+                        />
+                        <div
+                          className='w-16 h-16 rounded-lg border-2 border-border shadow-xl group-hover:shadow-2xl group-hover:scale-105 transition-all duration-200 relative overflow-hidden pointer-events-none'
+                          style={{ backgroundColor: customColor }}
+                        >
+                          <div className='absolute bottom-1 right-1 w-4 h-4 bg-white/90 rounded-full flex items-center justify-center shadow-md pointer-events-none'>
+                            <Pipette className='w-2.5 h-2.5 text-gray-600' />
                           </div>
                         </div>
-                      ) : (
-                        <div className='grid grid-cols-8 gap-2'>
-                          {filteredColors.map((color) => (
-                            <button
-                              key={color.value}
-                              onClick={() => setNewColor(color.value)}
-                              className={`w-10 h-10 rounded-lg border-2 transition-all hover:scale-110 ${
-                                newColor === color.value
-                                  ? 'border-white shadow-lg scale-110 ring-2 ring-primary/50'
-                                  : 'border-transparent hover:border-white/50'
-                              }`}
-                              style={{ backgroundColor: color.value }}
-                              title={color.name}
-                            />
-                          ))}
-                        </div>
-                      )}
+                      </div>
+                      <div className='flex-1'>
+                        <input
+                          type='text'
+                          value={customColor}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value.match(/^#[0-9A-Fa-f]{0,6}$/)) {
+                              setCustomColor(value);
+                              if (value.length === 7) {
+                                setNewColor(value);
+                              }
+                            }
+                          }}
+                          placeholder='#3b82f6'
+                          className='w-full px-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors font-mono text-base tracking-wider'
+                        />
+                      </div>
                     </div>
 
                     <button
@@ -803,7 +688,12 @@ export default function LabelModal({
             {!isCreating && !editingLabel && (
               <div className='sticky bottom-0 bg-card/95 backdrop-blur-xl border-t border-border p-4'>
                 <button
-                  onClick={() => setIsCreating(true)}
+                  onClick={() => {
+                    const color = randomVibrantColor();
+                    setNewColor(color);
+                    setCustomColor(color);
+                    setIsCreating(true);
+                  }}
                   className='w-full flex items-center justify-center gap-3 py-3 bg-primary/10 hover:bg-primary/15 rounded-xl border border-dashed border-primary/30 hover:border-primary/50 transition-colors group'
                 >
                   <div className='w-8 h-8 bg-primary/10 group-hover:bg-primary/20 rounded-lg flex items-center justify-center transition-colors'>

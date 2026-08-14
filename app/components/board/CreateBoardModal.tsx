@@ -16,6 +16,7 @@ import {
   User,
   ChevronDown,
   Check,
+  LayoutTemplate,
 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
@@ -24,6 +25,7 @@ import {
   type WorkspaceWithPermissions,
 } from '@/hooks/useWorkspacesWithPermissions';
 import { colorForEntity } from '@/utils/idColor';
+import { useTemplates, type BoardTemplate } from '@/hooks/useTemplates';
 
 // Board color is no longer user-picked here — it's derived from the
 // board's own display number once it's created (see utils/idColor.ts).
@@ -55,10 +57,12 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
     const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(
       workspaceId || ''
     );
+    const [selectedTemplateId, setSelectedTemplateId] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const router = useRouter();
+    const { templates } = useTemplates();
 
     // Use the new hook to get workspaces with permissions
     const {
@@ -91,6 +95,7 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
         // Form reset on modal open
         setName('');
         setDescription('');
+        setSelectedTemplateId('');
 
         // Set default workspace
         if (workspaceId) {
@@ -189,6 +194,7 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
             color: PLACEHOLDER_BOARD_COLOR,
             workspace_id: selectedWorkspaceId,
             visibility: 'workspace', // Default for workspace creation
+            template_id: selectedTemplateId || undefined,
           }),
         });
 
@@ -262,6 +268,26 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
           )}
 
           <form onSubmit={handleSubmit} className='space-y-4'>
+            {/* Create using template — a personal template (usable across
+                any workspace, per how templates are scoped). Selecting one
+                doesn't touch the board name below; the two are
+                independent — there's no preview/customize step either,
+                since anything the template gets wrong is trivially
+                fixable on the real board afterward. */}
+            {templates.length > 0 && (
+              <div>
+                <label className='block text-sm font-medium text-foreground mb-1'>
+                  Create using template
+                </label>
+                <CustomTemplateDropdown
+                  templates={templates}
+                  selectedTemplateId={selectedTemplateId}
+                  onSelect={setSelectedTemplateId}
+                  disabled={isLoading}
+                />
+              </div>
+            )}
+
             {/* Board Name */}
             <div>
               <label
@@ -580,6 +606,109 @@ const CustomWorkspaceDropdown = ({
               );
             })
           )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Custom Template Dropdown — same visual pattern as CustomWorkspaceDropdown
+// above, not the bare native <select> this replaced.
+const CustomTemplateDropdown = ({
+  templates,
+  selectedTemplateId,
+  onSelect,
+  disabled,
+}: {
+  templates: BoardTemplate[];
+  selectedTemplateId: string;
+  onSelect: (id: string) => void;
+  disabled: boolean;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen]);
+
+  return (
+    <div className='relative' ref={dropdownRef}>
+      <button
+        type='button'
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className='w-full p-3 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed hover:bg-background/80 transition-colors'
+      >
+        <div className='flex items-center gap-2 min-w-0'>
+          <LayoutTemplate className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+          <span className='truncate'>
+            {selectedTemplate ? selectedTemplate.name : 'Blank board'}
+          </span>
+        </div>
+        <ChevronDown
+          className={`w-4 h-4 text-muted-foreground transition-transform flex-shrink-0 ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className='absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-md shadow-lg z-10 max-h-60 overflow-y-auto'>
+          <button
+            type='button'
+            onClick={() => {
+              onSelect('');
+              setIsOpen(false);
+            }}
+            className={`w-full p-3 text-left hover:bg-muted/50 flex items-center gap-2 transition-colors ${
+              !selectedTemplateId ? 'bg-muted/30' : ''
+            }`}
+          >
+            <span className='flex-1'>Blank board</span>
+            {!selectedTemplateId && <Check className='w-4 h-4 text-primary' />}
+          </button>
+          {templates.map((template) => {
+            const isSelected = template.id === selectedTemplateId;
+            return (
+              <button
+                key={template.id}
+                type='button'
+                onClick={() => {
+                  onSelect(template.id);
+                  setIsOpen(false);
+                }}
+                className={`w-full p-3 text-left hover:bg-muted/50 flex items-center gap-2 transition-colors ${
+                  isSelected ? 'bg-muted/30' : ''
+                }`}
+              >
+                <LayoutTemplate className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+                <span className='flex-1 truncate'>{template.name}</span>
+                {isSelected && <Check className='w-4 h-4 text-primary' />}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

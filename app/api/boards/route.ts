@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
       color,
       workspace_id,
       visibility = 'workspace',
+      template_id,
     } = body;
 
     // Validate required fields
@@ -187,6 +188,87 @@ export async function POST(request: NextRequest) {
     if (memberError) {
       console.error('Board member creation error:', memberError);
       // Continue anyway as the board was created successfully
+    }
+
+    // Apply a template if one was chosen — a one-time copy, not a live
+    // link: fresh rows with their own board-scoped ids/numbers, no
+    // reference back to the template stored anywhere. Best-effort: if
+    // this partially fails partway through, the board itself still
+    // exists and is usable, just without the rest of the template's
+    // contents, rather than failing board creation entirely over it.
+    if (template_id) {
+      try {
+        // RLS (owner_id = auth.uid()) already scopes this to the
+        // current user's own templates — a template_id belonging to
+        // someone else simply won't be found.
+        const { data: template } = await supabase
+          .from('board_templates')
+          .select('structure')
+          .eq('id', template_id)
+          .single();
+
+        const structure = template?.structure as
+          | {
+              lists?: { name: string }[];
+              labels?: { name: string; color: string }[];
+              customFields?: { name: string; definition: unknown }[];
+            }
+          | undefined;
+
+        if (structure?.lists?.length) {
+          for (const list of structure.lists) {
+            const { data: listNumber } = await supabase.rpc(
+              'next_list_number',
+              { p_board_id: board.id }
+            );
+            await supabase.from('lists').insert({
+              name: list.name,
+              board_id: board.id,
+              position: 0, // set below, once all lists exist
+              number: listNumber,
+            });
+          }
+          // Positions assigned after insert, in the template's own
+          // order — simpler than computing running positions inline
+          // above while numbers are also being claimed one at a time.
+          const { data: insertedLists } = await supabase
+            .from('lists')
+            .select('id')
+            .eq('board_id', board.id)
+            .order('number', { ascending: true });
+          if (insertedLists) {
+            await Promise.all(
+              insertedLists.map((l, index) =>
+                supabase.from('lists').update({ position: index }).eq('id', l.id)
+              )
+            );
+          }
+        }
+
+        if (structure?.labels?.length) {
+          await supabase.from('labels').insert(
+            structure.labels.map((label) => ({
+              name: label.name,
+              color: label.color,
+              board_id: board.id,
+            }))
+          );
+        }
+
+        if (structure?.customFields?.length) {
+          await supabase.from('custom_fields').insert(
+            structure.customFields.map((field, index) => ({
+              name: field.name,
+              definition: field.definition,
+              board_id: board.id,
+              position: index,
+            }))
+          );
+        }
+      } catch (templateError) {
+        console.error('Error applying template:', templateError);
+        // Board already exists and is returned below regardless.
+      }
     }
 
     return NextResponse.json({ board }, { status: 201 });
