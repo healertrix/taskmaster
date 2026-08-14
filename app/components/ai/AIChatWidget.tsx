@@ -144,8 +144,6 @@ export function AIChatWidget() {
     setSkeletonEdits,
     dismissedSkeletonIds,
     setDismissedSkeletonIds,
-    approvedSkeletonIds,
-    setApprovedSkeletonIds,
     expandedAssignId,
     setExpandedAssignId,
     cardMembers,
@@ -298,6 +296,15 @@ export function AIChatWidget() {
   // more history.
   const skipAutoScrollRef = useRef(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // Belt-and-suspenders against approveSkeleton double-firing: confirmingId
+  // (state) disables the button, but that only takes effect on the next
+  // render — two fast clicks (or one slow network round-trip + an
+  // impatient second click) can both fire before that re-render lands,
+  // which would call /api/ai/chat/confirm twice and create two cards from
+  // the same draft. A ref is checked and set synchronously, before any
+  // `await`, so the second call sees it immediately regardless of render
+  // timing.
+  const approvingSkeletonIdsRef = useRef<Set<string>>(new Set());
 
   // Disabling a focused textarea (e.g. while `disabled={isSending}`) makes
   // the browser force-blur it, and that focus never comes back on its own
@@ -623,21 +630,60 @@ export function AIChatWidget() {
     return completedAssignIds.has(last.id) ? null : last;
   }, [messages, completedAssignIds]);
 
-  // Whether an unapproved preview from this draft already exists — drives
-  // relabeling "Create task" to "Regenerate": clicking it while one's
-  // already showing doesn't create a second thing, it supersedes the
-  // current preview with a fresh one from the fuller conversation (see
-  // dismissStalePendingSkeletons), which is a different enough action from
-  // the first click that it deserves its own label.
+  // Resolved status for every skeleton_proposal, derived from the message
+  // list itself rather than from approvedSkeletonIds/dismissedSkeletonIds
+  // alone — those two Sets are plain in-memory state with no persistence,
+  // so a page reload (or just reopening the chat later) wiped them while
+  // `messages` came back from the DB exactly as it was. That made every
+  // already-approved preview from an earlier session render as if it were
+  // still live: editable dates, a clickable Approve that would create a
+  // *second* card from the same draft, all fully interactive.
+  //
+  // The message list is itself the persisted record of what happened, so
+  // resolution is derived straight from it:
+  //   - approved: some later message in the SAME loaded history is a
+  //     'confirmation' — the card this skeleton became actually exists.
+  //     Stays visible, muted, permanently — this is the one state that
+  //     should never disappear once reached, no matter what happens after.
+  //   - superseded: not approved, but either explicitly cancelled
+  //     (dismissedSkeletonIds — the one thing that genuinely has no DB
+  //     trace, since Cancel never calls an API) or made stale by a later
+  //     skeleton_proposal/draft_reset. These vanish outright (same as
+  //     before) rather than lingering as clutter nothing points to anymore.
+  //   - otherwise: still the live, actionable draft.
+  const skeletonResolution = useMemo(() => {
+    const result = new Map<string, 'approved' | 'superseded' | 'pending'>();
+    messages.forEach((msg, i) => {
+      if (msg.metadata?.kind !== 'skeleton_proposal') return;
+      // dismissedSkeletonIds wins outright regardless of what else is
+      // true — it's used both for cancelling a still-pending draft AND
+      // for closing out an already-approved card once "Done" is clicked
+      // on the post-creation actions (completeAssign), so an approved
+      // card must still be hideable, not permanently stuck visible.
+      if (dismissedSkeletonIds.has(msg.id)) {
+        result.set(msg.id, 'superseded');
+        return;
+      }
+      const later = messages.slice(i + 1);
+      const approved = later.some((x) => x.message_type === 'confirmation');
+      if (approved) {
+        result.set(msg.id, 'approved');
+        return;
+      }
+      const superseded = later.some(
+        (x) => x.metadata?.kind === 'skeleton_proposal' || x.metadata?.kind === 'draft_reset'
+      );
+      result.set(msg.id, superseded ? 'superseded' : 'pending');
+    });
+    return result;
+  }, [messages, dismissedSkeletonIds]);
+
+  // Whether a live, still-actionable preview exists right now — drives
+  // hiding the compose-area "Create task" button entirely (see Regenerate,
+  // below, which lives on the card itself instead of relabeling this one).
   const hasPendingSkeleton = useMemo(
-    () =>
-      messages.some(
-        (msg) =>
-          msg.metadata?.kind === 'skeleton_proposal' &&
-          !dismissedSkeletonIds.has(msg.id) &&
-          !approvedSkeletonIds.has(msg.id)
-      ),
-    [messages, dismissedSkeletonIds, approvedSkeletonIds]
+    () => Array.from(skeletonResolution.values()).some((status) => status === 'pending'),
+    [skeletonResolution]
   );
 
   // Keeps the "N added" badge on the docked bar accurate without requiring
@@ -658,12 +704,7 @@ export function AIChatWidget() {
   // to a conversation that's already moved on.
   const dismissStalePendingSkeletons = () => {
     const staleIds = messages
-      .filter(
-        (msg) =>
-          msg.metadata?.kind === 'skeleton_proposal' &&
-          !dismissedSkeletonIds.has(msg.id) &&
-          !approvedSkeletonIds.has(msg.id)
-      )
+      .filter((msg) => skeletonResolution.get(msg.id) === 'pending')
       .map((msg) => msg.id);
     if (staleIds.length === 0) return;
     setDismissedSkeletonIds((prev) => {
@@ -759,7 +800,7 @@ export function AIChatWidget() {
     // clicked, the confirmation pill is the permanent record of it and the
     // preview card is just clutter. Close it out the same way Cancel does.
     const approvedIds = messages
-      .filter((msg) => msg.metadata?.kind === 'skeleton_proposal' && approvedSkeletonIds.has(msg.id))
+      .filter((msg) => skeletonResolution.get(msg.id) === 'approved')
       .map((msg) => msg.id);
     if (approvedIds.length > 0) {
       setDismissedSkeletonIds((prev) => {
@@ -789,12 +830,21 @@ export function AIChatWidget() {
   // touches either field. Once approved, editing moves to exactly one
   // place: the docked date panel after creation.
   const approveSkeleton = async (m: ChatMessage) => {
+    // Synchronous guard — see approvingSkeletonIdsRef above. Must be the
+    // very first thing that happens, before any await, or a fast second
+    // click can slip through while confirmingId hasn't re-rendered yet.
+    if (approvingSkeletonIdsRef.current.has(m.id)) return;
+    approvingSkeletonIdsRef.current.add(m.id);
+
     const edit = skeletonEdits[m.id];
     const title = edit?.title ?? m.metadata?.title;
     const description = edit?.description ?? m.metadata?.description;
     const startDate = edit?.startDate ?? m.metadata?.start_date ?? null;
     const dueDate = edit?.dueDate ?? m.metadata?.due_date ?? null;
-    if (!title?.trim()) return;
+    if (!title?.trim()) {
+      approvingSkeletonIdsRef.current.delete(m.id);
+      return;
+    }
 
     setConfirmingId(m.id);
     try {
@@ -811,15 +861,22 @@ export function AIChatWidget() {
           listId: m.metadata.list_id,
         }),
       });
+      // Appending the confirmation message here is what flips
+      // skeletonResolution to 'approved' for this card — no separate
+      // "mark approved" state needed, the message list is the record.
       setMessages((prev) => [...prev, ...(data.messages || [])]);
       setEditingSkeletonId(null);
-      setApprovedSkeletonIds((prev) => new Set(prev).add(m.id));
       if (m.metadata.workspace_id) {
         prefetchMembers(m.metadata.workspace_id, m.metadata.board_id);
       }
     } catch (err: any) {
       console.error('Error confirming task:', err);
       setMessages((prev) => [...prev, localErrorMessage(err.message || 'Something went wrong. Try again.')]);
+      // Only cleared on failure — a legitimate retry after an error
+      // shouldn't be locked out. On success it deliberately stays set:
+      // once approved, this id should never be approvable again (belt and
+      // suspenders alongside skeletonResolution making the button vanish).
+      approvingSkeletonIdsRef.current.delete(m.id);
     } finally {
       setConfirmingId(null);
       refocusCompose();
@@ -1314,16 +1371,15 @@ export function AIChatWidget() {
 
                 // Skeleton proposal — an editable card, not a plain bubble.
                 if (m.metadata?.kind === 'skeleton_proposal') {
-                  const dismissed = dismissedSkeletonIds.has(m.id);
-                  const approved = approvedSkeletonIds.has(m.id);
-                  // Actionable until explicitly approved or dismissed —
-                  // NOT tied to "is this the latest message" anymore.
-                  // Continuing to talk after clicking "Create task" used
-                  // to silently lock this into looking already-created;
-                  // now it stays open until you actually approve/cancel
-                  // it (or supersede it by generating a fresh one — see
-                  // createSkeleton's auto-dismiss).
-                  const showActions = !dismissed && !approved;
+                  const resolution = skeletonResolution.get(m.id) ?? 'pending';
+                  // Actionable only while genuinely still pending — derived
+                  // from the message list itself (see skeletonResolution),
+                  // not from state that resets on reload. That's what makes
+                  // this hold up even for a preview loaded from history in
+                  // a brand new session: an already-approved one renders
+                  // locked from the first paint, same as it would if you'd
+                  // never left the page.
+                  const showActions = resolution === 'pending';
                   const isEditing = editingSkeletonId === m.id;
                   const edit = skeletonEdits[m.id] ?? {
                     title: m.metadata.title,
@@ -1332,7 +1388,7 @@ export function AIChatWidget() {
                     dueDate: m.metadata.due_date ?? null,
                   };
 
-                  if (dismissed) return null;
+                  if (resolution === 'superseded') return null;
 
                   // Once approved, this card is a historical record, not
                   // something to act on — the confirmation pill (and the
@@ -1492,9 +1548,31 @@ export function AIChatWidget() {
                               Done
                             </button>
                           )}
+                          {/* Regenerate — redoes this preview from the
+                              fuller conversation since it was drafted.
+                              Lives here, on the card it actually affects,
+                              instead of relabeling the compose-area button
+                              (which now only ever says "Create task" and
+                              is hidden entirely while a preview like this
+                              one exists — see the button below the
+                              messages list). */}
+                          <button
+                            onClick={createSkeleton}
+                            disabled={!effectiveContext.boardId || isCreatingSkeleton || confirmingId === m.id}
+                            title={!effectiveContext.boardId ? 'Pick a board first' : 'Redo this preview from the conversation so far'}
+                            className='flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-muted/60 text-foreground hover:bg-muted transition-colors disabled:opacity-50'
+                          >
+                            {isCreatingSkeleton ? (
+                              <Loader2 className='w-3 h-3 animate-spin' />
+                            ) : (
+                              <RotateCcw className='w-3 h-3' />
+                            )}
+                            Regenerate
+                          </button>
                           <button
                             onClick={() => setDismissedSkeletonIds((prev) => new Set(prev).add(m.id))}
-                            className='text-xs font-medium px-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors'
+                            disabled={isCreatingSkeleton}
+                            className='text-xs font-medium px-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50'
                           >
                             Cancel
                           </button>
@@ -1697,21 +1775,26 @@ export function AIChatWidget() {
                       <Trash2 className='w-3.5 h-3.5' />
                       {isDiscarding ? 'Discarding...' : 'Discard draft'}
                     </button>
-                    <button
-                      onClick={createSkeleton}
-                      disabled={!effectiveContext.boardId || isCreatingSkeleton}
-                      title={!effectiveContext.boardId ? 'Pick a board first' : undefined}
-                      className='flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50'
-                    >
-                      {isCreatingSkeleton ? (
-                        <Loader2 className='w-3.5 h-3.5 animate-spin' />
-                      ) : hasPendingSkeleton ? (
-                        <RotateCcw className='w-3.5 h-3.5' />
-                      ) : (
-                        <Sparkles className='w-3.5 h-3.5' />
-                      )}
-                      {hasPendingSkeleton ? 'Regenerate' : 'Create task'}
-                    </button>
+                    {/* Hidden entirely while a preview is already showing —
+                        every action that applies to it (Approve/Edit/
+                        Cancel/Regenerate) now lives on the card itself, so
+                        a second "create/regenerate" control down here would
+                        just be a duplicate path to the same thing. */}
+                    {!hasPendingSkeleton && (
+                      <button
+                        onClick={createSkeleton}
+                        disabled={!effectiveContext.boardId || isCreatingSkeleton}
+                        title={!effectiveContext.boardId ? 'Pick a board first' : undefined}
+                        className='flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50'
+                      >
+                        {isCreatingSkeleton ? (
+                          <Loader2 className='w-3.5 h-3.5 animate-spin' />
+                        ) : (
+                          <Sparkles className='w-3.5 h-3.5' />
+                        )}
+                        Create task
+                      </button>
+                    )}
                   </div>
                 )}
 
