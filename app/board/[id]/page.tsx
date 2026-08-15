@@ -1685,7 +1685,7 @@ export default function BoardPage({ params }: { params: { id: string } }) {
           onEditAssignee={setQuickEditAssigneeCardId}
         />
       ) : (
-      <div className='flex-1 min-h-0 overflow-x-auto'>
+      <div className='flex-1 min-h-0 overflow-x-auto pb-4'>
         <DndContext
           // Dragging is disabled (no sensor to trigger it) while a search
           // filter is active — filteredColumns' card indices don't line up

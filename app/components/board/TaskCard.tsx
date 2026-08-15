@@ -222,6 +222,12 @@ export function TaskCard({
           onClick={(e) => e.stopPropagation()}
           onBlur={commitTitle}
           onKeyDown={(e) => {
+            // Stop every key from bubbling to the card's drag listeners
+            // (spread on the outer div via useSortable). Without this,
+            // typing a space while renaming a card is caught by dnd-kit's
+            // KeyboardSensor as "pick up this card", starting a phantom
+            // keyboard-drag that gets stuck on screen.
+            e.stopPropagation();
             if (e.key === 'Enter') {
               e.preventDefault();
               commitTitle();
@@ -245,7 +251,7 @@ export function TaskCard({
             setTitleDraft(task.title);
             setIsEditingTitle(true);
           }}
-          className={`inline-block w-fit text-sm font-medium text-foreground mb-2 leading-snug break-words ${
+          className={`text-sm font-medium text-foreground mb-2 leading-snug break-words line-clamp-3 ${
             onUpdateCardTitle ? 'hover:bg-muted/70 rounded px-1 -mx-1' : ''
           }`}
         >
