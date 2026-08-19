@@ -17,6 +17,8 @@ import {
   ChevronDown,
   Check,
   LayoutTemplate,
+  LayoutGrid,
+  Sparkles,
 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
@@ -26,6 +28,25 @@ import {
 } from '@/hooks/useWorkspacesWithPermissions';
 import { colorForEntity } from '@/utils/idColor';
 import { useTemplates, type BoardTemplate } from '@/hooks/useTemplates';
+
+interface SiblingBoard {
+  id: string;
+  name: string;
+  number?: number;
+}
+
+// A "source" is exactly one of: blank, an existing board in this workspace
+// (copied live, not saved anywhere — see source_board_id in
+// app/api/boards/route.ts), a personal template, or a shared starter
+// template — encoded as one string key instead of juggling multiple ids
+// that would otherwise have to be kept mutually exclusive by hand.
+type SourceKey = '' | `board:${string}` | `template:${string}`;
+
+function parseSource(key: SourceKey): { source_board_id?: string; template_id?: string } {
+  if (key.startsWith('board:')) return { source_board_id: key.slice('board:'.length) };
+  if (key.startsWith('template:')) return { template_id: key.slice('template:'.length) };
+  return {};
+}
 
 // Board color is no longer user-picked here — it's derived from the
 // board's own display number once it's created (see utils/idColor.ts).
@@ -57,12 +78,13 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
     const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(
       workspaceId || ''
     );
-    const [selectedTemplateId, setSelectedTemplateId] = useState('');
+    const [selectedSourceKey, setSelectedSourceKey] = useState<SourceKey>('');
+    const [siblingBoards, setSiblingBoards] = useState<SiblingBoard[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const router = useRouter();
-    const { templates } = useTemplates();
+    const { personalTemplates, starterTemplates } = useTemplates();
 
     // Use the new hook to get workspaces with permissions
     const {
@@ -95,7 +117,7 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
         // Form reset on modal open
         setName('');
         setDescription('');
-        setSelectedTemplateId('');
+        setSelectedSourceKey('');
 
         // Set default workspace
         if (workspaceId) {
@@ -127,6 +149,37 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
         setSelectedWorkspaceId(availableWorkspaces[0].id);
       }
     }, [isOpen, isFromWorkspacePage, selectedWorkspaceId, availableWorkspaces]);
+
+    // Other boards in whichever workspace is currently selected, for
+    // "use an existing board as a template" — refetched whenever the
+    // workspace changes, and the previous selection cleared, since a
+    // board:<id> chosen for one workspace means nothing in another (a
+    // template:<id> or blank selection carries over fine, since those
+    // aren't workspace-scoped).
+    useEffect(() => {
+      if (!isOpen || !selectedWorkspaceId) {
+        setSiblingBoards([]);
+        return;
+      }
+
+      let cancelled = false;
+      fetch(`/api/boards?workspace_id=${selectedWorkspaceId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (cancelled) return;
+          const boards = (data.boards || [])
+            .filter((b: any) => !b.is_closed)
+            .map((b: any) => ({ id: b.id, name: b.name, number: b.number }));
+          setSiblingBoards(boards);
+        })
+        .catch((err) => console.error('Error fetching workspace boards:', err));
+
+      setSelectedSourceKey((prev) => (prev.startsWith('board:') ? '' : prev));
+
+      return () => {
+        cancelled = true;
+      };
+    }, [isOpen, selectedWorkspaceId]);
 
     // Handle mobile back button
     useEffect(() => {
@@ -194,7 +247,7 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
             color: PLACEHOLDER_BOARD_COLOR,
             workspace_id: selectedWorkspaceId,
             visibility: 'workspace', // Default for workspace creation
-            template_id: selectedTemplateId || undefined,
+            ...parseSource(selectedSourceKey),
           }),
         });
 
@@ -268,21 +321,31 @@ export const CreateBoardModal = forwardRef<CreateBoardModalRef, CreateBoardModal
           )}
 
           <form onSubmit={handleSubmit} className='space-y-4'>
-            {/* Create using template — a personal template (usable across
-                any workspace, per how templates are scoped). Selecting one
-                doesn't touch the board name below; the two are
+            {/* Start from — three possible sources, each shown only if it
+                has anything to offer: other boards in this workspace
+                (copied live, nothing saved — see source_board_id),
+                personal templates (usable across any workspace), and the
+                shared starter set. Always at least the starter section for
+                a brand-new account with neither of the other two, which is
+                the actual gap this replaced (the old template-only picker
+                was hidden outright with zero saved templates). Selecting
+                a source doesn't touch the board name below; the two are
                 independent — there's no preview/customize step either,
-                since anything the template gets wrong is trivially
-                fixable on the real board afterward. */}
-            {templates.length > 0 && (
+                since anything the source gets wrong is trivially fixable
+                on the real board afterward. */}
+            {(siblingBoards.length > 0 ||
+              personalTemplates.length > 0 ||
+              starterTemplates.length > 0) && (
               <div>
                 <label className='block text-sm font-medium text-foreground mb-1'>
-                  Create using template
+                  Start from
                 </label>
-                <CustomTemplateDropdown
-                  templates={templates}
-                  selectedTemplateId={selectedTemplateId}
-                  onSelect={setSelectedTemplateId}
+                <CustomSourceDropdown
+                  siblingBoards={siblingBoards}
+                  personalTemplates={personalTemplates}
+                  starterTemplates={starterTemplates}
+                  selectedSourceKey={selectedSourceKey}
+                  onSelect={setSelectedSourceKey}
                   disabled={isLoading}
                 />
               </div>
@@ -612,23 +675,39 @@ const CustomWorkspaceDropdown = ({
   );
 };
 
-// Custom Template Dropdown — same visual pattern as CustomWorkspaceDropdown
-// above, not the bare native <select> this replaced.
-const CustomTemplateDropdown = ({
-  templates,
-  selectedTemplateId,
+// Custom Source Dropdown — same visual pattern as CustomWorkspaceDropdown
+// above, not the bare native <select> this replaced. Groups its options
+// under up to three headed sections instead of one flat list mixing three
+// different kinds of thing (a live board's current structure, a saved
+// personal template, a shared starter template) with no way to tell them
+// apart.
+const CustomSourceDropdown = ({
+  siblingBoards,
+  personalTemplates,
+  starterTemplates,
+  selectedSourceKey,
   onSelect,
   disabled,
 }: {
-  templates: BoardTemplate[];
-  selectedTemplateId: string;
-  onSelect: (id: string) => void;
+  siblingBoards: SiblingBoard[];
+  personalTemplates: BoardTemplate[];
+  starterTemplates: BoardTemplate[];
+  selectedSourceKey: SourceKey;
+  onSelect: (key: SourceKey) => void;
   disabled: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
+  const selectedLabel = selectedSourceKey.startsWith('board:')
+    ? siblingBoards.find((b) => `board:${b.id}` === selectedSourceKey)?.name
+    : selectedSourceKey.startsWith('template:')
+    ? [...personalTemplates, ...starterTemplates].find(
+        (t) => `template:${t.id}` === selectedSourceKey
+      )?.name
+    : null;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -653,6 +732,50 @@ const CustomTemplateDropdown = ({
     }
   }, [isOpen]);
 
+  // Fresh search each time it opens, and focused immediately — a
+  // workspace with a lot of boards is exactly the case this is for, so
+  // typing should work the instant the dropdown appears, not require an
+  // extra click into the box first.
+  useEffect(() => {
+    if (isOpen) {
+      setSearch('');
+      searchInputRef.current?.focus();
+    }
+  }, [isOpen]);
+
+  const select = (key: SourceKey) => {
+    onSelect(key);
+    setIsOpen(false);
+  };
+
+  // Matches a board's name, or its display number — "12", "#12", and
+  // "board 12" all match board #12, same shorthand used by the board's
+  // own in-page card search (see app/boards/[id]/page.tsx).
+  const query = search.trim().toLowerCase();
+  const matchesBoard = (board: SiblingBoard) => {
+    if (!query) return true;
+    if (board.name.toLowerCase().includes(query)) return true;
+    if (board.number == null) return false;
+    const numberQuery = query.replace(/^#/, '').replace(/^board\s*/, '');
+    return String(board.number).includes(numberQuery) && numberQuery.length > 0;
+  };
+  const matchesTemplate = (template: BoardTemplate) =>
+    !query || template.name.toLowerCase().includes(query);
+
+  const filteredBoards = siblingBoards.filter(matchesBoard);
+  const filteredPersonalTemplates = personalTemplates.filter(matchesTemplate);
+  const filteredStarterTemplates = starterTemplates.filter(matchesTemplate);
+  const hasAnyMatch =
+    filteredBoards.length > 0 ||
+    filteredPersonalTemplates.length > 0 ||
+    filteredStarterTemplates.length > 0;
+
+  const SectionHeading = ({ children }: { children: React.ReactNode }) => (
+    <div className='px-3 pt-2.5 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide'>
+      {children}
+    </div>
+  );
+
   return (
     <div className='relative' ref={dropdownRef}>
       <button
@@ -663,9 +786,7 @@ const CustomTemplateDropdown = ({
       >
         <div className='flex items-center gap-2 min-w-0'>
           <LayoutTemplate className='w-4 h-4 text-muted-foreground flex-shrink-0' />
-          <span className='truncate'>
-            {selectedTemplate ? selectedTemplate.name : 'Blank board'}
-          </span>
+          <span className='truncate'>{selectedLabel || 'Blank board'}</span>
         </div>
         <ChevronDown
           className={`w-4 h-4 text-muted-foreground transition-transform flex-shrink-0 ${
@@ -675,40 +796,121 @@ const CustomTemplateDropdown = ({
       </button>
 
       {isOpen && (
-        <div className='absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-md shadow-lg z-10 max-h-60 overflow-y-auto'>
-          <button
-            type='button'
-            onClick={() => {
-              onSelect('');
-              setIsOpen(false);
-            }}
-            className={`w-full p-3 text-left hover:bg-muted/50 flex items-center gap-2 transition-colors ${
-              !selectedTemplateId ? 'bg-muted/30' : ''
-            }`}
-          >
-            <span className='flex-1'>Blank board</span>
-            {!selectedTemplateId && <Check className='w-4 h-4 text-primary' />}
-          </button>
-          {templates.map((template) => {
-            const isSelected = template.id === selectedTemplateId;
-            return (
+        <div className='absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-md shadow-lg z-10 overflow-hidden'>
+          {/* Search — a workspace can have far more boards than fit in a
+              scrollable list comfortably, so this isn't optional past a
+              certain size. Matches by name or board number (see
+              matchesBoard above), same shorthand the board's own in-page
+              search uses. Outside the scrolling results below so it stays
+              put while you scroll through matches. */}
+          <div className='p-2 border-b border-border/50'>
+            <input
+              ref={searchInputRef}
+              type='text'
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder='Search boards and templates...'
+              className='w-full px-2.5 py-1.5 text-sm bg-muted/40 border border-border/50 rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50'
+            />
+          </div>
+
+          <div className='max-h-72 overflow-y-auto'>
+            {!query && (
               <button
-                key={template.id}
                 type='button'
-                onClick={() => {
-                  onSelect(template.id);
-                  setIsOpen(false);
-                }}
+                onClick={() => select('')}
                 className={`w-full p-3 text-left hover:bg-muted/50 flex items-center gap-2 transition-colors ${
-                  isSelected ? 'bg-muted/30' : ''
+                  !selectedSourceKey ? 'bg-muted/30' : ''
                 }`}
               >
-                <LayoutTemplate className='w-4 h-4 text-muted-foreground flex-shrink-0' />
-                <span className='flex-1 truncate'>{template.name}</span>
-                {isSelected && <Check className='w-4 h-4 text-primary' />}
+                <span className='flex-1'>Blank board</span>
+                {!selectedSourceKey && <Check className='w-4 h-4 text-primary' />}
               </button>
-            );
-          })}
+            )}
+
+            {!hasAnyMatch && (
+              <p className='px-3 py-4 text-sm text-muted-foreground text-center'>
+                No boards or templates match &ldquo;{search.trim()}&rdquo;
+              </p>
+            )}
+
+          {filteredBoards.length > 0 && (
+            <>
+              <SectionHeading>This workspace</SectionHeading>
+              {filteredBoards.map((board) => {
+                const key: SourceKey = `board:${board.id}`;
+                const isSelected = key === selectedSourceKey;
+                return (
+                  <button
+                    key={board.id}
+                    type='button'
+                    onClick={() => select(key)}
+                    className={`w-full p-3 text-left hover:bg-muted/50 flex items-center gap-2 transition-colors ${
+                      isSelected ? 'bg-muted/30' : ''
+                    }`}
+                  >
+                    <LayoutGrid className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+                    <span className='flex-1 truncate'>
+                      {board.name}
+                      {board.number != null && (
+                        <span className='text-muted-foreground'> #{board.number}</span>
+                      )}
+                    </span>
+                    {isSelected && <Check className='w-4 h-4 text-primary' />}
+                  </button>
+                );
+              })}
+            </>
+          )}
+
+          {filteredPersonalTemplates.length > 0 && (
+            <>
+              <SectionHeading>Your templates</SectionHeading>
+              {filteredPersonalTemplates.map((template) => {
+                const key: SourceKey = `template:${template.id}`;
+                const isSelected = key === selectedSourceKey;
+                return (
+                  <button
+                    key={template.id}
+                    type='button'
+                    onClick={() => select(key)}
+                    className={`w-full p-3 text-left hover:bg-muted/50 flex items-center gap-2 transition-colors ${
+                      isSelected ? 'bg-muted/30' : ''
+                    }`}
+                  >
+                    <LayoutTemplate className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+                    <span className='flex-1 truncate'>{template.name}</span>
+                    {isSelected && <Check className='w-4 h-4 text-primary' />}
+                  </button>
+                );
+              })}
+            </>
+          )}
+
+          {filteredStarterTemplates.length > 0 && (
+            <>
+              <SectionHeading>Starter templates</SectionHeading>
+              {filteredStarterTemplates.map((template) => {
+                const key: SourceKey = `template:${template.id}`;
+                const isSelected = key === selectedSourceKey;
+                return (
+                  <button
+                    key={template.id}
+                    type='button'
+                    onClick={() => select(key)}
+                    className={`w-full p-3 text-left hover:bg-muted/50 flex items-center gap-2 transition-colors ${
+                      isSelected ? 'bg-muted/30' : ''
+                    }`}
+                  >
+                    <Sparkles className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+                    <span className='flex-1 truncate'>{template.name}</span>
+                    {isSelected && <Check className='w-4 h-4 text-primary' />}
+                  </button>
+                );
+              })}
+            </>
+          )}
+          </div>
         </div>
       )}
     </div>

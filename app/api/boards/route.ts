@@ -1,6 +1,82 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
+type StructureLike = {
+  lists?: { name: string }[];
+  labels?: { name: string; color: string }[];
+  customFields?: { name: string; definition: unknown }[];
+};
+
+// Shared by both sourcing paths below — a saved template's `structure`
+// column, and a live read of another board's current lists/labels/fields
+// (see source_board_id) — end up as the exact same shape, so both apply
+// through this one function. A one-time copy, not a live link: fresh rows
+// with their own board-scoped ids/numbers, no reference back to whatever
+// it was copied from. Best-effort: if this partially fails partway
+// through, the board itself still exists and is usable, just without the
+// rest of the structure, rather than failing board creation entirely
+// over it.
+async function applyStructureToBoard(
+  supabase: ReturnType<typeof createClient>,
+  boardId: string,
+  structure: StructureLike | undefined
+) {
+  try {
+    if (structure?.lists?.length) {
+      for (const list of structure.lists) {
+        const { data: listNumber } = await supabase.rpc('next_list_number', {
+          p_board_id: boardId,
+        });
+        await supabase.from('lists').insert({
+          name: list.name,
+          board_id: boardId,
+          position: 0, // set below, once all lists exist
+          number: listNumber,
+        });
+      }
+      // Positions assigned after insert, in the source's own order —
+      // simpler than computing running positions inline above while
+      // numbers are also being claimed one at a time.
+      const { data: insertedLists } = await supabase
+        .from('lists')
+        .select('id')
+        .eq('board_id', boardId)
+        .order('number', { ascending: true });
+      if (insertedLists) {
+        await Promise.all(
+          insertedLists.map((l, index) =>
+            supabase.from('lists').update({ position: index }).eq('id', l.id)
+          )
+        );
+      }
+    }
+
+    if (structure?.labels?.length) {
+      await supabase.from('labels').insert(
+        structure.labels.map((label) => ({
+          name: label.name,
+          color: label.color,
+          board_id: boardId,
+        }))
+      );
+    }
+
+    if (structure?.customFields?.length) {
+      await supabase.from('custom_fields').insert(
+        structure.customFields.map((field, index) => ({
+          name: field.name,
+          definition: field.definition,
+          board_id: boardId,
+          position: index,
+        }))
+      );
+    }
+  } catch (structureError) {
+    console.error('Error applying board structure:', structureError);
+    // Board already exists and is returned regardless by the caller.
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient();
@@ -23,6 +99,11 @@ export async function POST(request: NextRequest) {
       workspace_id,
       visibility = 'workspace',
       template_id,
+      // Copy another board's current lists/labels/custom fields instead of
+      // a saved template — mutually exclusive with template_id in the UI
+      // (CreateBoardModal only ever sends one), source_board_id wins if
+      // both somehow arrive together.
+      source_board_id,
     } = body;
 
     // Validate required fields
@@ -178,97 +259,67 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Add the creator as an admin of the board
-    const { error: memberError } = await supabase.from('board_members').insert({
-      board_id: board.id,
-      profile_id: user.id,
-      role: 'admin',
-    });
+    // The creator is added as a board admin automatically — see the
+    // on_board_created trigger (handle_new_board(), AFTER INSERT ON
+    // boards), which inserts into board_members as part of the same
+    // insert. Doing it again here was a duplicate: same (board_id,
+    // profile_id) pair the trigger already claimed, which always violated
+    // board_members' unique constraint and logged a scary-looking error
+    // on every single board creation (harmlessly swallowed below, but
+    // still wrong — nothing here needs to touch board_members at all).
 
-    if (memberError) {
-      console.error('Board member creation error:', memberError);
-      // Continue anyway as the board was created successfully
-    }
+    // Seed the new board's structure, if a source was chosen — from
+    // another board in the same workspace (live read, no saved template
+    // involved) or from a saved template. source_board_id wins if both
+    // are somehow present; see applyStructureToBoard's own comment for why
+    // this is best-effort rather than failing board creation over it.
+    if (source_board_id) {
+      // Scoped to this workspace, not just "any board the user can see" —
+      // matches what the picker actually offers (see CreateBoardModal),
+      // and keeps a crafted source_board_id from another workspace from
+      // pulling in structure the requester wasn't shown as an option.
+      const { data: sourceBoard } = await supabase
+        .from('boards')
+        .select('id')
+        .eq('id', source_board_id)
+        .eq('workspace_id', workspace_id)
+        .maybeSingle();
 
-    // Apply a template if one was chosen — a one-time copy, not a live
-    // link: fresh rows with their own board-scoped ids/numbers, no
-    // reference back to the template stored anywhere. Best-effort: if
-    // this partially fails partway through, the board itself still
-    // exists and is usable, just without the rest of the template's
-    // contents, rather than failing board creation entirely over it.
-    if (template_id) {
-      try {
-        // RLS (owner_id = auth.uid()) already scopes this to the
-        // current user's own templates — a template_id belonging to
-        // someone else simply won't be found.
-        const { data: template } = await supabase
-          .from('board_templates')
-          .select('structure')
-          .eq('id', template_id)
-          .single();
+      if (sourceBoard) {
+        const [{ data: sourceLists }, { data: sourceLabels }, { data: sourceFields }] =
+          await Promise.all([
+            supabase
+              .from('lists')
+              .select('name')
+              .eq('board_id', source_board_id)
+              .order('position', { ascending: true }),
+            supabase.from('labels').select('name, color').eq('board_id', source_board_id),
+            supabase
+              .from('custom_fields')
+              .select('name, definition')
+              .eq('board_id', source_board_id)
+              .order('position', { ascending: true }),
+          ]);
 
-        const structure = template?.structure as
-          | {
-              lists?: { name: string }[];
-              labels?: { name: string; color: string }[];
-              customFields?: { name: string; definition: unknown }[];
-            }
-          | undefined;
-
-        if (structure?.lists?.length) {
-          for (const list of structure.lists) {
-            const { data: listNumber } = await supabase.rpc(
-              'next_list_number',
-              { p_board_id: board.id }
-            );
-            await supabase.from('lists').insert({
-              name: list.name,
-              board_id: board.id,
-              position: 0, // set below, once all lists exist
-              number: listNumber,
-            });
-          }
-          // Positions assigned after insert, in the template's own
-          // order — simpler than computing running positions inline
-          // above while numbers are also being claimed one at a time.
-          const { data: insertedLists } = await supabase
-            .from('lists')
-            .select('id')
-            .eq('board_id', board.id)
-            .order('number', { ascending: true });
-          if (insertedLists) {
-            await Promise.all(
-              insertedLists.map((l, index) =>
-                supabase.from('lists').update({ position: index }).eq('id', l.id)
-              )
-            );
-          }
-        }
-
-        if (structure?.labels?.length) {
-          await supabase.from('labels').insert(
-            structure.labels.map((label) => ({
-              name: label.name,
-              color: label.color,
-              board_id: board.id,
-            }))
-          );
-        }
-
-        if (structure?.customFields?.length) {
-          await supabase.from('custom_fields').insert(
-            structure.customFields.map((field, index) => ({
-              name: field.name,
-              definition: field.definition,
-              board_id: board.id,
-              position: index,
-            }))
-          );
-        }
-      } catch (templateError) {
-        console.error('Error applying template:', templateError);
-        // Board already exists and is returned below regardless.
+        await applyStructureToBoard(supabase, board.id, {
+          lists: sourceLists || [],
+          labels: sourceLabels || [],
+          customFields: sourceFields || [],
+        });
       }
+    } else if (template_id) {
+      // RLS already scopes this to templates the caller can actually
+      // read — their own, plus the shared starter set (is_system = true,
+      // see the starter_board_templates migration) — a template_id
+      // belonging to someone else's personal library simply won't be
+      // found.
+      const { data: template } = await supabase
+        .from('board_templates')
+        .select('structure')
+        .eq('id', template_id)
+        .single();
+
+      await applyStructureToBoard(supabase, board.id, template?.structure as StructureLike | undefined);
     }
 
     return NextResponse.json({ board }, { status: 201 });
@@ -304,9 +355,9 @@ export async function GET(request: NextRequest) {
         `
         *,
         workspace:workspaces(id, name),
-        owner:profiles(id, full_name),
+        owner:profiles!boards_owner_id_fkey(id, full_name),
         board_members(
-          profile:profiles(id, full_name, avatar_url),
+          profile:profiles!board_members_profile_id_fkey(id, full_name, avatar_url),
           role
         )
       `

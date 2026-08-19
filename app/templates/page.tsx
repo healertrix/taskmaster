@@ -14,12 +14,13 @@ import {
   ArrowLeft,
   AlertTriangle,
   Save,
+  Sparkles,
 } from 'lucide-react';
 
 type View = { mode: 'list' } | { mode: 'create' } | { mode: 'edit'; template: BoardTemplate };
 
 export default function TemplatesPage() {
-  const { templates, isLoading, refetch } = useTemplates();
+  const { personalTemplates, starterTemplates, isLoading, refetch } = useTemplates();
   const [view, setView] = useState<View>({ mode: 'list' });
 
   return (
@@ -28,7 +29,8 @@ export default function TemplatesPage() {
       <main className='container mx-auto max-w-3xl px-3 sm:px-4 pt-20 sm:pt-24 pb-8 sm:pb-16'>
         {view.mode === 'list' ? (
           <TemplatesList
-            templates={templates}
+            personalTemplates={personalTemplates}
+            starterTemplates={starterTemplates}
             isLoading={isLoading}
             onCreate={() => setView({ mode: 'create' })}
             onEdit={(template) => setView({ mode: 'edit', template })}
@@ -50,12 +52,14 @@ export default function TemplatesPage() {
 }
 
 function TemplatesList({
-  templates,
+  personalTemplates,
+  starterTemplates,
   isLoading,
   onCreate,
   onEdit,
 }: {
-  templates: BoardTemplate[];
+  personalTemplates: BoardTemplate[];
+  starterTemplates: BoardTemplate[];
   isLoading: boolean;
   onCreate: () => void;
   onEdit: (template: BoardTemplate) => void;
@@ -94,40 +98,85 @@ function TemplatesList({
         <div className='flex items-center justify-center py-16'>
           <Loader2 className='w-6 h-6 animate-spin text-muted-foreground' />
         </div>
-      ) : templates.length === 0 ? (
-        <div className='flex flex-col items-center justify-center py-16 text-center bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl'>
-          <div className='w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mb-4'>
-            <LayoutTemplate className='w-8 h-8 text-muted-foreground' />
-          </div>
-          <p className='text-sm text-muted-foreground'>No templates yet</p>
-          <p className='text-xs text-muted-foreground mt-1'>
-            Build one here, or save an existing board as a template from its settings
-          </p>
-        </div>
       ) : (
-        <div className='grid gap-3 sm:grid-cols-2'>
-          {templates.map((template) => (
-            <button
-              key={template.id}
-              onClick={() => onEdit(template)}
-              className='text-left p-4 bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl hover:border-primary/50 transition-colors'
-            >
-              <div className='flex items-center gap-2 mb-2'>
-                <LayoutTemplate className='w-4 h-4 text-primary flex-shrink-0' />
-                <h3 className='font-medium text-sm text-foreground truncate'>
-                  {template.name}
-                </h3>
+        <div className='space-y-8'>
+          {personalTemplates.length === 0 ? (
+            <div className='flex flex-col items-center justify-center py-16 text-center bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl'>
+              <div className='w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mb-4'>
+                <LayoutTemplate className='w-8 h-8 text-muted-foreground' />
               </div>
-              <p className='text-xs text-muted-foreground'>
-                {template.structure.lists.length} list
-                {template.structure.lists.length === 1 ? '' : 's'} ·{' '}
-                {template.structure.labels.length} label
-                {template.structure.labels.length === 1 ? '' : 's'} ·{' '}
-                {template.structure.customFields.length} custom field
-                {template.structure.customFields.length === 1 ? '' : 's'}
+              <p className='text-sm text-muted-foreground'>No templates yet</p>
+              <p className='text-xs text-muted-foreground mt-1'>
+                Build one here, or save an existing board as a template from its settings
               </p>
-            </button>
-          ))}
+            </div>
+          ) : (
+            <div className='grid gap-3 sm:grid-cols-2'>
+              {personalTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  onClick={() => onEdit(template)}
+                  className='text-left p-4 bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl hover:border-primary/50 transition-colors'
+                >
+                  <div className='flex items-center gap-2 mb-2'>
+                    <LayoutTemplate className='w-4 h-4 text-primary flex-shrink-0' />
+                    <h3 className='font-medium text-sm text-foreground truncate'>
+                      {template.name}
+                    </h3>
+                  </div>
+                  <p className='text-xs text-muted-foreground'>
+                    {template.structure.lists.length} list
+                    {template.structure.lists.length === 1 ? '' : 's'} ·{' '}
+                    {template.structure.labels.length} label
+                    {template.structure.labels.length === 1 ? '' : 's'} ·{' '}
+                    {template.structure.customFields.length} custom field
+                    {template.structure.customFields.length === 1 ? '' : 's'}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Read-only — shared across every account, not something any
+              one user's edit/delete should apply to. Not clickable into
+              the editor at all (attempting to save/delete one would just
+              fail against RLS, since these rows have no owner for the
+              existing "manage your own" policy to match against — see the
+              starter_board_templates migration). */}
+          {starterTemplates.length > 0 && (
+            <div>
+              <h2 className='text-sm font-semibold text-foreground mb-1'>
+                Starter templates
+              </h2>
+              <p className='text-xs text-muted-foreground mb-3'>
+                Built-in, available to everyone — pick one when creating a board instead of
+                editing it here.
+              </p>
+              <div className='grid gap-3 sm:grid-cols-2'>
+                {starterTemplates.map((template) => (
+                  <div
+                    key={template.id}
+                    className='p-4 bg-card/40 border border-border/40 rounded-2xl'
+                  >
+                    <div className='flex items-center gap-2 mb-2'>
+                      <Sparkles className='w-4 h-4 text-muted-foreground flex-shrink-0' />
+                      <h3 className='font-medium text-sm text-foreground truncate'>
+                        {template.name}
+                      </h3>
+                    </div>
+                    <p className='text-xs text-muted-foreground'>
+                      {template.structure.lists.length} list
+                      {template.structure.lists.length === 1 ? '' : 's'} ·{' '}
+                      {template.structure.labels.length} label
+                      {template.structure.labels.length === 1 ? '' : 's'} ·{' '}
+                      {template.structure.customFields.length} custom field
+                      {template.structure.customFields.length === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>
