@@ -1,4 +1,4 @@
-import type OpenAI from 'openai';
+import type { AiClient } from '@/utils/ai/client';
 import { parseDueDate, parseDateRange } from '@/utils/parseDueDate';
 
 // Shared by app/api/ai/chat/skeleton/route.ts (resolving a date phrase
@@ -9,8 +9,7 @@ import { parseDueDate, parseDateRange } from '@/utils/parseDueDate';
 // getting the deterministic pass and silently giving up on phrasings like
 // "next week" or "the end of the month" that parseDueDate doesn't cover.
 export async function resolveDueDatePhrase(
-  client: OpenAI,
-  model: string,
+  client: AiClient,
   phrase: string
 ): Promise<string | null> {
   const direct = parseDueDate(phrase);
@@ -18,18 +17,14 @@ export async function resolveDueDatePhrase(
 
   const today = new Date().toISOString().slice(0, 10);
   try {
-    const completion = await client.chat.completions.create({
-      model,
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: `Today's date is ${today}. Convert the given phrase into an absolute calendar date. Respond ONLY with JSON {"date": "YYYY-MM-DD"} — or {"date": null} if the phrase genuinely doesn't describe a date. Do not explain, just the JSON.`,
-        },
-        { role: 'user', content: phrase },
-      ],
-    });
-    const raw = JSON.parse(completion.choices[0]?.message?.content || '{}');
+    const content = await client.completeJson([
+      {
+        role: 'system',
+        content: `Today's date is ${today}. Convert the given phrase into an absolute calendar date. Respond ONLY with JSON {"date": "YYYY-MM-DD"} — or {"date": null} if the phrase genuinely doesn't describe a date. Do not explain, just the JSON.`,
+      },
+      { role: 'user', content: phrase },
+    ]);
+    const raw = JSON.parse(content || '{}');
     if (typeof raw.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date)) {
       // Still routed through parseDueDate — trivial for it to handle a
       // plain YYYY-MM-DD, and keeps date math in one place rather than
@@ -48,8 +43,7 @@ export async function resolveDueDatePhrase(
 // date picker's free-text field. Tries the deterministic parser first;
 // only asks the LLM when it found neither date.
 export async function resolveDateRangePhrase(
-  client: OpenAI,
-  model: string,
+  client: AiClient,
   phrase: string
 ): Promise<{ startDate: string | null; dueDate: string | null }> {
   const direct = parseDateRange(phrase);
@@ -57,18 +51,14 @@ export async function resolveDateRangePhrase(
 
   const today = new Date().toISOString().slice(0, 10);
   try {
-    const completion = await client.chat.completions.create({
-      model,
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: `Today's date is ${today}. The phrase may describe a start date, a due/end date, or both. Respond ONLY with JSON {"startDate": "YYYY-MM-DD" | null, "dueDate": "YYYY-MM-DD" | null} — null for whichever end isn't mentioned. Do not explain, just the JSON.`,
-        },
-        { role: 'user', content: phrase },
-      ],
-    });
-    const raw = JSON.parse(completion.choices[0]?.message?.content || '{}');
+    const content = await client.completeJson([
+      {
+        role: 'system',
+        content: `Today's date is ${today}. The phrase may describe a start date, a due/end date, or both. Respond ONLY with JSON {"startDate": "YYYY-MM-DD" | null, "dueDate": "YYYY-MM-DD" | null} — null for whichever end isn't mentioned. Do not explain, just the JSON.`,
+      },
+      { role: 'user', content: phrase },
+    ]);
+    const raw = JSON.parse(content || '{}');
     const startDate =
       typeof raw.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.startDate)
         ? parseDueDate(raw.startDate)
@@ -94,8 +84,7 @@ export async function resolveDateRangePhrase(
 // noticeably more likely to hit the request timeout. Whatever the
 // deterministic parser already handles doesn't need the LLM at all.
 export async function resolveTwoDatePhrases(
-  client: OpenAI,
-  model: string,
+  client: AiClient,
   startPhrase: string,
   duePhrase: string
 ): Promise<{ startDate: string | null; dueDate: string | null }> {
@@ -115,18 +104,14 @@ export async function resolveTwoDatePhrases(
     if (needsStart) parts.push(`start phrase: "${startPhrase}"`);
     if (needsDue) parts.push(`due phrase: "${duePhrase}"`);
 
-    const completion = await client.chat.completions.create({
-      model,
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: `Today's date is ${today}. Convert the given phrase(s) into absolute calendar dates. Respond ONLY with JSON {"startDate": "YYYY-MM-DD" | null, "dueDate": "YYYY-MM-DD" | null} — null for whichever phrase wasn't given. Do not explain, just the JSON.`,
-        },
-        { role: 'user', content: parts.join('\n') },
-      ],
-    });
-    const raw = JSON.parse(completion.choices[0]?.message?.content || '{}');
+    const content = await client.completeJson([
+      {
+        role: 'system',
+        content: `Today's date is ${today}. Convert the given phrase(s) into absolute calendar dates. Respond ONLY with JSON {"startDate": "YYYY-MM-DD" | null, "dueDate": "YYYY-MM-DD" | null} — null for whichever phrase wasn't given. Do not explain, just the JSON.`,
+      },
+      { role: 'user', content: parts.join('\n') },
+    ]);
+    const raw = JSON.parse(content || '{}');
     const startDate =
       needsStart && typeof raw.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.startDate)
         ? parseDueDate(raw.startDate)

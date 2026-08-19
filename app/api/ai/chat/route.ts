@@ -169,15 +169,11 @@ export async function POST(request: NextRequest) {
         let listNames: string[] = ['Todo', 'Doing', 'Done'];
         if (activeClient) {
           try {
-            const completion = await activeClient.client.chat.completions.create({
-              model: activeClient.model,
-              response_format: { type: 'json_object' },
-              messages: [
-                { role: 'system', content: LIST_NAMES_SYSTEM_PROMPT },
-                { role: 'user', content: content.trim() },
-              ],
-            });
-            const raw = JSON.parse(completion.choices[0]?.message?.content || '{}');
+            const jsonContent = await activeClient.client.completeJson([
+              { role: 'system', content: LIST_NAMES_SYSTEM_PROMPT },
+              { role: 'user', content: content.trim() },
+            ]);
+            const raw = JSON.parse(jsonContent || '{}');
             declined = raw.declined === true;
             if (Array.isArray(raw.listNames) && raw.listNames.length > 0) {
               listNames = raw.listNames
@@ -271,14 +267,11 @@ export async function POST(request: NextRequest) {
     let replyText = "Got it — keep going, or hit \"Create task\" when you're ready.";
     try {
       const draft = await getDraftMessages(supabase, user.id);
-      const completion = await activeClient.client.chat.completions.create({
-        model: activeClient.model,
-        messages: [
-          { role: 'system', content: CONVERSATION_SYSTEM_PROMPT },
-          ...draft.map((turn) => ({ role: turn.role, content: turn.content })),
-        ],
-      });
-      replyText = completion.choices[0]?.message?.content?.trim() || replyText;
+      const reply = await activeClient.client.complete([
+        { role: 'system', content: CONVERSATION_SYSTEM_PROMPT },
+        ...draft.map((turn) => ({ role: turn.role, content: turn.content })),
+      ]);
+      replyText = reply.trim() || replyText;
     } catch (err) {
       console.error('AI conversational reply failed:', err);
     }

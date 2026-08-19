@@ -55,12 +55,7 @@ export async function POST(
 
     const boardIds = (boards || []).map((b) => b.id);
     const { lines, stats } = await fetchRecentActivity(supabase, boardIds);
-    const { headline, highlights } = await summarizeActivity(
-      activeClient.client,
-      activeClient.model,
-      workspace.name,
-      lines
-    );
+    const { headline, highlights } = await summarizeActivity(activeClient.client, workspace.name, lines);
 
     return NextResponse.json({ headline, highlights, stats });
   } catch (error) {

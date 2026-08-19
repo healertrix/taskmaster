@@ -1,5 +1,5 @@
 import type { createClient } from '@/utils/supabase/server';
-import type OpenAI from 'openai';
+import type { AiClient } from '@/utils/ai/client';
 
 const LOOKBACK_DAYS = 7;
 // Cap even within the lookback window — a very active board could have
@@ -181,8 +181,7 @@ Respond ONLY with JSON of this exact shape: {"headline": string, "highlights": [
 - Order by importance/recency, most notable first.`;
 
 export async function summarizeActivity(
-  client: OpenAI,
-  model: string,
+  client: AiClient,
   scopeLabel: string,
   lines: string[]
 ): Promise<ActivitySummaryResult> {
@@ -194,19 +193,15 @@ export async function summarizeActivity(
   }
 
   try {
-    const completion = await client.chat.completions.create({
-      model,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: `Recent activity on "${scopeLabel}" (last 7 days, most recent first):\n${lines.join('\n')}`,
-        },
-      ],
-    });
+    const content = await client.completeJson([
+      { role: 'system', content: SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: `Recent activity on "${scopeLabel}" (last 7 days, most recent first):\n${lines.join('\n')}`,
+      },
+    ]);
 
-    const parsed = JSON.parse(completion.choices[0]?.message?.content || '{}');
+    const parsed = JSON.parse(content || '{}');
     const highlights: SummaryHighlight[] = Array.isArray(parsed.highlights)
       ? parsed.highlights
           .filter(

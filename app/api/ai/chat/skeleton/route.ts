@@ -115,19 +115,15 @@ export async function POST(request: NextRequest) {
       due_date_phrase: '',
     };
     try {
-      const completion = await activeClient.client.chat.completions.create({
-        model: activeClient.model,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          ...draft.map((turn) => ({ role: turn.role, content: turn.content })),
-          {
-            role: 'system',
-            content: 'Now respond with the JSON described above, based on the conversation above.',
-          },
-        ],
-      });
-      const raw = JSON.parse(completion.choices[0]?.message?.content || '{}');
+      const content = await activeClient.client.completeJson([
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...draft.map((turn) => ({ role: turn.role, content: turn.content })),
+        {
+          role: 'system',
+          content: 'Now respond with the JSON described above, based on the conversation above.',
+        },
+      ]);
+      const raw = JSON.parse(content || '{}');
       if (typeof raw.title === 'string' && raw.title.trim()) {
         parsed = {
           title: raw.title.trim(),
@@ -149,7 +145,6 @@ export async function POST(request: NextRequest) {
     // noticeably more likely to hit the request timeout.
     const { startDate, dueDate } = await resolveTwoDatePhrases(
       activeClient.client,
-      activeClient.model,
       parsed.start_date_phrase,
       parsed.due_date_phrase
     );

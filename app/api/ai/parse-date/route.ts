@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const resolved = await resolveDateRangePhrase(activeClient.client, activeClient.model, phrase);
+    const resolved = await resolveDateRangePhrase(activeClient.client, phrase);
 
     if (!resolved.startDate && !resolved.dueDate) {
       return NextResponse.json(

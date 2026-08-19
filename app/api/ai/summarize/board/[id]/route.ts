@@ -42,12 +42,7 @@ export async function POST(
     }
 
     const { lines, stats } = await fetchRecentActivity(supabase, [board.id]);
-    const { headline, highlights } = await summarizeActivity(
-      activeClient.client,
-      activeClient.model,
-      board.name,
-      lines
-    );
+    const { headline, highlights } = await summarizeActivity(activeClient.client, board.name, lines);
 
     return NextResponse.json({ headline, highlights, stats });
   } catch (error) {
