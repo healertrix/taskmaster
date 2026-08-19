@@ -136,46 +136,99 @@ export async function DELETE(
       }
     }
 
-    // Delete card-related data
+    // Delete card-related data. comments/card_attachments/card_members/
+    // card_labels/checklists are all scoped by card_id, not board_id (they
+    // have no board_id column at all) — .in('board_id', boardIds) against
+    // any of them is a genuine schema error, not a permissions issue (see
+    // the matching fix/comment in boards/[id]/delete/route.ts, which this
+    // mirrors). Left as .in('board_id', ...), card_members/card_labels
+    // deletes failed silently (error logged, not thrown) and those rows
+    // survived past this point. Deleting `cards` further down then cascaded
+    // into those still-present card_members rows via FK, and
+    // handle_card_member_removed() (an AFTER DELETE trigger on
+    // card_members) tries to look up the just-deleted card's board_id to
+    // log a 'member_removed' activity — finding nothing, since the card is
+    // already gone by then, which left board_id NULL and violated
+    // activities.board_id's NOT NULL constraint, aborting the whole DELETE
+    // FROM cards statement (and, from there, lists/boards too, each
+    // re-triggering the same cascade on whatever was left). Table is also
+    // `comments`, not `card_comments` — that table doesn't exist. Get this
+    // workspace's card ids first so all of these can be scoped correctly
+    // via .in('card_id', cardIds).
     if (boardIds.length > 0) {
-      // Delete card comments
-      const { error: commentsError } = await supabase
-        .from('card_comments')
-        .delete()
+      const { data: workspaceCards } = await supabase
+        .from('cards')
+        .select('id')
         .in('board_id', boardIds);
+      const cardIds = (workspaceCards || []).map((c) => c.id);
 
-      if (commentsError) {
-        console.error('Error deleting card comments:', commentsError);
-      }
+      if (cardIds.length > 0) {
+        // Delete checklist items, then checklists.
+        const { data: workspaceChecklists } = await supabase
+          .from('checklists')
+          .select('id')
+          .in('card_id', cardIds);
+        const checklistIds = (workspaceChecklists || []).map((c) => c.id);
 
-      // Delete card attachments
-      const { error: attachmentsError } = await supabase
-        .from('card_attachments')
-        .delete()
-        .in('board_id', boardIds);
+        if (checklistIds.length > 0) {
+          const { error: checklistItemsError } = await supabase
+            .from('checklist_items')
+            .delete()
+            .in('checklist_id', checklistIds);
 
-      if (attachmentsError) {
-        console.error('Error deleting card attachments:', attachmentsError);
-      }
+          if (checklistItemsError) {
+            console.error('Error deleting checklist items:', checklistItemsError);
+          }
+        }
 
-      // Delete card members
-      const { error: cardMembersError } = await supabase
-        .from('card_members')
-        .delete()
-        .in('board_id', boardIds);
+        const { error: checklistsError } = await supabase
+          .from('checklists')
+          .delete()
+          .in('card_id', cardIds);
 
-      if (cardMembersError) {
-        console.error('Error deleting card members:', cardMembersError);
-      }
+        if (checklistsError) {
+          console.error('Error deleting checklists:', checklistsError);
+        }
 
-      // Delete card labels
-      const { error: cardLabelsError } = await supabase
-        .from('card_labels')
-        .delete()
-        .in('board_id', boardIds);
+        // Delete card comments (table is `comments`, not `card_comments`)
+        const { error: commentsError } = await supabase
+          .from('comments')
+          .delete()
+          .in('card_id', cardIds);
 
-      if (cardLabelsError) {
-        console.error('Error deleting card labels:', cardLabelsError);
+        if (commentsError) {
+          console.error('Error deleting card comments:', commentsError);
+        }
+
+        // Delete card attachments
+        const { error: attachmentsError } = await supabase
+          .from('card_attachments')
+          .delete()
+          .in('card_id', cardIds);
+
+        if (attachmentsError) {
+          console.error('Error deleting card attachments:', attachmentsError);
+        }
+
+        // Delete card members
+        const { error: cardMembersError } = await supabase
+          .from('card_members')
+          .delete()
+          .in('card_id', cardIds);
+
+        if (cardMembersError) {
+          console.error('Error deleting card members:', cardMembersError);
+        }
+
+        // Delete card labels
+        const { error: cardLabelsError } = await supabase
+          .from('card_labels')
+          .delete()
+          .in('card_id', cardIds);
+
+        if (cardLabelsError) {
+          console.error('Error deleting card labels:', cardLabelsError);
+        }
       }
 
       // Delete cards
@@ -186,6 +239,7 @@ export async function DELETE(
 
       if (cardsError) {
         console.error('Error deleting cards:', cardsError);
+        throw new Error('Failed to delete cards');
       }
 
       // Delete lists
