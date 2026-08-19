@@ -259,9 +259,26 @@ export default function BoardPage({ params }: { params: { id: string } }) {
   const [deletionStats, setDeletionStats] = useState<any>(null);
   const [showDeletionDetails, setShowDeletionDetails] = useState(false);
 
-  // Card modal states
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
-  const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+  // Card modal state — derived directly from the URL's ?card= param, not
+  // its own useState, so "which card is open" can never drift out of sync
+  // with the URL (that drift was the actual bug: opening a card only ever
+  // updated local state, so a reload lost it, the back button didn't close
+  // it, and no link you shared mid-session ever pointed at what was
+  // actually open — ?card= only worked as a one-shot "open on initial
+  // load" trick, immediately stripped after use). See handleOpenCard/
+  // handleCloseCard below for how opens/closes now go through the router
+  // instead of setState.
+  const selectedCardId = searchParams?.get('card') || null;
+  const isCardModalOpen = !!selectedCardId;
+  // Whether the currently-open card got there via an in-app click
+  // (handleOpenCard pushed a new history entry, so router.back() safely
+  // lands back on the plain board) vs. was already open when this page
+  // mounted (a shared link — there's nothing in this session's history to
+  // go back to, so closing must replace the URL instead, or the back
+  // button would carry the user off the app entirely). Starts false,
+  // which is exactly correct for the shared-link case; handleOpenCard
+  // flips it true the moment a click actually pushes a new entry.
+  const openedViaPushRef = useRef(false);
   const [isUpdatingLabels, setIsUpdatingLabels] = useState(false);
 
   // Quick-edit popovers — dates/assignee editable directly from a card's
@@ -472,26 +489,24 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     }
   }, [params.id]);
 
-  // Handle opening card from URL parameter
+  // ?card= is now the actual source of truth for which card is open (see
+  // selectedCardId above), not just a one-time trigger — so there's
+  // nothing to "consume" here any more. This only guards against a stale
+  // or wrong id (a bad link, or a card that's since been deleted/moved out
+  // of this board): once the board's columns have actually loaded, if the
+  // param doesn't match any card in them, clean it out of the URL rather
+  // than leaving it dangling with no modal ever appearing for it.
   useEffect(() => {
-    const cardId = searchParams?.get('card');
-    if (cardId && columns.length > 0) {
-      // Check if the card exists in the current board
-      const cardExists = columns.some((column) =>
-        column.cards.some((card) => card.id === cardId)
-      );
+    if (!selectedCardId || columns.length === 0) return;
 
-      if (cardExists) {
-        setSelectedCardId(cardId);
-        setIsCardModalOpen(true);
+    const cardExists = columns.some((column) =>
+      column.cards.some((card) => card.id === selectedCardId)
+    );
 
-        // Remove the card parameter from URL without triggering a page reload
-        const url = new URL(window.location.href);
-        url.searchParams.delete('card');
-        window.history.replaceState({}, '', url.toString());
-      }
+    if (!cardExists) {
+      router.replace(`/board/${params.id}`);
     }
-  }, [searchParams, columns]);
+  }, [selectedCardId, columns, router, params.id]);
 
   // Close modal on Escape key
   useEffect(() => {
@@ -711,15 +726,26 @@ export default function BoardPage({ params }: { params: { id: string } }) {
     showSuccess('Card moved successfully');
   }, [showSuccess]);
 
-  // Card modal handlers
+  // Card modal handlers — both go through the router now, not setState,
+  // so ?card= (selectedCardId's source, see above) always reflects
+  // whichever card is actually open.
   const handleOpenCard = (cardId: string) => {
-    setSelectedCardId(cardId);
-    setIsCardModalOpen(true);
+    openedViaPushRef.current = true;
+    router.push(`/board/${params.id}?card=${cardId}`);
   };
 
   const handleCloseCard = () => {
-    setSelectedCardId(null);
-    setIsCardModalOpen(false);
+    if (openedViaPushRef.current) {
+      // This open pushed a history entry (see handleOpenCard) — back()
+      // lands cleanly on whatever was there before, normally the plain
+      // board URL.
+      router.back();
+    } else {
+      // Card was already open when this page mounted (a shared link) —
+      // there's no in-app history entry to return to, so replace instead
+      // of back() (which could carry the user off the app entirely).
+      router.replace(`/board/${params.id}`);
+    }
   };
 
   // Debounce utility function
