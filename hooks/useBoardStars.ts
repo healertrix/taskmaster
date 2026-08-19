@@ -46,6 +46,11 @@ export const useBoardStars = () => {
         return;
       }
 
+      // Ordered by the starred board's own last_activity_at (most recently
+      // active first) via the embedded `boards` relation — same reasoning
+      // as useWorkspaceBoardsForHome's board query: an unordered `.eq()`
+      // fetch has no guaranteed row order in Postgres, which is what made
+      // this section's boards visibly reshuffle on every reload.
       const { data, error } = await supabase
         .from('board_stars')
         .select(
@@ -61,7 +66,8 @@ export const useBoardStars = () => {
           )
         `
         )
-        .eq('profile_id', user.id);
+        .eq('profile_id', user.id)
+        .order('last_activity_at', { referencedTable: 'boards', ascending: false, nullsFirst: false });
 
       if (error) {
         console.error('Error fetching starred boards:', error);

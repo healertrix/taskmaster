@@ -16,6 +16,7 @@ import {
   LayoutGrid,
   ChevronRight,
   Loader2,
+  X,
 } from 'lucide-react';
 import { CreateWorkspaceModal } from './components/workspace/CreateWorkspaceModal';
 import {
@@ -54,6 +55,13 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const createBoardModalRef = useRef<CreateBoardModalRef>(null);
+  // Sidebar's own inline workspace filter — separate from the header's
+  // global search. Toggled by the search icon next to "Workspaces"; while
+  // it has text, the sidebar shows every matching workspace (ignoring
+  // SIDEBAR_WORKSPACE_LIMIT) instead of just the capped top slice, since
+  // finding a workspace that got pushed out of the cap is the whole point.
+  const [isSidebarSearchOpen, setIsSidebarSearchOpen] = useState(false);
+  const [sidebarWorkspaceQuery, setSidebarWorkspaceQuery] = useState('');
   // Read AuthContext's already-verified user instead of this page doing its
   // own separate getUser() call — see the comment on the same pattern in
   // RouteGuard.tsx. Each independent getUser() call is a chance to race
@@ -83,7 +91,12 @@ export default function HomePage() {
 
       if (currentUser) {
         setUser(currentUser); // Store user in state
-        // Fetch workspaces where user is a member (owner or regular member)
+        // Fetch workspaces where user is a member (owner or regular member).
+        // Ordered by created_at as a stable baseline — the actual display
+        // order (most-recently-active workspace first) is computed below in
+        // sortedWorkspaces, which needs each workspace's boards loaded
+        // first; this .order() just means an unordered `.in()` never falls
+        // back to Postgres's unspecified row order while that happens.
         const { data: workspaceData, error: workspaceError } = await supabase
           .from('workspace_members')
           .select(
@@ -95,11 +108,13 @@ export default function HomePage() {
               name,
               color,
               owner_id,
+              created_at,
               workspace_number:number
             )
           `
           )
-          .eq('profile_id', currentUser.id);
+          .eq('profile_id', currentUser.id)
+          .order('created_at', { referencedTable: 'workspaces', ascending: false });
 
         if (workspaceError) {
           console.error('Error fetching workspaces:', workspaceError);
@@ -115,8 +130,9 @@ export default function HomePage() {
           const { data: directWorkspaceData, error: directWorkspaceError } =
             await supabase
               .from('workspaces')
-              .select('id, name, color, owner_id, visibility, number')
-              .in('id', workspaceIds);
+              .select('id, name, color, owner_id, visibility, number, created_at')
+              .in('id', workspaceIds)
+              .order('created_at', { ascending: false });
 
           if (directWorkspaceError) {
             console.error(
@@ -137,6 +153,7 @@ export default function HomePage() {
               initial: wm.workspaces.name.charAt(0).toUpperCase(),
               color: wm.workspaces.color,
               number: wm.workspaces.workspace_number,
+              created_at: wm.workspaces.created_at,
               role: wm.role || 'member',
               boards: [],
               members: [],
@@ -162,6 +179,7 @@ export default function HomePage() {
                 initial: workspace.name.charAt(0).toUpperCase(),
                 color: workspace.color,
                 number: workspace.number,
+                created_at: workspace.created_at,
                 owner_id: workspace.owner_id, // Include owner_id for ownership checks
                 role,
                 boards: [],
@@ -324,6 +342,37 @@ export default function HomePage() {
     setExpandedWorkspaces((prev) => (prev[id] ? {} : { [id]: true }));
   }, []);
 
+  // Single source of truth for workspace order, used by both the sidebar
+  // list and the main content's Workspaces sections — most-recently-active
+  // first, so the two never disagree about ordering. "Active" means the
+  // newest last_activity_at among a workspace's own boards (workspaces
+  // don't track activity themselves); a workspace with no boards yet falls
+  // back to its own created_at so brand-new empty workspaces still sort
+  // sensibly instead of landing at the bottom via a missing/undefined key.
+  const sortedWorkspaces = useMemo(() => {
+    const recencyOf = (workspace: any) => {
+      const boardTimestamps = (workspaceBoards[workspace.id] || [])
+        .map((b) => b.last_activity_at)
+        .filter(Boolean) as string[];
+      const mostRecentBoardActivity = boardTimestamps.sort().at(-1);
+      return mostRecentBoardActivity || workspace.created_at || '';
+    };
+
+    return [...userWorkspaces].sort(
+      (a, b) => new Date(recencyOf(b)).getTime() - new Date(recencyOf(a)).getTime()
+    );
+  }, [userWorkspaces, workspaceBoards]);
+
+  const SIDEBAR_WORKSPACE_LIMIT = 6;
+
+  const sidebarWorkspaces = useMemo(() => {
+    const query = sidebarWorkspaceQuery.trim().toLowerCase();
+    if (!query) return sortedWorkspaces.slice(0, SIDEBAR_WORKSPACE_LIMIT);
+    // While searching, show every match regardless of the cap — the filter
+    // exists specifically to reach workspaces the cap pushed out of view.
+    return sortedWorkspaces.filter((w) => w.name.toLowerCase().includes(query));
+  }, [sortedWorkspaces, sidebarWorkspaceQuery]);
+
   const handleCreateWorkspaceClick = useCallback(() => {
     setIsCreateWorkspaceModalOpen(true);
   }, []);
@@ -348,6 +397,8 @@ export default function HomePage() {
           name: data.name,
           initial: data.name.charAt(0).toUpperCase(),
           color: data.color,
+          number: data.number,
+          created_at: data.created_at,
           owner_id: data.owner_id, // Include owner_id for ownership detection
           role: 'owner', // Set role as owner since user created the workspace
           boards: [],
@@ -448,11 +499,55 @@ export default function HomePage() {
           <div className='w-64 flex-shrink-0 hidden md:block'>
             <div className='glass-dark rounded-xl p-4 sticky top-24'>
               <div className='mt-4'>
-                <h3 className='px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider'>
-                  Workspaces
-                </h3>
+                <div className='flex items-center justify-between px-3'>
+                  <h3 className='text-xs font-semibold text-muted-foreground uppercase tracking-wider'>
+                    Workspaces
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setIsSidebarSearchOpen((prev) => !prev);
+                      setSidebarWorkspaceQuery('');
+                    }}
+                    aria-label={isSidebarSearchOpen ? 'Close workspace search' : 'Search workspaces'}
+                    aria-pressed={isSidebarSearchOpen}
+                    title='Search workspaces'
+                    className={`p-1 -m-1 rounded-md transition-colors ${
+                      isSidebarSearchOpen
+                        ? 'text-primary'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {isSidebarSearchOpen ? (
+                      <X className='w-3.5 h-3.5' />
+                    ) : (
+                      <Search className='w-3.5 h-3.5' />
+                    )}
+                  </button>
+                </div>
+
+                {isSidebarSearchOpen && (
+                  <div className='px-3 mt-2'>
+                    <input
+                      autoFocus
+                      type='text'
+                      value={sidebarWorkspaceQuery}
+                      onChange={(e) => setSidebarWorkspaceQuery(e.target.value)}
+                      placeholder='Find a workspace...'
+                      className='w-full text-xs bg-background/60 border border-border rounded-md px-2.5 py-1.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/30'
+                    />
+                  </div>
+                )}
+
                 <div className='mt-3 space-y-1.5'>
-                  {userWorkspaces.map((workspace, workspaceIndex) => (
+                  {isSidebarSearchOpen &&
+                    sidebarWorkspaceQuery.trim() &&
+                    sidebarWorkspaces.length === 0 && (
+                      <p className='px-3 py-2 text-xs text-muted-foreground'>
+                        No workspaces match "{sidebarWorkspaceQuery.trim()}".
+                      </p>
+                    )}
+
+                  {sidebarWorkspaces.map((workspace, workspaceIndex) => (
                     <div key={workspace.id} className='space-y-1'>
                       <button
                         className='nav-item flex items-center justify-between w-full text-sm'
@@ -506,6 +601,16 @@ export default function HomePage() {
                       )}
                     </div>
                   ))}
+
+                  {!isSidebarSearchOpen && sortedWorkspaces.length > SIDEBAR_WORKSPACE_LIMIT && (
+                    <Link
+                      href='/workspaces'
+                      className='nav-item flex items-center gap-2.5 w-full text-xs text-muted-foreground hover:text-primary'
+                    >
+                      <ChevronRight className='w-3.5 h-3.5' />
+                      View all workspaces
+                    </Link>
+                  )}
 
                   <button
                     className='btn btn-ghost flex items-center gap-2 w-full text-sm justify-start px-3 mt-3'
@@ -629,7 +734,7 @@ export default function HomePage() {
 
             {/* Workspaces Section */}
             {(() => {
-              return userWorkspaces.map((workspace, workspaceIndex) => (
+              return sortedWorkspaces.map((workspace, workspaceIndex) => (
                 <section
                   key={workspace.id}
                   id={`workspace-${workspace.id}`}
@@ -686,20 +791,14 @@ export default function HomePage() {
 
                   <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
                     {(() => {
+                      // Already ordered most-recently-active first by the
+                      // fetch itself (see useWorkspaceBoardsForHome's
+                      // .order('last_activity_at', ...)) — only truncation
+                      // is left to do here.
                       const allBoards =
                         workspaceBoards[workspace.id] || workspace.boards;
-                      // If more than 6 boards, sort by latest activity and
-                      // take first 5. Otherwise, show all boards.
                       const boardsToShow =
-                        allBoards.length > 6
-                          ? [...allBoards]
-                              .sort(
-                                (a, b) =>
-                                  new Date(b.last_activity_at || '').getTime() -
-                                  new Date(a.last_activity_at || '').getTime()
-                              )
-                              .slice(0, 5)
-                          : allBoards;
+                        allBoards.length > 6 ? allBoards.slice(0, 5) : allBoards;
 
                       return boardsToShow.map((board) => {
                         // Always ensure we have starred status - prefer workspaceBoards data

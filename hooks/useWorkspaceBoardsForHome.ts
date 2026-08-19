@@ -38,11 +38,17 @@ export const useWorkspaceBoardsForHome = () => {
           return;
         }
 
-        // Fetch boards for all workspaces
+        // Fetch boards for all workspaces — ordered by last_activity_at so
+        // "most recently active first" is deterministic straight out of the
+        // query instead of relying on Postgres's unspecified default order
+        // for an unordered `.in()` (which can differ between requests even
+        // with identical data, and was the root cause of boards/workspaces
+        // visibly reshuffling on every page load).
         const { data: boardsData, error: boardsError } = await supabase
           .from('boards')
           .select('id, name, number, color, workspace_id, last_activity_at')
-          .in('workspace_id', workspaceIds);
+          .in('workspace_id', workspaceIds)
+          .order('last_activity_at', { ascending: false, nullsFirst: false });
 
         if (boardsError) {
           console.error('Error fetching workspace boards:', boardsError);
