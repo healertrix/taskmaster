@@ -275,3 +275,82 @@ export const CompactListSkeleton = ({
     </div>
   </div>
 );
+
+// Homepage My tasks/Team tasks widget — matches HomeOverview's actual row
+// shape (title | board+workspace | [assignees |] due date) instead of a
+// generic spinner, so the loading state doesn't look like a completely
+// different, older component from the one it's about to become. The
+// assignees column only exists on Team tasks (see MY_TASK_ROW_GRID_COLS/
+// TEAM_TASK_ROW_GRID_COLS in HomeOverview.tsx — My tasks is implicitly
+// always you, so that column is skipped there, not shown empty).
+export const TaskRowSkeleton = ({
+  delay = 0,
+  showAssignees = true,
+}: {
+  delay?: number;
+  showAssignees?: boolean;
+}) => (
+  <div
+    className={`animate-pulse flex flex-col sm:grid ${
+      showAssignees ? 'sm:grid-cols-[1fr_9rem_4.5rem_3.75rem]' : 'sm:grid-cols-[1fr_9rem_3.75rem]'
+    } sm:items-center gap-1 sm:gap-3 px-2 py-2`}
+    style={{ animationDelay: `${delay}ms` }}
+  >
+    <div className='flex items-center gap-2'>
+      <div className='w-1.5 h-1.5 rounded-full bg-muted/50 flex-shrink-0' />
+      <div className='h-3.5 bg-muted/50 rounded w-2/3' />
+    </div>
+    <div className='hidden sm:block space-y-1'>
+      <div className='h-2.5 bg-muted/50 rounded w-3/4' />
+      <div className='h-2 bg-muted/40 rounded w-1/2' />
+    </div>
+    {showAssignees && (
+      <div className='hidden sm:flex sm:justify-center -space-x-1.5'>
+        <div className='w-5 h-5 rounded-full bg-muted/50 ring-2 ring-card' />
+        <div className='w-5 h-5 rounded-full bg-muted/50 ring-2 ring-card' />
+      </div>
+    )}
+    <div className='hidden sm:block h-2.5 bg-muted/50 rounded w-10 justify-self-end' />
+  </div>
+);
+
+export const TaskRowListSkeleton = ({
+  count = 4,
+  showAssignees = true,
+}: {
+  count?: number;
+  showAssignees?: boolean;
+}) => (
+  <div className='space-y-0.5'>
+    {Array.from({ length: count }).map((_, index) => (
+      <TaskRowSkeleton key={index} delay={index * 60} showAssignees={showAssignees} />
+    ))}
+  </div>
+);
+
+// /profile/tasks' bigger padded-card row shape.
+export const TaskCardRowSkeleton = ({ delay = 0 }: { delay?: number }) => (
+  <div
+    className='animate-pulse flex items-center gap-4 p-4 bg-card/50 border border-border/50 rounded-2xl'
+    style={{ animationDelay: `${delay}ms` }}
+  >
+    <div className='w-2.5 h-2.5 rounded-full bg-muted/50 flex-shrink-0' />
+    <div className='flex-1 min-w-0 space-y-2'>
+      <div className='h-4 bg-muted/50 rounded w-2/3' />
+      <div className='h-3 bg-muted/40 rounded w-1/3' />
+    </div>
+    <div className='flex -space-x-1.5 flex-shrink-0'>
+      <div className='w-6 h-6 rounded-full bg-muted/50 ring-2 ring-card' />
+      <div className='w-6 h-6 rounded-full bg-muted/50 ring-2 ring-card' />
+    </div>
+    <div className='h-5 w-14 bg-muted/50 rounded-full flex-shrink-0' />
+  </div>
+);
+
+export const TaskCardRowListSkeleton = ({ count = 6 }: { count?: number }) => (
+  <div className='space-y-2.5'>
+    {Array.from({ length: count }).map((_, index) => (
+      <TaskCardRowSkeleton key={index} delay={index * 50} />
+    ))}
+  </div>
+);
